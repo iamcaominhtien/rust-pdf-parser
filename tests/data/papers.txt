@@ -1,0 +1,12 @@
+# Real papers used by tests/real_papers.rs. One per line: <arXiv id with version> <sha256>.
+# Versions are pinned so that a new upload by the authors cannot change the expected results.
+# Only papers whose licence allows redistribution are committed (see README.md here); the
+# others are downloaded once with scripts/fetch-test-pdfs.sh and kept out of git.
+1706.03762v7 bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697
+1512.03385v1 1e0651b6810ecba34a3dbc5b5b0209226f889004607c1f203540a48d64e5a93a
+1810.04805v2 5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e
+2010.11929v2 8ce7b83971a14508ca711a27c875c9b6914c4f6767cf3150fb1ca6c07aa056d6
+1602.03837v1 e5e864c23d015b69be17e5b5d51b5b462d2829353a867513414b6728f54589c4
+1506.01497v3 f2630182ccfabd6fc89ac20270b4daf15a0ca849298a7db1e5d124ca443051f1
+2303.08774v6 c33a66dadca2388d7b172d6293b00dc32b71110c6f38fafe0d41112e61be7774
+1412.6980v9 eab9c73ae2ceda884b94830bda99312254bac4806f6c9f045cbab90721ecda31

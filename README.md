@@ -241,13 +241,44 @@ PDF ──► trích xuất ──► dòng chữ ──► hình/bảng ──�
 
 ## Kiểm thử
 
+Tải trước các bài báo dùng để test (chỉ cần một lần), rồi chạy test:
+
+```bash
+scripts/fetch-test-pdfs.sh
+```
+
 ```bash
 cargo test
 ```
 
-Bộ test gồm test đơn vị (bỏ gạch nối, liên kết chéo, nhận diện font, mã arXiv) và test đầu–cuối
-trên một PDF nhỏ được sinh ngay trong test (cấu trúc tài liệu, dựng bảng, bốn chế độ, và kiểm tra
-rằng nền trang của `hard-95` không còn vẽ ký tự nào).
+Có ba lớp test:
+
+- **Test đơn vị:** bỏ gạch nối, liên kết chéo, nhận diện font, mã arXiv, chia việc song song.
+- **Test đầu–cuối trên PDF nhỏ** sinh ngay trong test: cấu trúc tài liệu, dựng bảng, bốn chế độ,
+  nền trang `hard-95` không còn ký tự, kết quả không đổi theo số luồng, ảnh nền tải lười.
+- **Test trên 8 bài arXiv thật** (`tests/real_papers.rs`), ghim phiên bản trong
+  `tests/data/papers.txt`. Với mỗi bài: tiêu đề, số bảng dựng được, số đoạn bị đứt giữa câu, số từ
+  còn gạch nối, số ký tự còn sót trong nền trang `hard-95`, và cả bốn chế độ xuất được. Thêm vài
+  kiểm tra cụ thể (cột EN-DE/EN-FR của bảng Transformer, dòng tiêu đề các bảng BERT ở đầu trang).
+  Mốc là kết quả hiện tại: tốt hơn thì qua, tệ hơn thì đỏ. Khi cải thiện được, siết mốc lại
+  (`P2H_PRINT_METRICS=1 cargo test --test real_papers -- --nocapture` in ra số đo).
+
+Test không bao giờ tự tải gì. Chỉ bài LIGO (CC BY 4.0) nằm trong repo; các bài khác không được
+phép phân phối lại nên phải tải bằng script trên. Bài nào chưa tải thì test bỏ qua và in ra danh
+sách còn thiếu.
+
+Phần JavaScript của `hard-95` (căn dòng, dàn lại chữ khi dịch) được kiểm tra trong trình duyệt:
+
+```bash
+node tests/browser/check-hard95.js out/*.hard-95.html
+```
+
+Cần gói `playwright` hoặc `playwright-core`. CI (`.github/workflows/ci.yml`) chạy `cargo fmt`,
+`cargo clippy`, toàn bộ test và kiểm tra trình duyệt trên mỗi pull request. Các bài báo được giữ
+trong bộ nhớ đệm riêng của repo trên GitHub, nên chỉ lần đầu phải tải.
+
+`cargo run --example dump_tables -- paper.pdf` in các bảng dựng được của một PDF, tiện để soi lỗi
+dựng bảng.
 
 ## Giấy phép
 

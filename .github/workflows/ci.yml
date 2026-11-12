@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch or PR cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  # No debug info: smaller cache, faster linking.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: lint
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    name: tests (real papers + browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test
+
+      # The arXiv papers used by the tests. They are downloaded once, then
+      # restored from the repository's private cache (they are not committed
+      # because their licences do not allow redistribution).
+      - name: Restore test papers
+        id: papers
+        uses: actions/cache@v4
+        with:
+          path: tests/data/*.pdf
+          key: test-papers-${{ hashFiles('tests/data/papers.txt') }}
+      - name: Download test papers
+        if: steps.papers.outputs.cache-hit != 'true'
+        run: scripts/fetch-test-pdfs.sh
+
+      - name: cargo test
+        run: cargo test
+        env:
+          P2H_REQUIRE_ALL_PAPERS: "1"
+
+      # hard-95 behaviour that only a browser can check (line fitting,
+      # reflow after translation), with the Chrome preinstalled on the runner.
+      - name: Browser checks
+        run: |
+          npm install --no-save --no-package-lock playwright-core@1.63.0
+          mkdir -p out
+          for p in 1706.03762v7 1512.03385v1 1602.03837v1; do
+            target/debug/paper2html convert "tests/data/$p.pdf" -m hard-95 -o "out/$p.hard-95.html"
+          done
+          node tests/browser/check-hard95.js out/*.hard-95.html
+        env:
+          P2H_CHROME_CHANNEL: chrome

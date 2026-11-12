@@ -1,3 +1,5 @@
 /target
 /out
 *.pdf
+!/tests/data/1602.03837v1.pdf
+/node_modules

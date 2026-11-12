@@ -12,6 +12,7 @@ pub mod geom;
 pub mod html;
 pub mod layout;
 pub mod model;
+pub mod par;
 pub mod pdf;
 
 pub use convert::{Paper, convert};

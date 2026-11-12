@@ -39,7 +39,7 @@ fn kind_name(kind: &BlockKind) -> &'static str {
     }
 }
 
-pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_, '_>) -> String {
+pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
     let doc = &analysis.doc;
     let title = doc_title(doc);
     let mut pages = String::new();
@@ -94,10 +94,11 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_, '_>) -> St
                 layer.push_str(&format!("<div class=\"b\" data-kind=\"page-furniture\">{spans}</div>\n"));
             }
         }
-        let bg = images
-            .page(pi)
-            .map(|src| format!("<img class=\"bg\" src=\"{src}\" alt=\"Page {}\" width=\"{pw}\" height=\"{ph}\">", pi + 1))
-            .unwrap_or_default();
+        let bg = format!(
+            "<img class=\"bg\" src=\"{}\" alt=\"Page {}\" width=\"{pw}\" height=\"{ph}\">",
+            images.page(pi),
+            pi + 1
+        );
         pages.push_str(&format!(
             "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{pw};--ph:{ph}\">\n{bg}\n<div class=\"tl\">\n{layer}</div>\n</section>\n",
             n = pi + 1,

@@ -9,7 +9,9 @@ use crate::document::Analysis;
 use crate::model::*;
 use crate::pdf::PageRenderer;
 use base64::Engine;
+use hayro_syntax::Pdf;
 use regex::Regex;
+use std::collections::HashSet;
 use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +57,8 @@ pub struct HtmlOptions {
     pub scale: f32,
     /// Background of the pages in hard mode.
     pub page_image: PageImage,
+    /// Worker threads for drawing pages and images (0 = one per CPU).
+    pub jobs: usize,
 }
 
 impl Default for HtmlOptions {
@@ -65,6 +69,7 @@ impl Default for HtmlOptions {
             asset_dir: "assets".into(),
             scale: 3.0,
             page_image: PageImage::Svg,
+            jobs: 0,
         }
     }
 }
@@ -75,12 +80,10 @@ pub struct HtmlOutput {
     pub files: Vec<(String, Vec<u8>)>,
 }
 
-pub fn render(analysis: &Analysis, renderer: &PageRenderer<'_>, opts: &HtmlOptions) -> HtmlOutput {
+pub fn render(analysis: &Analysis, pdf: &Pdf, opts: &HtmlOptions) -> HtmlOutput {
     let mut images = ImageStore {
-        renderer,
         opts,
-        files: Vec::new(),
-        counter: 0,
+        jobs: Vec::new(),
     };
     let html = match opts.mode {
         Mode::Friendly => friendly::render(&analysis.doc, &mut images),
@@ -88,54 +91,109 @@ pub fn render(analysis: &Analysis, renderer: &PageRenderer<'_>, opts: &HtmlOptio
         Mode::Hard => hard::render(analysis, &mut images),
         Mode::Hard95 => hard95::render(analysis, &mut images),
     };
-    HtmlOutput { html, files: images.files }
+    images.finish(pdf, html)
 }
 
-pub(crate) struct ImageStore<'r, 'a> {
-    renderer: &'r PageRenderer<'a>,
+/// A picture the HTML needs: a page region, or a whole page.
+enum ImageJob {
+    Region(ImageSpec, String),
+    Page(usize),
+    /// A page without the glyphs whose origins (in quarter points) are in
+    /// the set: their text is drawn as HTML.
+    PageWithoutText(usize, HashSet<(i32, i32)>),
+}
+
+/// Collects the pictures the HTML needs. While the HTML is written, each
+/// picture is only recorded and a placeholder takes the place of its
+/// `src`; [`ImageStore::finish`] then draws all pictures on several threads
+/// and puts their data (or file names) in place.
+pub(crate) struct ImageStore<'r> {
     opts: &'r HtmlOptions,
-    files: Vec<(String, Vec<u8>)>,
-    counter: usize,
+    jobs: Vec<ImageJob>,
 }
 
-impl ImageStore<'_, '_> {
-    fn emit(&mut self, data: Vec<u8>, mime: &str, ext: &str, hint: &str) -> String {
-        if self.opts.inline_images {
-            format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(&data))
-        } else {
-            self.counter += 1;
-            let name = format!("{}/{:03}-{}.{}", self.opts.asset_dir, self.counter, hint, ext);
-            self.files.push((name.clone(), data));
-            name
-        }
+/// Marks a placeholder; a control character never written to the HTML.
+const MARK: char = '\u{1}';
+
+impl ImageStore<'_> {
+    fn add(&mut self, job: ImageJob) -> String {
+        self.jobs.push(job);
+        format!("{MARK}{}{MARK}", self.jobs.len() - 1)
     }
 
     /// Renders a page region and returns the `src` of the image.
-    pub fn region(&mut self, spec: &ImageSpec, hint: &str) -> Option<String> {
-        let (png, _, _) = self
-            .renderer
-            .region_png(spec.page, spec.rect, self.opts.scale, spec.transparent)?;
-        Some(self.emit(png, "image/png", "png", hint))
+    pub fn region(&mut self, spec: &ImageSpec, hint: &str) -> String {
+        self.add(ImageJob::Region(*spec, hint.to_string()))
     }
 
-    /// Renders a page as SVG without the glyphs selected by `remove`.
-    pub fn page_without_text(&mut self, page: usize, remove: &dyn Fn(f32, f32) -> bool) -> Option<String> {
-        let svg = self.renderer.page_svg_without_text(page, remove)?;
-        Some(self.emit(svg.into_bytes(), "image/svg+xml", "svg", &format!("page-{}", page + 1)))
+    /// The `src` of a picture of a page without the glyphs whose origins,
+    /// rounded to a quarter point, are in `drawn` (or next to one of them).
+    pub fn page_without_text(&mut self, page: usize, drawn: HashSet<(i32, i32)>) -> String {
+        self.add(ImageJob::PageWithoutText(page, drawn))
     }
 
-    /// Renders a whole page (hard mode background).
-    pub fn page(&mut self, page: usize) -> Option<String> {
-        match self.opts.page_image {
-            PageImage::Svg => {
-                let svg = self.renderer.page_svg(page)?;
-                Some(self.emit(svg.into_bytes(), "image/svg+xml", "svg", &format!("page-{}", page + 1)))
+    /// The `src` of a picture of a whole page (hard mode background).
+    pub fn page(&mut self, page: usize) -> String {
+        self.add(ImageJob::Page(page))
+    }
+
+    /// Draws one picture: (data, mime type, file extension, name hint).
+    fn draw(&self, r: &PageRenderer<'_>, job: &ImageJob) -> Option<(Vec<u8>, &'static str, &'static str, String)> {
+        let page_hint = |p: usize| format!("page-{}", p + 1);
+        match job {
+            ImageJob::Region(spec, hint) => {
+                let (png, _, _) = r.region_png(spec.page, spec.rect, self.opts.scale, spec.transparent)?;
+                Some((png, "image/png", "png", hint.clone()))
             }
-            PageImage::Png => {
-                let (png, _, _) = self.renderer.page_png(page, self.opts.scale.min(2.5))?;
-                Some(self.emit(png, "image/png", "png", &format!("page-{}", page + 1)))
+            ImageJob::Page(p) => match self.opts.page_image {
+                PageImage::Svg => Some((r.page_svg(*p)?.into_bytes(), "image/svg+xml", "svg", page_hint(*p))),
+                PageImage::Png => {
+                    let (png, _, _) = r.page_png(*p, self.opts.scale.min(2.5))?;
+                    Some((png, "image/png", "png", page_hint(*p)))
+                }
+            },
+            ImageJob::PageWithoutText(p, drawn) => {
+                let remove = |x: f32, y: f32| {
+                    let (qx, qy) = ((x * 4.0).round() as i32, (y * 4.0).round() as i32);
+                    (-1..=1).any(|dx| (-1..=1).any(|dy| drawn.contains(&(qx + dx, qy + dy))))
+                };
+                let svg = r.page_svg_without_text(*p, &remove)?;
+                Some((svg.into_bytes(), "image/svg+xml", "svg", page_hint(*p)))
             }
         }
+    }
+
+    /// Draws all recorded pictures and replaces the placeholders in `html`.
+    fn finish(self, pdf: &Pdf, html: String) -> HtmlOutput {
+        let drawn = crate::par::map(self.jobs.len(), self.opts.jobs, || PageRenderer::new(pdf), |r, i| {
+            self.draw(r, &self.jobs[i])
+        });
+        let mut drawn: Vec<_> = drawn.into_iter().map(Some).collect();
+        let mut files = Vec::new();
+        let mut out = String::with_capacity(html.len());
+        let mut rest = html.as_str();
+        while let Some(start) = rest.find(MARK) {
+            out.push_str(&rest[..start]);
+            let after = &rest[start + MARK.len_utf8()..];
+            let end = after.find(MARK).expect("placeholders are closed");
+            let index: usize = after[..end].parse().expect("placeholder index");
+            // A picture that cannot be drawn leaves an empty `src`.
+            if let Some((data, mime, ext, hint)) = drawn[index].take().flatten() {
+                if self.opts.inline_images {
+                    out.push_str("data:");
+                    out.push_str(mime);
+                    out.push_str(";base64,");
+                    base64::engine::general_purpose::STANDARD.encode_string(&data, &mut out);
+                } else {
+                    let name = format!("{}/{:03}-{}.{}", self.opts.asset_dir, files.len() + 1, hint, ext);
+                    out.push_str(&name);
+                    files.push((name, data));
+                }
+            }
+            rest = &after[end + MARK.len_utf8()..];
+        }
+        out.push_str(rest);
+        HtmlOutput { html: out, files }
     }
 }
 
@@ -277,7 +335,7 @@ fn heading_tag(level: u8) -> &'static str {
 
 /// Renders a sequence of blocks as flowing HTML, grouping list items,
 /// references and abstract paragraphs.
-pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_, '_>, ctx: &FlowCtx) -> String {
+pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &FlowCtx) -> String {
     #[derive(PartialEq, Clone, Copy)]
     enum Group {
         None,
@@ -346,13 +404,11 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_, '_>, ct
             }
             BlockKind::Equation { image, number } => {
                 let alt = esc(&plain(&b.spans));
-                let img = match images.region(image, "eq") {
-                    Some(src) => format!(
-                        "<img src=\"{src}\" alt=\"{alt}\" style=\"{}\" loading=\"lazy\">",
-                        ctx.unit.css(image.rect.width())
-                    ),
-                    None => format!("<span class=\"eq-text\">{alt}</span>"),
-                };
+                let img = format!(
+                    "<img src=\"{}\" alt=\"{alt}\" style=\"{}\" loading=\"lazy\">",
+                    images.region(image, "eq"),
+                    ctx.unit.css(image.rect.width())
+                );
                 let num = number.as_ref().map(|n| format!("<span class=\"eqno\">{}</span>", esc(n))).unwrap_or_default();
                 out.push_str(&format!(
                     "<div class=\"eq\"{id}><span class=\"eq-body\">{img}</span>{num}</div>\n"
@@ -364,7 +420,7 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_, '_>, ct
                 let img = image
                     .as_ref()
                     .filter(|_| b.table.is_none())
-                    .and_then(|spec| images.region(spec, cls).map(|src| (src, spec)))
+                    .map(|spec| (images.region(spec, cls), spec))
                     .map(|(src, spec)| {
                         format!(
                             "<img src=\"{src}\" alt=\"{alt}\" style=\"{}\" loading=\"lazy\">",

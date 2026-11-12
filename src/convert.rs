@@ -3,8 +3,11 @@
 use crate::document::{Analysis, AnalyzeOptions, analyze};
 use crate::html::{HtmlOptions, HtmlOutput, render};
 use crate::model::Meta;
-use crate::pdf::extract::extract_page;
+use crate::par;
+use crate::pdf::extract::{RawPage, extract_page};
+use crate::pdf::fonts::FontInfo;
 use crate::pdf::{FontRegistry, PageRenderer};
+use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use hayro_interpret::{InterpreterCache, InterpreterSettings};
 use hayro_syntax::Pdf;
@@ -40,21 +43,61 @@ impl Paper {
     }
 
     pub fn analyze_with(&self, opts: AnalyzeOptions) -> Analysis {
-        let cache = InterpreterCache::new();
-        let settings = InterpreterSettings::default();
-        let mut fonts = FontRegistry::new();
-        let raw: Vec<_> = self
-            .pdf
-            .pages()
-            .iter()
-            .enumerate()
-            .map(|(i, p)| extract_page(p, i, &mut fonts, &cache, &settings))
-            .collect();
+        let (raw, fonts) = self.extract(opts.jobs);
         let meta = Meta {
             source: self.source.clone(),
             ..Default::default()
         };
-        analyze(raw, &fonts.infos, meta, opts)
+        analyze(raw, &fonts, meta, opts)
+    }
+
+    /// Interprets every page, on up to `jobs` threads (0 = one per CPU).
+    ///
+    /// Each worker has its own font registry, so font indices are local to
+    /// a worker; they are mapped to one document-wide table here, by font
+    /// name and in page order (the same numbering a single pass gives).
+    fn extract(&self, jobs: usize) -> (Vec<RawPage>, Vec<FontInfo>) {
+        let pages = self.pdf.pages();
+        let extracted = par::map(
+            pages.len(),
+            jobs,
+            || (FontRegistry::new(), InterpreterCache::new(), InterpreterSettings::default()),
+            |(fonts, cache, settings), i| {
+                let page = extract_page(&pages[i], i, fonts, cache, settings);
+                // The fonts this page refers to, by local index.
+                let mut used: Vec<(u16, FontInfo)> = Vec::new();
+                for g in &page.glyphs {
+                    if !used.iter().any(|(f, _)| *f == g.font) {
+                        used.push((g.font, fonts.infos[g.font as usize].clone()));
+                    }
+                }
+                (page, used)
+            },
+        );
+
+        let mut infos = FontRegistry::new().infos; // starts with the "unknown" font
+        let mut by_name: HashMap<String, u16> = HashMap::new();
+        let mut raw = Vec::with_capacity(extracted.len());
+        for (mut page, used) in extracted {
+            let map: HashMap<u16, u16> = used
+                .into_iter()
+                .map(|(local, info)| {
+                    if local == crate::pdf::fonts::UNKNOWN_FONT {
+                        return (local, local);
+                    }
+                    let global = *by_name.entry(info.name.clone()).or_insert_with(|| {
+                        infos.push(info);
+                        (infos.len() - 1) as u16
+                    });
+                    (local, global)
+                })
+                .collect();
+            for g in &mut page.glyphs {
+                g.font = map[&g.font];
+            }
+            raw.push(page);
+        }
+        (raw, infos)
     }
 
     pub fn renderer(&self) -> PageRenderer<'_> {
@@ -63,8 +106,7 @@ impl Paper {
 
     /// Renders an analysis to HTML in the requested mode.
     pub fn to_html(&self, analysis: &Analysis, opts: &HtmlOptions) -> HtmlOutput {
-        let renderer = self.renderer();
-        render(analysis, &renderer, opts)
+        render(analysis, &self.pdf, opts)
     }
 }
 

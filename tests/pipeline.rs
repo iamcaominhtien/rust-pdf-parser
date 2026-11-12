@@ -173,7 +173,7 @@ fn rebuilds_tables() {
     }
 
     // Tables can be left alone.
-    let plain = paper.analyze_with(AnalyzeOptions { tables: false });
+    let plain = paper.analyze_with(AnalyzeOptions { tables: false, ..Default::default() });
     assert!(plain.doc.blocks.iter().all(|b| b.table.is_none()));
     let out = paper.to_html(&plain, &HtmlOptions { mode: Mode::Friendly, ..Default::default() });
     assert!(out.html.contains("data:image/png"));
@@ -213,4 +213,22 @@ fn hard95_is_all_text() {
     let end = start + hard.html[start..].find('"').unwrap();
     let svg = base64::engine::general_purpose::STANDARD.decode(&hard.html[start..end]).unwrap();
     assert!(String::from_utf8(svg).unwrap().contains("<use "));
+}
+
+#[test]
+fn threads_do_not_change_output() {
+    let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
+    let render = |jobs: usize| {
+        let analysis = paper.analyze_with(AnalyzeOptions { jobs, ..Default::default() });
+        let json = serde_json::to_string(&analysis.doc).unwrap();
+        let html: Vec<String> = [Mode::Hard, Mode::Hard95, Mode::Medium, Mode::Friendly]
+            .into_iter()
+            .map(|mode| paper.to_html(&analysis, &HtmlOptions { mode, jobs, ..Default::default() }).html)
+            .collect();
+        (json, html)
+    };
+    let one = render(1);
+    assert_eq!(one, render(4));
+    // No placeholder is left behind.
+    assert!(one.1.iter().all(|h| !h.contains('\u{1}')));
 }

@@ -106,6 +106,9 @@ struct ConvertArgs {
     /// Also write the structured document as JSON (for translation tools)
     #[arg(long)]
     json: bool,
+    /// Number of worker threads: 0 = one per CPU core, 1 = no parallelism
+    #[arg(short, long, default_value_t = 0, value_name = "N")]
+    jobs: usize,
 }
 
 fn load(input: &str) -> Result<(Paper, String)> {
@@ -140,10 +143,14 @@ fn convert(args: ConvertArgs) -> Result<()> {
     }
     let (paper, stem) = load(&args.input)?;
     let t = Instant::now();
-    let analysis = paper.analyze_with(AnalyzeOptions { tables: args.tables == TablesArg::Auto });
+    let jobs = paper2html::par::resolve_jobs(args.jobs);
+    let analysis = paper.analyze_with(AnalyzeOptions {
+        tables: args.tables == TablesArg::Auto,
+        jobs,
+    });
     let tables = analysis.doc.blocks.iter().filter(|b| b.table.is_some()).count();
     eprintln!(
-        "analysed {} pages, {} blocks, {tables} tables rebuilt in {:.2}s",
+        "analysed {} pages ({jobs} threads), {} blocks, {tables} tables rebuilt in {:.2}s",
         paper.page_count(),
         analysis.doc.blocks.len(),
         t.elapsed().as_secs_f32()
@@ -179,6 +186,7 @@ fn convert(args: ConvertArgs) -> Result<()> {
                 PageImageArg::Svg => PageImage::Svg,
                 PageImageArg::Png => PageImage::Png,
             },
+            jobs,
         };
         let t = Instant::now();
         let out = paper.to_html(&analysis, &opts);

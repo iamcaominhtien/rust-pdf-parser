@@ -5,7 +5,7 @@ use super::*;
 const CSS: &str = include_str!("friendly.css");
 const JS: &str = include_str!("friendly.js");
 
-pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_, '_>) -> String {
+pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let title = doc_title(doc);
     let all: Vec<&Block> = doc.blocks.iter().collect();
 

@@ -93,6 +93,7 @@ hoặc URL arXiv (`https://arxiv.org/abs/1706.03762`).
 | `--page-image <svg\|png>` | Nền trang ở chế độ `hard` (mặc định `svg`) |
 | `--tables <auto\|image>` | `auto` (mặc định): dựng `<table>` khi cấu trúc bảng rõ ràng. `image`: không dựng (bảng là ảnh ở `medium`/`friendly`, là chữ đặt theo vị trí ở `hard-95`) |
 | `--json` | Ghi thêm `<tên>.json` — cấu trúc tài liệu |
+| `-j, --jobs <N>` | Số luồng xử lý song song. `0` (mặc định): một luồng mỗi nhân CPU. `1`: không song song. Kết quả giống hệt nhau với mọi giá trị |
 
 Các lệnh khác:
 
@@ -106,6 +107,20 @@ paper2html inspect paper.pdf
 
 `fetch` chỉ tải PDF. `inspect` in ra cấu trúc nhận diện được (tiêu đề, heading, đoạn, hình,
 công thức…), tiện để kiểm tra khi kết quả chưa như ý.
+
+### Tốc độ và tài nguyên
+
+Đo trên máy 4 vCPU, PDF có sẵn trên đĩa, một chế độ mỗi lần chạy:
+
+| Bài | Trang | 1 luồng | 4 luồng | RAM đỉnh (4 luồng) |
+| --- | --- | --- | --- | --- |
+| Attention (1706.03762) | 15 | 0,34–0,69 s | 0,20–0,36 s | 73–84 MB |
+| ViT (2010.11929) | 22 | 0,61–0,70 s | 0,36–0,38 s | 77–95 MB |
+| Faster R-CNN (1506.01497), nhiều ảnh chụp | 14 | 0,74–2,44 s | 0,41–1,21 s | 92–156 MB |
+| Báo cáo GPT-4 (2303.08774) | 100 | 1,73–1,97 s | 0,91–1,00 s | 152–211 MB |
+
+Mỗi trang được đọc và vẽ độc lập trên một luồng, mỗi luồng có cache riêng nên RAM tăng theo
+số luồng. Bố cục và việc dựng HTML vẫn chạy một luồng. Trên máy ít RAM, dùng `-j 1` hoặc `-j 2`.
 
 PDF tải từ arXiv được cache ở `~/.cache/paper2html` (đổi bằng biến môi trường
 `PAPER2HTML_CACHE`).

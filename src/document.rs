@@ -522,11 +522,13 @@ fn link_spans(spans: Vec<Span>, anchors: &HashSet<String>, own: Option<&str>) ->
 pub struct AnalyzeOptions {
     /// Reconstruct the row/column structure of tables.
     pub tables: bool,
+    /// Worker threads for reading the pages (0 = one per CPU).
+    pub jobs: usize,
 }
 
 impl Default for AnalyzeOptions {
     fn default() -> Self {
-        Self { tables: true }
+        Self { tables: true, jobs: 0 }
     }
 }
 

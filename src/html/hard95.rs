@@ -423,7 +423,7 @@ fn add_origins(set: &mut HashSet<(i32, i32)>, line: &Line) {
     }
 }
 
-pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_, '_>) -> String {
+pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
     let doc = &analysis.doc;
     let title = doc_title(doc);
     let lower = doc.body_font.to_ascii_lowercase();
@@ -519,19 +519,12 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_, '_>) -> St
             }
         }
 
-        let remove = |x: f32, y: f32| {
-            let (qx, qy) = ((x * 4.0).round() as i32, (y * 4.0).round() as i32);
-            (-1..=1).any(|dx| (-1..=1).any(|dy| drawn.contains(&(qx + dx, qy + dy))))
-        };
-        let bg = images
-            .page_without_text(pi, &remove)
-            .map(|src| {
-                format!(
-                    "<img class=\"bg\" src=\"{src}\" alt=\"\" width=\"{}\" height=\"{}\">",
-                    p.width, p.height
-                )
-            })
-            .unwrap_or_default();
+        let bg = format!(
+            "<img class=\"bg\" src=\"{}\" alt=\"\" width=\"{}\" height=\"{}\">",
+            images.page_without_text(pi, drawn),
+            p.width,
+            p.height
+        );
         pages.push_str(&format!(
             "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{};--ph:{};aspect-ratio:{}/{}\">\n{bg}\n<div class=\"tl\">\n{layer}</div>\n</section>\n",
             p.width,

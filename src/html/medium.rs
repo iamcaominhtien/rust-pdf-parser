@@ -7,7 +7,7 @@ use crate::geom::median;
 
 const CSS: &str = include_str!("medium.css");
 
-pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_, '_>) -> String {
+pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let title = doc_title(doc);
 
     // Page margins, estimated from the extent of the content.

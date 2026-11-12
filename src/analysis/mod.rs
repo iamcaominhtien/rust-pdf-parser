@@ -2,11 +2,10 @@
 
 pub mod blocks;
 pub mod floats;
+pub mod furniture;
 pub mod lines;
 pub mod order;
 pub mod page;
 pub mod pipeline;
 pub(crate) mod semantics;
 pub mod tables;
-
-pub use lines::{Line, LineGlyph, RotatedText};

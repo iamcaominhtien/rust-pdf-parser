@@ -20,8 +20,8 @@
 //! its box.
 
 use super::*;
-use crate::analysis::Line;
 use crate::common::geom::median;
+use crate::model::Line;
 use std::collections::HashSet;
 
 const CSS: &str = include_str!("hard95.css");

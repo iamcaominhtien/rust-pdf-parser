@@ -5,23 +5,13 @@
 //! component. Everything inside a claimed region is rendered as an image
 //! later, so the text inside it is removed from the text flow.
 
-use super::lines::Line;
 use super::page::{DocStats, PageData};
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
+use crate::model::FloatKind;
+use crate::model::Line;
 use regex::Regex;
-use serde::Serialize;
 use std::sync::LazyLock;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FloatKind {
-    Figure,
-    Table,
-    Algorithm,
-    /// A drawing or image without a caption.
-    Graphic,
-}
 
 #[derive(Debug, Clone)]
 pub struct Float {

@@ -1,8 +1,8 @@
 //! Building the text of blocks: styled spans, de-hyphenation, equation runs and table cells.
 
-use crate::analysis::Line;
 use crate::analysis::tables::Grid;
 use crate::backend::FontInfo;
+use crate::model::Line;
 use crate::model::*;
 use std::collections::HashSet;
 

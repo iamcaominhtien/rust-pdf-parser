@@ -10,15 +10,9 @@
 //! look like a regular grid it returns `None` and the caller falls back to
 //! other means of presenting the table.
 
-use super::lines::Line;
 use crate::common::geom::{Rect, median};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Align {
-    Left,
-    Center,
-    Right,
-}
+use crate::model::Align;
+use crate::model::Line;
 
 #[derive(Debug, Clone)]
 pub struct GridCell {

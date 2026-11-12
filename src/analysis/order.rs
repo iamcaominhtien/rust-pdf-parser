@@ -6,9 +6,9 @@
 //! of rows of items.
 
 use super::floats::Float;
-use super::lines::Line;
 use super::page::DocStats;
 use crate::common::geom::Rect;
+use crate::model::Line;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemRef {

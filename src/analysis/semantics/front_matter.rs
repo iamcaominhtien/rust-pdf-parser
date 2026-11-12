@@ -2,11 +2,12 @@
 
 use super::patterns::*;
 use super::*;
-use crate::analysis::Line;
-use crate::analysis::blocks::{Loc, TextBlock};
+use crate::analysis::blocks::TextBlock;
 use crate::analysis::page::{DocStats, PageData};
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
+use crate::model::Line;
+use crate::model::Loc;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) fn classify_front_matter(nodes: &mut Vec<Node>, pages: &[PageData], stats: &DocStats, fonts: &[FontInfo]) {

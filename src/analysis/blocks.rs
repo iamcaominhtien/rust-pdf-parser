@@ -1,22 +1,14 @@
 //! Rows of a column -> blocks: paragraphs, display equations, footnotes.
 
-use super::lines::{Line, merge_row};
+use super::lines::merge_row;
 use super::order::{ItemRef, Leaf};
 use super::page::{DocStats, PageData};
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
+use crate::model::Line;
+use crate::model::Loc;
 use regex::Regex;
 use std::sync::LazyLock;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Loc {
-    pub page: usize,
-    pub zone: usize,
-    pub zone_cols: usize,
-    pub col: usize,
-    /// Index of the leaf on its page (unique per column fragment).
-    pub leaf: usize,
-}
 
 #[derive(Debug, Clone)]
 pub struct TextBlock {

@@ -18,11 +18,12 @@ pub(crate) use front_matter::classify_front_matter;
 pub(crate) use paragraphs::merge_paragraphs;
 pub(crate) use references::split_references;
 
-use crate::analysis::Line;
-use crate::analysis::blocks::{EquationBlock, Loc, TextBlock};
+use crate::analysis::blocks::{EquationBlock, TextBlock};
 use crate::analysis::floats::Float;
 use crate::backend::FontInfo;
 use crate::common::geom::median;
+use crate::model::Line;
+use crate::model::Loc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Class {

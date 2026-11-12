@@ -81,8 +81,8 @@ pub(crate) fn caption_html(spans: &[Span]) -> String {
     spans_html(spans)
 }
 
-pub(crate) fn float_class(kind: crate::analysis::floats::FloatKind) -> &'static str {
-    use crate::analysis::floats::FloatKind::*;
+pub(crate) fn float_class(kind: crate::model::FloatKind) -> &'static str {
+    use crate::model::FloatKind::*;
     match kind {
         Figure => "fig",
         Table => "tab",

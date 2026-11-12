@@ -1,14 +1,14 @@
 //! The structured document produced by the layout analysis and consumed by
 //! the HTML renderers.
 
-use crate::analysis::Line;
-use crate::analysis::blocks::Loc;
-use crate::analysis::floats::FloatKind;
+pub mod line;
+pub mod style;
+
 use crate::common::geom::Rect;
 use serde::Serialize;
 
-pub use crate::analysis::lines::{BOLD, ITALIC, MATH, MONO, SANS, SUB, SUP};
-pub use crate::analysis::tables::Align;
+pub use line::{Line, LineGlyph, RotatedText};
+pub use style::*;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Span {
@@ -242,4 +242,31 @@ pub struct Document {
     /// PostScript name of the font of the running text.
     pub body_font: String,
     pub blocks: Vec<Block>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Loc {
+    pub page: usize,
+    pub zone: usize,
+    pub zone_cols: usize,
+    pub col: usize,
+    /// Index of the leaf on its page (unique per column fragment).
+    pub leaf: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FloatKind {
+    Figure,
+    Table,
+    Algorithm,
+    /// A drawing or image without a caption.
+    Graphic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Center,
+    Right,
 }

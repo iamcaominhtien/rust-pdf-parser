@@ -3,8 +3,9 @@
 use super::semantics::*;
 use crate::analysis::blocks::{RawBlock, build_blocks};
 use crate::analysis::floats::{detect_floats, join_caption_labels, table_caption_votes};
+use crate::analysis::furniture::remove_furniture;
 use crate::analysis::order::order_page;
-use crate::analysis::page::{PageData, compute_stats, remove_furniture};
+use crate::analysis::page::{PageData, compute_stats};
 use crate::backend::{FontInfo, RawPage};
 use crate::model::*;
 

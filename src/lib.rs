@@ -13,6 +13,6 @@ pub mod paper;
 pub mod render;
 pub mod source;
 
-pub use analysis::document::AnalyzeOptions;
+pub use analysis::pipeline::AnalyzeOptions;
 pub use paper::{Paper, convert};
 pub use render::{HtmlOptions, HtmlOutput, Mode, PageImage};

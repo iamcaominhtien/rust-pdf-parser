@@ -5,7 +5,7 @@ mod hard;
 mod hard95;
 mod medium;
 
-use crate::analysis::document::Analysis;
+use crate::analysis::pipeline::Analysis;
 use crate::backend::PageRenderer;
 use crate::model::*;
 use base64::Engine;

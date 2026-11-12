@@ -1,6 +1,6 @@
 //! High-level entry points: PDF bytes in, structured document and HTML out.
 
-use crate::analysis::document::{Analysis, AnalyzeOptions, analyze};
+use crate::analysis::pipeline::{Analysis, AnalyzeOptions, analyze};
 use crate::backend::extract::{RawPage, extract_page};
 use crate::backend::fonts::FontInfo;
 use crate::backend::{FontRegistry, PageRenderer};

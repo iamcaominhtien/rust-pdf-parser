@@ -1,0 +1,40 @@
+[package]
+name = "paper2html"
+version = "0.1.0"
+edition = "2024"
+description = "Convert scientific-paper PDFs (arXiv) into clean, readable HTML in three fidelity modes"
+license = "MIT"
+
+[lib]
+name = "paper2html"
+path = "src/lib.rs"
+
+[[bin]]
+name = "paper2html"
+path = "src/main.rs"
+
+[dependencies]
+hayro = "0.9"
+hayro-interpret = "0.9"
+hayro-syntax = "0.9"
+hayro-svg = "0.9"
+hayro-font = "0.5"
+kurbo = "0.13"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+regex = "1"
+unicode-normalization = "0.1"
+ureq = { version = "2", features = ["native-certs"] }
+
+[profile.release]
+opt-level = 3
+debug = false
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

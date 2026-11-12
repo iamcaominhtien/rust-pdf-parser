@@ -1,0 +1,70 @@
+:root{--desk:#e7e8ec;--paper:#fff;--ink:#16181c;--muted:#5d646e;--rule:#d5d7dc;--accent:#1a4fc4;
+  --serif:"STIX Two Text","Times New Roman","Nimbus Roman","Liberation Serif",Times,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+@media (prefers-color-scheme:dark){:root{--desk:#24262b}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:3.5rem}
+body{margin:0;background:var(--desk);color:var(--ink);font-family:var(--serif)}
+.topbar{position:sticky;top:0;z-index:20;display:flex;gap:1rem;align-items:center;padding:.5rem 1rem;background:#1f2226;color:#e8eaed;
+  font-family:var(--sans);font-size:.84rem}
+.topbar .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.topbar a{color:#b9c7ff;text-decoration:none}
+.pages{padding:1.2rem .6rem 4rem}
+.page{container-type:inline-size;position:relative;width:min(100%,calc(var(--pw)*1.6px));margin:0 auto 1.4rem;background:var(--paper);
+  box-shadow:0 1px 3px rgba(0,0,0,.18),0 8px 24px rgba(0,0,0,.10);border-radius:2px}
+.page-inner{font-size:calc(var(--fs)/var(--pw)*100cqw);line-height:var(--lh);
+  padding:calc(var(--my)/var(--pw)*100cqw) calc(var(--mx)/var(--pw)*100cqw) calc(var(--my)/var(--pw)*100cqw);
+  min-height:calc(var(--ph)/var(--pw)*100cqw)}
+.page-no{position:absolute;left:0;right:0;bottom:calc(var(--my)/var(--pw)*38cqw);text-align:center;
+  font-size:calc(var(--fs)/var(--pw)*100cqw);color:var(--muted)}
+.zone{column-gap:2.2em;margin-bottom:.9em}
+.zone.cols{column-fill:balance}
+h1.title{font-size:1.72em;line-height:1.2;text-align:center;margin:.6em 0 .9em;text-wrap:balance;font-weight:700}
+.authors{display:flex;flex-wrap:wrap;justify-content:center;gap:.9em 2.2em;text-align:center;margin:0 0 1.4em;line-height:1.3}
+.au-name{font-weight:700}
+.au-line code{font-size:.9em}
+.note{font-size:.9em;color:var(--muted);text-align:center;margin:0 0 .8em}
+h2,h3,h4,h5{line-height:1.25;margin:1.15em 0 .5em;break-after:avoid;font-weight:700}
+h2{font-size:1.2em}
+h3{font-size:1.06em}
+h4{font-size:1em}
+h5{font-size:1em;font-style:italic;font-weight:400}
+.zone>:first-child{margin-top:0}
+p{margin:0 0 .62em;text-align:justify;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+sup,sub{line-height:0;font-size:.72em}
+code{font-family:var(--mono);font-size:.86em}
+.abstract{margin:0 0 1em}
+.zone:not(.cols) .abstract{margin:0 8% 1.2em}
+.abstract-label{font-weight:700;text-align:center;margin:0 0 .5em;font-size:1.1em}
+h2.abstract-heading{text-align:center;font-size:1.1em;margin:.4em 0 .5em}
+ul.list{margin:0 0 .62em;padding-left:1.5em}
+ul.list li{margin:.25em 0;text-align:justify}
+ul.list li.labeled{list-style:none;margin-left:-1.5em}
+figure.float{margin:.4em 0 1.1em;text-align:center;break-inside:avoid}
+figure.float img{max-width:100%;height:auto}
+figcaption{font-size:.92em;line-height:1.3;text-align:justify;margin:.55em 0}
+.cap-label{font-weight:400}
+.eq{display:grid;grid-template-columns:minmax(.5em,1fr) auto minmax(.5em,1fr);align-items:center;margin:.75em 0;break-inside:avoid}
+.eq-body{grid-column:2;max-width:100%;overflow-x:auto;text-align:center}
+.eq-body img{max-width:none;height:auto;vertical-align:middle}
+.eqno{grid-column:3;justify-self:end}
+ol.refs{list-style:none;margin:0;padding:0;font-size:.95em}
+ol.refs li{margin:0 0 .5em;padding-left:1.6em;text-indent:-1.6em;text-align:left;overflow-wrap:anywhere}
+.footnotes{border-top:1px solid var(--ink);margin-top:1.2em;padding-top:.5em;font-size:.86em;line-height:1.3;width:100%}
+.footnotes::before{content:"";display:block}
+aside.footnote{margin:0 0 .3em;text-align:justify}
+:target{animation:flash 2.2s ease-out}
+@keyframes flash{0%,35%{background:#fff3bf}100%{background:transparent}}
+@media (max-width:720px){
+  .pages{padding:.5rem 0 3rem}
+  .page-inner{font-size:1rem;line-height:1.55;padding:1.4rem 1rem 3rem;min-height:0}
+  .page-no{font-size:.8rem;bottom:.8rem}
+  .zone{column-count:1!important}
+  figure.float img{width:auto!important}
+  .eq-body img{max-width:100%}
+  p,ul.list li,figcaption{text-align:left}
+}
+@media print{.topbar{display:none}body{background:#fff}.page{box-shadow:none;margin:0;break-after:page;width:100%}}

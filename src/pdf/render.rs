@@ -41,7 +41,14 @@ impl<'a> PageRenderer<'a> {
         let transform = Affine::scale(scale as f64)
             * Affine::translate((-rect.x0 as f64, -rect.y0 as f64))
             * page.initial_transform(true).to_kurbo();
-        render_into(page, &self.cache, &self.settings, &RenderSettings::default(), &mut ctx, transform);
+        render_into(
+            page,
+            &self.cache,
+            &self.settings,
+            &RenderSettings::default(),
+            &mut ctx,
+            transform,
+        );
         ctx.flush();
         let mut pixmap = Pixmap::new(w, h);
         ctx.render_with(
@@ -82,7 +89,11 @@ impl<'a> PageRenderer<'a> {
                 .strip_prefix("matrix(")
                 .or_else(|| tr.strip_prefix("translate("))?
                 .strip_suffix(')')?;
-            let nums: Vec<f32> = inner.split([' ', ',']).filter(|p| !p.is_empty()).filter_map(|p| p.parse().ok()).collect();
+            let nums: Vec<f32> = inner
+                .split([' ', ','])
+                .filter(|p| !p.is_empty())
+                .filter_map(|p| p.parse().ok())
+                .collect();
             let n = nums.len();
             (n >= 2).then(|| (id, nums[n - 2], nums[n - 1]))
         }
@@ -128,7 +139,9 @@ impl<'a> PageRenderer<'a> {
             p,
             &self.svg_cache,
             &self.settings,
-            &hayro_svg::SvgRenderSettings { bg_color: [255, 255, 255, 255] },
+            &hayro_svg::SvgRenderSettings {
+                bg_color: [255, 255, 255, 255],
+            },
         );
         Some(compact_images(svg))
     }

@@ -81,10 +81,7 @@ pub struct HtmlOutput {
 }
 
 pub fn render(analysis: &Analysis, pdf: &Pdf, opts: &HtmlOptions) -> HtmlOutput {
-    let mut images = ImageStore {
-        opts,
-        jobs: Vec::new(),
-    };
+    let mut images = ImageStore { opts, jobs: Vec::new() };
     let html = match opts.mode {
         Mode::Friendly => friendly::render(&analysis.doc, &mut images),
         Mode::Medium => medium::render(&analysis.doc, &mut images),
@@ -165,9 +162,12 @@ impl ImageStore<'_> {
 
     /// Draws all recorded pictures and replaces the placeholders in `html`.
     fn finish(self, pdf: &Pdf, html: String) -> HtmlOutput {
-        let drawn = crate::par::map(self.jobs.len(), self.opts.jobs, || PageRenderer::new(pdf), |r, i| {
-            self.draw(r, &self.jobs[i])
-        });
+        let drawn = crate::par::map(
+            self.jobs.len(),
+            self.opts.jobs,
+            || PageRenderer::new(pdf),
+            |r, i| self.draw(r, &self.jobs[i]),
+        );
         let mut drawn: Vec<_> = drawn.into_iter().map(Some).collect();
         let mut files = Vec::new();
         let mut out = String::with_capacity(html.len());
@@ -249,7 +249,12 @@ pub(crate) fn spans_html(spans: &[Span]) -> String {
 }
 
 pub(crate) fn plain(spans: &[Span]) -> String {
-    spans.iter().map(|s| s.text.as_str()).collect::<String>().trim().to_string()
+    spans
+        .iter()
+        .map(|s| s.text.as_str())
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 static CAP_LABEL: LazyLock<Regex> = LazyLock::new(|| {
@@ -258,13 +263,13 @@ static CAP_LABEL: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Caption HTML with the label ("Figure 3:") emphasised.
 pub(crate) fn caption_html(spans: &[Span]) -> String {
-    if let Some(first) = spans.first() {
-        if let Some(m) = CAP_LABEL.find(&first.text) {
-            let mut rest = spans.to_vec();
-            let label = first.text[..m.end()].to_string();
-            rest[0].text = first.text[m.end()..].to_string();
-            return format!("<span class=\"cap-label\">{}</span>{}", esc(&label), spans_html(&rest));
-        }
+    if let Some(first) = spans.first()
+        && let Some(m) = CAP_LABEL.find(&first.text)
+    {
+        let mut rest = spans.to_vec();
+        let label = first.text[..m.end()].to_string();
+        rest[0].text = first.text[m.end()..].to_string();
+        return format!("<span class=\"cap-label\">{}</span>{}", esc(&label), spans_html(&rest));
     }
     spans_html(spans)
 }
@@ -369,7 +374,9 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
                     // The "Abstract" heading (if any) was emitted just before.
                     let had_heading = bi > 0
                         && matches!(blocks[bi - 1].kind, BlockKind::Heading { .. })
-                        && plain(&blocks[bi - 1].spans).trim_end_matches(['.', ':']).eq_ignore_ascii_case("abstract");
+                        && plain(&blocks[bi - 1].spans)
+                            .trim_end_matches(['.', ':'])
+                            .eq_ignore_ascii_case("abstract");
                     out.push_str("<section class=\"abstract\">\n");
                     if !had_heading {
                         out.push_str("<div class=\"abstract-label\">Abstract</div>\n");
@@ -385,7 +392,9 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
             BlockKind::Note => out.push_str(&format!("<p class=\"note\">{}</p>\n", spans_html(&b.spans))),
             BlockKind::Heading { level } => {
                 let tag = heading_tag(*level);
-                let is_abstract = plain(&b.spans).trim_end_matches(['.', ':']).eq_ignore_ascii_case("abstract");
+                let is_abstract = plain(&b.spans)
+                    .trim_end_matches(['.', ':'])
+                    .eq_ignore_ascii_case("abstract");
                 let cls = if is_abstract { " class=\"abstract-heading\"" } else { "" };
                 out.push_str(&format!("<{tag}{id}{cls}>{}</{tag}>\n", spans_html(&b.spans)));
             }
@@ -396,7 +405,11 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
             }
             BlockKind::Reference { .. } => out.push_str(&format!("<li{id}>{}</li>\n", spans_html(&b.spans))),
             BlockKind::Footnote { marker } => {
-                let mark = if marker.is_empty() { String::new() } else { format!("<sup class=\"fn-mark\">{}</sup> ", esc(marker)) };
+                let mark = if marker.is_empty() {
+                    String::new()
+                } else {
+                    format!("<sup class=\"fn-mark\">{}</sup> ", esc(marker))
+                };
                 out.push_str(&format!(
                     "<aside class=\"footnote\"{id} role=\"note\">{mark}{}</aside>\n",
                     spans_html(&b.spans)
@@ -409,7 +422,10 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
                     images.region(image, "eq"),
                     ctx.unit.css(image.rect.width())
                 );
-                let num = number.as_ref().map(|n| format!("<span class=\"eqno\">{}</span>", esc(n))).unwrap_or_default();
+                let num = number
+                    .as_ref()
+                    .map(|n| format!("<span class=\"eqno\">{}</span>", esc(n)))
+                    .unwrap_or_default();
                 out.push_str(&format!(
                     "<div class=\"eq\"{id}><span class=\"eq-body\">{img}</span>{num}</div>\n"
                 ));
@@ -443,7 +459,11 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
                     (Some(spec), Some(l)) => l.bbox.cy() < spec.rect.cy(),
                     _ => false,
                 };
-                let inner = if caption_first { format!("{cap}{img}") } else { format!("{img}{cap}") };
+                let inner = if caption_first {
+                    format!("{cap}{img}")
+                } else {
+                    format!("{img}{cap}")
+                };
                 out.push_str(&format!("<figure class=\"float {cls}\"{id}>{inner}</figure>\n"));
             }
         }
@@ -495,9 +515,11 @@ pub(crate) fn table_walk(t: &Table, mut emit: impl FnMut(usize, usize, Option<&T
                 c += 1;
             }
             emit(ri, cell.col, Some(cell));
-            for r in ri + 1..(ri + cell.rowspan).min(n_rows) {
-                for cc in cell.col..(cell.col + cell.colspan).min(t.n_cols) {
-                    covered[r][cc] = true;
+            let rows_end = (ri + cell.rowspan).min(n_rows);
+            let cols_end = (cell.col + cell.colspan).min(t.n_cols);
+            for row_covered in covered.iter_mut().take(rows_end).skip(ri + 1) {
+                for cov in row_covered.iter_mut().take(cols_end).skip(cell.col) {
+                    *cov = true;
                 }
             }
             c = cell.col + cell.colspan;
@@ -534,9 +556,16 @@ pub(crate) fn table_html(t: &Table) -> String {
         }
         let tag = if ri < t.header_rows { "th" } else { "td" };
         match cell {
-            None => out.push_str(&format!("<{tag} class=\"e{}\"></{tag}>", table_rule_classes(t, ri, col, 1, 1))),
+            None => out.push_str(&format!(
+                "<{tag} class=\"e{}\"></{tag}>",
+                table_rule_classes(t, ri, col, 1, 1)
+            )),
             Some(cell) => {
-                let align = if cell.colspan > 1 { "c" } else { &t.col_align[cell.col.min(t.n_cols - 1)][..1] };
+                let align = if cell.colspan > 1 {
+                    "c"
+                } else {
+                    &t.col_align[cell.col.min(t.n_cols - 1)][..1]
+                };
                 let short = plain(&cell.spans).chars().count() <= 28;
                 let mut attrs = String::new();
                 if cell.colspan > 1 {
@@ -572,7 +601,13 @@ pub(crate) fn authors_html(blocks: &[&Block]) -> String {
                 .rows
                 .iter()
                 .enumerate()
-                .map(|(i, r)| format!("<div class=\"{}\">{}</div>", if i == 0 { "au-name" } else { "au-line" }, spans_html(r)))
+                .map(|(i, r)| {
+                    format!(
+                        "<div class=\"{}\">{}</div>",
+                        if i == 0 { "au-name" } else { "au-line" },
+                        spans_html(r)
+                    )
+                })
                 .collect();
             format!("<div class=\"author\">{}</div>", rows.join(""))
         })

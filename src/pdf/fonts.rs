@@ -39,16 +39,15 @@ impl FontInfo {
         let has = |pats: &[&str]| pats.iter().any(|p| l.contains(p));
 
         let math = has(&[
-            "cmmi", "cmsy", "cmex", "cmbsy", "msam", "msbm", "eufm", "eufb", "eusm", "eurm",
-            "rsfs", "math", "mtmi", "mtsy", "mtex", "txsy", "txmi", "txex", "pxsy", "pxmi",
-            "pxex", "ntxmi", "ntxsy", "ntxex", "stmary", "wasy", "esint", "bbm", "bbold",
-            "dsrom", "dsss", "mnsymbol", "lasy", "cmbrmi", "lmmi", "lmsy", "lmex", "fplmbi",
-            "zplm", "zptm", "zeur", "zeus", "symbol", "mdbch", "md-",
-        ]) || l.starts_with("line") || l.starts_with("lcircle");
+            "cmmi", "cmsy", "cmex", "cmbsy", "msam", "msbm", "eufm", "eufb", "eusm", "eurm", "rsfs", "math", "mtmi",
+            "mtsy", "mtex", "txsy", "txmi", "txex", "pxsy", "pxmi", "pxex", "ntxmi", "ntxsy", "ntxex", "stmary",
+            "wasy", "esint", "bbm", "bbold", "dsrom", "dsss", "mnsymbol", "lasy", "cmbrmi", "lmmi", "lmsy", "lmex",
+            "fplmbi", "zplm", "zptm", "zeur", "zeus", "symbol", "mdbch", "md-",
+        ]) || l.starts_with("line")
+            || l.starts_with("lcircle");
 
         let tex_bold = has(&[
-            "cmbx", "cmssbx", "cmssdc", "sfbx", "sfsx", "ecbx", "ecsx", "cmbsy", "cmmib",
-            "sfxc", "ectb", "cmtb",
+            "cmbx", "cmssbx", "cmssdc", "sfbx", "sfsx", "ecbx", "ecsx", "cmbsy", "cmmib", "sfxc", "ectb", "cmtb",
         ]) || (l.starts_with("cmb") && l[3..].chars().next().is_some_and(|c| c.is_ascii_digit()));
         let named_bold = has(&["bold", "black", "heavy", "demi", "-bd", "extrab", "ultra"])
             || (l.contains("medi") && !l.contains("medium"))
@@ -57,8 +56,8 @@ impl FontInfo {
         let bold = tex_bold || named_bold || weight >= 600.0 || flags & (1 << 18) != 0;
 
         let tex_italic = has(&[
-            "cmti", "cmsl", "cmbxti", "cmbxsl", "cmssi", "cmitt", "sfti", "sfsl", "sfbi",
-            "ecti", "ecsl", "ecbi", "cmu", "sfsi", "sfso",
+            "cmti", "cmsl", "cmbxti", "cmbxsl", "cmssi", "cmitt", "sfti", "sfsl", "sfbi", "ecti", "ecsl", "ecbi",
+            "cmu", "sfsi", "sfso",
         ]);
         let named_italic = has(&["ital", "obli", "slant", "-it", "kursiv", "inclined"])
             || l.ends_with("-i")
@@ -73,9 +72,25 @@ impl FontInfo {
 
         let mono = flags & 1 != 0
             || has(&[
-                "mono", "courier", "cmtt", "cmitt", "typewriter", "consol", "inconsolata",
-                "sftt", "ectt", "txtt", "menlo", "sourcecode", "nimbusmon", "lmtt", "cmvtt",
-                "dejavusansm", "zi4", "fira", "cascadia",
+                "mono",
+                "courier",
+                "cmtt",
+                "cmitt",
+                "typewriter",
+                "consol",
+                "inconsolata",
+                "sftt",
+                "ectt",
+                "txtt",
+                "menlo",
+                "sourcecode",
+                "nimbusmon",
+                "lmtt",
+                "cmvtt",
+                "dejavusansm",
+                "zi4",
+                "fira",
+                "cascadia",
             ]);
 
         let serif = flags & 2 != 0;
@@ -88,8 +103,26 @@ impl FontInfo {
         let sans = !math
             && !mono
             && has(&[
-                "helvet", "arial", "sans", "cmss", "nimbussan", "verdana", "calibri", "roboto", "lato", "lmss",
-                "tahoma", "futura", "avenir", "gotham", "inter-", "segoe", "frutiger", "univers", "phv", "sfss",
+                "helvet",
+                "arial",
+                "sans",
+                "cmss",
+                "nimbussan",
+                "verdana",
+                "calibri",
+                "roboto",
+                "lato",
+                "lmss",
+                "tahoma",
+                "futura",
+                "avenir",
+                "gotham",
+                "inter-",
+                "segoe",
+                "frutiger",
+                "univers",
+                "phv",
+                "sfss",
             ]);
         Self {
             sans,
@@ -182,9 +215,7 @@ impl<'a> FontRegistry<'a> {
                 continue;
             }
             let dict = stream.dict();
-            let is_form = dict
-                .get::<Name<'_>>("Subtype")
-                .is_some_and(|n| n.as_str() == "Form");
+            let is_form = dict.get::<Name<'_>>("Subtype").is_some_and(|n| n.as_str() == "Form");
             if !is_form {
                 continue;
             }
@@ -199,13 +230,13 @@ impl<'a> FontRegistry<'a> {
         use hayro_interpret::CacheKey;
         let key = dict.cache_key();
         if let Some(entry) = self.loaded.get(&key) {
-            if let Some((idx, font)) = entry {
-                if !self.candidates.iter().any(|c| c.idx == *idx) {
-                    self.candidates.push(Candidate {
-                        font: font.clone(),
-                        idx: *idx,
-                    });
-                }
+            if let Some((idx, font)) = entry
+                && !self.candidates.iter().any(|c| c.idx == *idx)
+            {
+                self.candidates.push(Candidate {
+                    font: font.clone(),
+                    idx: *idx,
+                });
             }
             return;
         }
@@ -238,8 +269,7 @@ impl<'a> FontRegistry<'a> {
                 return None;
             }
             let b = outline.bounding_box();
-            (b.width() > 0.0 && b.height() > 0.0 && b.width().is_finite() && b.height().is_finite())
-                .then_some(b)
+            (b.width() > 0.0 && b.height() > 0.0 && b.width().is_finite() && b.height().is_finite()).then_some(b)
         })
     }
 
@@ -253,11 +283,11 @@ impl<'a> FontRegistry<'a> {
         let code = glyph.char_code();
         let mut found = UNKNOWN_FONT;
         for cand in &self.candidates {
-            if let FontGlyph::Outline(g) = cand.font.glyph(gid, code) {
-                if g.identifier().cache_key() == key {
-                    found = cand.idx;
-                    break;
-                }
+            if let FontGlyph::Outline(g) = cand.font.glyph(gid, code)
+                && g.identifier().cache_key() == key
+            {
+                found = cand.idx;
+                break;
             }
         }
         self.glyph_cache.insert(key, found);
@@ -278,23 +308,20 @@ fn describe(dict: &Dict<'_>) -> FontInfo {
         .unwrap_or_default();
 
     let mut descriptor = dict.get::<Dict<'_>>("FontDescriptor");
-    if descriptor.is_none() {
-        if let Some(desc) = dict.get::<Array<'_>>("DescendantFonts") {
-            if let Some(d) = desc.iter::<Dict<'_>>().next() {
-                descriptor = d.get::<Dict<'_>>("FontDescriptor");
-                if name.is_empty() {
-                    name = d
-                        .get::<Name<'_>>("BaseFont")
-                        .map(|n| n.as_str().to_string())
-                        .unwrap_or_default();
-                }
-            }
+    if descriptor.is_none()
+        && let Some(desc) = dict.get::<Array<'_>>("DescendantFonts")
+        && let Some(d) = desc.iter::<Dict<'_>>().next()
+    {
+        descriptor = d.get::<Dict<'_>>("FontDescriptor");
+        if name.is_empty() {
+            name = d
+                .get::<Name<'_>>("BaseFont")
+                .map(|n| n.as_str().to_string())
+                .unwrap_or_default();
         }
     }
 
-    let num = |d: &Dict<'_>, key: &str| -> Option<f32> {
-        d.get::<Number>(key).map(|n| n.as_f64() as f32)
-    };
+    let num = |d: &Dict<'_>, key: &str| -> Option<f32> { d.get::<Number>(key).map(|n| n.as_f64() as f32) };
     let (mut flags, mut angle, mut weight) = (0u32, 0.0f32, 0.0f32);
     if let Some(d) = &descriptor {
         flags = num(d, "Flags").unwrap_or(0.0) as u32;

@@ -7,17 +7,20 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 static NEW_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d{4}\.\d{4,5}(v\d+)?$").unwrap());
-static OLD_ID: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[a-z][a-z\-]*(\.[A-Z]{2})?/\d{7}(v\d+)?$").unwrap());
+static OLD_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z][a-z\-]*(\.[A-Z]{2})?/\d{7}(v\d+)?$").unwrap());
 static URL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^https?://(?:www\.|export\.)?arxiv\.org/(?:abs|pdf|html)/(?P<id>[^?#]+?)(?:\.pdf)?(?:[?#].*)?$").unwrap()
+    Regex::new(r"^https?://(?:www\.|export\.)?arxiv\.org/(?:abs|pdf|html)/(?P<id>[^?#]+?)(?:\.pdf)?(?:[?#].*)?$")
+        .unwrap()
 });
 
 /// Extracts an arXiv identifier from an id (`1706.03762`, `arXiv:1706.03762v7`,
 /// `hep-th/9901001`) or an arXiv URL.
 pub fn parse_id(input: &str) -> Option<String> {
     let s = input.trim();
-    let s = s.strip_prefix("arXiv:").or_else(|| s.strip_prefix("arxiv:")).unwrap_or(s);
+    let s = s
+        .strip_prefix("arXiv:")
+        .or_else(|| s.strip_prefix("arxiv:"))
+        .unwrap_or(s);
     let candidate = match URL.captures(s) {
         Some(c) => c["id"].to_string(),
         None => s.to_string(),
@@ -42,10 +45,10 @@ fn cache_dir() -> PathBuf {
 /// cached on disk so that repeated conversions do not hit arXiv again.
 pub fn fetch_pdf(id: &str) -> Result<Vec<u8>> {
     let file = cache_dir().join(format!("{}.pdf", id.replace('/', "_")));
-    if let Ok(data) = std::fs::read(&file) {
-        if data.starts_with(b"%PDF") {
-            return Ok(data);
-        }
+    if let Ok(data) = std::fs::read(&file)
+        && data.starts_with(b"%PDF")
+    {
+        return Ok(data);
     }
     let data = download(id)?;
     if let Some(parent) = file.parent() {
@@ -71,7 +74,9 @@ fn download(id: &str) -> Result<Vec<u8>> {
         .read_to_end(&mut data)
         .with_context(|| format!("reading {url}"))?;
     if !data.starts_with(b"%PDF") {
-        return Err(anyhow!("{url} did not return a PDF (arXiv may not have a PDF for this id)"));
+        return Err(anyhow!(
+            "{url} did not return a PDF (arXiv may not have a PDF for this id)"
+        ));
     }
     Ok(data)
 }
@@ -91,8 +96,14 @@ mod tests {
         assert_eq!(parse_id("1706.03762").as_deref(), Some("1706.03762"));
         assert_eq!(parse_id("arXiv:1706.03762v7").as_deref(), Some("1706.03762v7"));
         assert_eq!(parse_id("hep-th/9901001").as_deref(), Some("hep-th/9901001"));
-        assert_eq!(parse_id("https://arxiv.org/abs/1706.03762").as_deref(), Some("1706.03762"));
-        assert_eq!(parse_id("https://arxiv.org/pdf/1706.03762v7.pdf").as_deref(), Some("1706.03762v7"));
+        assert_eq!(
+            parse_id("https://arxiv.org/abs/1706.03762").as_deref(),
+            Some("1706.03762")
+        );
+        assert_eq!(
+            parse_id("https://arxiv.org/pdf/1706.03762v7.pdf").as_deref(),
+            Some("1706.03762v7")
+        );
         assert_eq!(parse_id("paper.pdf"), None);
         assert_eq!(parse_id("./2010.11929.pdf"), None);
     }

@@ -166,7 +166,8 @@ fn rows(mut items: Vec<It>) -> Vec<Vec<ItemRef>> {
         let joined = match out.last_mut() {
             Some((rb, row)) => {
                 let ov = rb.y_overlap(&it.bbox);
-                let is_float = matches!(it.r, ItemRef::Float(_)) || row.iter().any(|i| matches!(i.r, ItemRef::Float(_)));
+                let is_float =
+                    matches!(it.r, ItemRef::Float(_)) || row.iter().any(|i| matches!(i.r, ItemRef::Float(_)));
                 if !is_float && ov >= 0.5 * rb.height().min(it.bbox.height()) {
                     *rb = rb.union(&it.bbox);
                     row.push(it);

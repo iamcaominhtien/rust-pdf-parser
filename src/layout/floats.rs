@@ -93,7 +93,13 @@ fn find_captions(page: &PageData, fonts: &[FontInfo]) -> Vec<Cap> {
         let l = &lines[i];
         let text = l.text();
         let Some(m) = CAPTION.captures(&text) else { continue };
-        let label_len = m.get(0).unwrap().as_str().chars().filter(|c| !c.is_whitespace()).count();
+        let label_len = m
+            .get(0)
+            .unwrap()
+            .as_str()
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .count();
         let has_punct = m.name("punct").is_some_and(|p| !p.as_str().is_empty());
         let label_alone = m.get(0).unwrap().end() == text.len();
         // Label set in bold while the caption text is not.
@@ -234,7 +240,11 @@ fn cluster_graphics(page: &PageData) -> Vec<Comp> {
         if im.bbox.area() > 0.92 * page_area {
             continue;
         }
-        elems.push(Elem { bbox: im.bbox, image: true, rule: false });
+        elems.push(Elem {
+            bbox: im.bbox,
+            image: true,
+            rule: false,
+        });
     }
     // Rotated text (axis labels) belongs to the drawing it is part of.
     for r in &page.rotated {
@@ -242,7 +252,11 @@ fn cluster_graphics(page: &PageData) -> Vec<Comp> {
         if compact.starts_with("arXiv:") || r.bbox.is_unset() {
             continue;
         }
-        elems.push(Elem { bbox: r.bbox, image: false, rule: false });
+        elems.push(Elem {
+            bbox: r.bbox,
+            image: false,
+            rule: false,
+        });
     }
     for p in &page.paths {
         if p.bbox.width() > 0.95 * page.width && p.bbox.height() > 0.95 * page.height {
@@ -254,7 +268,11 @@ fn cluster_graphics(page: &PageData) -> Vec<Comp> {
         if p.color[3] < 8 {
             continue;
         }
-        elems.push(Elem { bbox: p.bbox, image: false, rule: p.is_hrule() || p.is_vrule() });
+        elems.push(Elem {
+            bbox: p.bbox,
+            image: false,
+            rule: p.is_hrule() || p.is_vrule(),
+        });
     }
     if elems.is_empty() {
         return Vec::new();
@@ -351,7 +369,7 @@ fn rule_tables(page: &PageData, caps: &[Cap]) -> Vec<Comp> {
     }
     rules.sort_by(|a, b| a.y0.total_cmp(&b.y0));
     let mut group_of: Vec<usize> = (0..rules.len()).collect();
-    fn find(g: &mut Vec<usize>, i: usize) -> usize {
+    fn find(g: &mut [usize], i: usize) -> usize {
         let mut r = i;
         while g[r] != r {
             r = g[r];
@@ -375,9 +393,9 @@ fn rule_tables(page: &PageData, caps: &[Cap]) -> Vec<Comp> {
         }
     }
     let mut groups: std::collections::BTreeMap<usize, Vec<Rect>> = Default::default();
-    for i in 0..rules.len() {
+    for (i, rule) in rules.iter().enumerate() {
         let g = find(&mut group_of, i);
-        groups.entry(g).or_default().push(rules[i]);
+        groups.entry(g).or_default().push(*rule);
     }
     let mut out = Vec::new();
     for (_, rs) in groups {
@@ -473,7 +491,11 @@ pub fn table_caption_votes(page: &PageData, fonts: &[FontInfo]) -> (usize, usize
     for cap in caps.iter().filter(|c| c.kind == FloatKind::Table) {
         let near = |k: &Comp, table_below: bool| {
             let ov = cap.bbox.x_overlap(&k.bbox) >= 0.5 * cap.bbox.width().min(k.bbox.width());
-            let d = if table_below { k.bbox.y0 - cap.bbox.y1 } else { cap.bbox.y0 - k.bbox.y1 };
+            let d = if table_below {
+                k.bbox.y0 - cap.bbox.y1
+            } else {
+                cap.bbox.y0 - k.bbox.y1
+            };
             ov && (-4.0..=30.0).contains(&d)
         };
         let has_below = comps.iter().any(|k| near(k, true));
@@ -549,7 +571,11 @@ pub fn detect_floats(
             if dist > 48.0 {
                 continue;
             }
-            let (a, b) = if above { (k.bbox.y1, cap.bbox.y0) } else { (cap.bbox.y1, k.bbox.y0) };
+            let (a, b) = if above {
+                (k.bbox.y1, cap.bbox.y0)
+            } else {
+                (cap.bbox.y1, k.bbox.y0)
+            };
             if body_between(&page.lines, a, b, &cap.bbox) {
                 continue;
             }
@@ -588,15 +614,21 @@ pub fn detect_floats(
 
     // Growth: adjacent unclaimed components join the region.
     for (ci, cap) in caps.iter().enumerate() {
-        let Some((mut region, above)) = cap_region[ci] else { continue };
+        let Some((mut region, above)) = cap_region[ci] else {
+            continue;
+        };
         loop {
             let mut grew = false;
-            for ki in 0..comps.len() {
-                if comps[ki].owner.is_some() {
+            for comp in comps.iter_mut() {
+                if comp.owner.is_some() {
                     continue;
                 }
-                let k = comps[ki].bbox;
-                let same_side = if above { k.y1 <= cap.bbox.y0 + 4.0 } else { k.y0 >= cap.bbox.y1 - 4.0 };
+                let k = comp.bbox;
+                let same_side = if above {
+                    k.y1 <= cap.bbox.y0 + 4.0
+                } else {
+                    k.y0 >= cap.bbox.y1 - 4.0
+                };
                 if !same_side {
                     continue;
                 }
@@ -604,14 +636,18 @@ pub fn detect_floats(
                 let y_ov = k.y_overlap(&region);
                 let touching = k.intersects(&region.inflate(3.0, 3.0));
                 let vertical = x_ov > 0.3 * k.width().min(region.width()) && -y_ov <= 32.0 && {
-                    let (a, b) = if k.cy() < region.cy() { (k.y1, region.y0) } else { (region.y1, k.y0) };
+                    let (a, b) = if k.cy() < region.cy() {
+                        (k.y1, region.y0)
+                    } else {
+                        (region.y1, k.y0)
+                    };
                     !body_between(&page.lines, a, b, &k)
                 };
                 let within_caption = k.x0 >= cap.bbox.x0 - 12.0 && k.x1 <= cap.bbox.x1 + 12.0;
                 let horizontal = y_ov > 0.3 * k.height().min(region.height())
                     && (within_caption || (-x_ov <= 28.0 && cap.lines.len() == 1));
                 if touching || vertical || horizontal {
-                    comps[ki].owner = Some(ci);
+                    comp.owner = Some(ci);
                     region = region.union(&k);
                     grew = true;
                 }
@@ -632,7 +668,10 @@ pub fn detect_floats(
             || (k.table_like && k.n_rules >= 3);
         if keep {
             // Merge with an overlapping graphic region if there is one.
-            if let Some(r) = graphic_regions.iter_mut().find(|r| r.0.inflate(8.0, 8.0).intersects(&k.bbox)) {
+            if let Some(r) = graphic_regions
+                .iter_mut()
+                .find(|r| r.0.inflate(8.0, 8.0).intersects(&k.bbox))
+            {
                 r.0 = r.0.union(&k.bbox);
                 r.1 &= k.table_like;
             } else {
@@ -699,11 +738,21 @@ pub fn detect_floats(
                 .filter(|(i, l)| {
                     !is_caption_line[*i]
                         && l.bbox.x_overlap(&cap.bbox.inflate(40.0, 0.0)) > 0.0
-                        && if down { l.bbox.y0 >= cap.bbox.y1 - 2.0 } else { l.bbox.y1 <= cap.bbox.y0 + 2.0 }
+                        && if down {
+                            l.bbox.y0 >= cap.bbox.y1 - 2.0
+                        } else {
+                            l.bbox.y1 <= cap.bbox.y0 + 2.0
+                        }
                 })
                 .map(|(_, l)| l)
                 .collect();
-            cand.sort_by(|a, b| if down { a.bbox.y0.total_cmp(&b.bbox.y0) } else { b.bbox.y1.total_cmp(&a.bbox.y1) });
+            cand.sort_by(|a, b| {
+                if down {
+                    a.bbox.y0.total_cmp(&b.bbox.y0)
+                } else {
+                    b.bbox.y1.total_cmp(&a.bbox.y1)
+                }
+            });
             for l in cand {
                 let gap = if down { l.bbox.y0 - edge } else { edge - l.bbox.y1 };
                 if gap > 2.4 * stats.body_size || prose(l) {
@@ -737,7 +786,10 @@ pub fn detect_floats(
                     || probe.contains_point(l.bbox.cx(), l.bbox.cy());
                 if inside || (touches && (!body_like(l, stats) || p.table_like)) {
                     // Prose that merely touches the region is not part of it.
-                    if !inside && body_like(l, stats) && !region.inflate(1.0, 1.0).contains_point(l.bbox.cx(), l.bbox.cy()) {
+                    if !inside
+                        && body_like(l, stats)
+                        && !region.inflate(1.0, 1.0).contains_point(l.bbox.cx(), l.bbox.cy())
+                    {
                         continue;
                     }
                     absorbed[i] = Some(fi);
@@ -762,8 +814,16 @@ pub fn detect_floats(
                 if is_caption_line[i] || absorbed[i].is_some() || l.char_count() >= 45 {
                     continue;
                 }
-                let vgap = if l.bbox.cy() < region.cy() { region.y0 - l.bbox.y1 } else { l.bbox.y0 - region.y1 };
-                let hgap = if l.bbox.cx() < region.cx() { region.x0 - l.bbox.x1 } else { l.bbox.x0 - region.x1 };
+                let vgap = if l.bbox.cy() < region.cy() {
+                    region.y0 - l.bbox.y1
+                } else {
+                    l.bbox.y0 - region.y1
+                };
+                let hgap = if l.bbox.cx() < region.cx() {
+                    region.x0 - l.bbox.x1
+                } else {
+                    l.bbox.x0 - region.x1
+                };
                 let stacked = (-2.0..=14.0).contains(&vgap) && l.bbox.x_overlap(&region) >= 0.8 * l.bbox.width();
                 let beside = (-2.0..=16.0).contains(&hgap)
                     && l.bbox.y_overlap(&region) >= 0.8 * l.bbox.height()
@@ -804,7 +864,11 @@ pub fn detect_floats(
         // Sub-captions and labels between the drawing and the caption.
         if let Some(ci) = p.cap {
             let cap = &caps[ci];
-            let (a, b) = if p.above { (region.y1 - 2.0, cap.bbox.y0 + 2.0) } else { (cap.bbox.y1 - 2.0, region.y0 + 2.0) };
+            let (a, b) = if p.above {
+                (region.y1 - 2.0, cap.bbox.y0 + 2.0)
+            } else {
+                (cap.bbox.y1 - 2.0, region.y0 + 2.0)
+            };
             for (i, l) in page.lines.iter().enumerate() {
                 if is_caption_line[i] || absorbed[i].is_some() || body_like(l, stats) {
                     continue;

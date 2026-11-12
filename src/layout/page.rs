@@ -134,11 +134,7 @@ pub fn remove_furniture(pages: &mut [PageData]) -> Furniture {
             if compact.starts_with("arXiv:") && out.arxiv_stamp.is_none() {
                 out.arxiv_stamp = Some(r.text.clone());
                 if let Some(c) = ARXIV_ID.captures(&compact) {
-                    out.arxiv_id = Some(format!(
-                        "{}{}",
-                        &c[1],
-                        c.get(2).map(|m| m.as_str()).unwrap_or("")
-                    ));
+                    out.arxiv_id = Some(format!("{}{}", &c[1], c.get(2).map(|m| m.as_str()).unwrap_or("")));
                 }
             }
         }
@@ -174,7 +170,8 @@ pub fn remove_furniture(pages: &mut [PageData]) -> Furniture {
         let w = p.width;
         // Extent of the main text: lines of body size.
         let is_repeated = |l: &Line| {
-            band(p, l).is_some_and(|b| counts.get(&(normalize_furniture(&l.text()), b)).copied().unwrap_or(0) >= min_repeat)
+            band(p, l)
+                .is_some_and(|b| counts.get(&(normalize_furniture(&l.text()), b)).copied().unwrap_or(0) >= min_repeat)
         };
         let body: Vec<&Line> = p
             .lines

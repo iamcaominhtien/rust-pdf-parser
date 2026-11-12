@@ -130,7 +130,10 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
     let sizes: Vec<f32> = pieces.iter().map(|l| l.size).collect();
     let size = median(&sizes, 9.0);
     // Tall delimiters, big operators: cells with two-dimensional maths.
-    if pieces.iter().any(|l| l.glyphs.iter().any(|g| g.ink.height() > 2.4 * l.size.max(size))) {
+    if pieces
+        .iter()
+        .any(|l| l.glyphs.iter().any(|g| g.ink.height() > 2.4 * l.size.max(size)))
+    {
         return None;
     }
 
@@ -160,7 +163,11 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
     let x_max = pieces.iter().map(|l| l.bbox.x1).fold(f32::NEG_INFINITY, f32::max);
     let min_bins = (0.4 * size / BIN) as usize;
     let n_all = rows.len();
-    let tolerance = if n_all < 4 { 0 } else { ((n_all as f32 * 0.15) as u16).max(1) };
+    let tolerance = if n_all < 4 {
+        0
+    } else {
+        ((n_all as f32 * 0.15) as u16).max(1)
+    };
     let mut separators = find_separators(&rows, x_min, x_max, tolerance, min_bins);
     if separators.is_empty() {
         return None;
@@ -181,14 +188,33 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
             if with < 4 || multi < 2 || multi * 10 < with * 3 {
                 continue;
             }
-            let lo = rows.iter().flatten().filter(inside).map(|l| l.bbox.x0).fold(f32::INFINITY, f32::min);
-            let hi = rows.iter().flatten().filter(inside).map(|l| l.bbox.x1).fold(f32::NEG_INFINITY, f32::max);
+            let lo = rows
+                .iter()
+                .flatten()
+                .filter(inside)
+                .map(|l| l.bbox.x0)
+                .fold(f32::INFINITY, f32::min);
+            let hi = rows
+                .iter()
+                .flatten()
+                .filter(inside)
+                .map(|l| l.bbox.x1)
+                .fold(f32::NEG_INFINITY, f32::max);
             let local = ((with as f32 * 0.34) as u16).max(1);
             for s in find_separators(&rows, lo, hi, local, min_bins) {
                 // Both halves must be used by more rows than cross the split.
-                let crossing = rows.iter().filter(|r| r.iter().any(|l| inside(&l) && l.bbox.x0 < s && l.bbox.x1 > s)).count();
-                let left = rows.iter().filter(|r| r.iter().any(|l| inside(&l) && l.bbox.x1 <= s)).count();
-                let right = rows.iter().filter(|r| r.iter().any(|l| inside(&l) && l.bbox.x0 >= s)).count();
+                let crossing = rows
+                    .iter()
+                    .filter(|r| r.iter().any(|l| inside(&l) && l.bbox.x0 < s && l.bbox.x1 > s))
+                    .count();
+                let left = rows
+                    .iter()
+                    .filter(|r| r.iter().any(|l| inside(&l) && l.bbox.x1 <= s))
+                    .count();
+                let right = rows
+                    .iter()
+                    .filter(|r| r.iter().any(|l| inside(&l) && l.bbox.x0 >= s))
+                    .count();
                 if left > crossing && right > crossing && left >= 2 && right >= 2 {
                     added.push(s);
                 }
@@ -255,8 +281,16 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
     let rule_x0 = hrules.iter().map(|r| r.0.x0).fold(f32::INFINITY, f32::min);
     let rule_x1 = hrules.iter().map(|r| r.0.x1).fold(f32::NEG_INFINITY, f32::max);
     let pad = 0.5 * size;
-    let left_edge = if rule_x0.is_finite() { rule_x0.min(x_min) } else { x_min - pad };
-    let right_edge = if rule_x1.is_finite() { rule_x1.max(x_max) } else { x_max + pad };
+    let left_edge = if rule_x0.is_finite() {
+        rule_x0.min(x_min)
+    } else {
+        x_min - pad
+    };
+    let right_edge = if rule_x1.is_finite() {
+        rule_x1.max(x_max)
+    } else {
+        x_max + pad
+    };
     let mut col_bounds = Vec::with_capacity(n_cols + 1);
     col_bounds.push(left_edge.max(region.x0 - 2.0));
     col_bounds.extend(separators.iter().copied());
@@ -301,8 +335,16 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
     // Put the row boundaries exactly on the rules where there are any.
     for k in 0..=n_rows {
         if let Some(y) = snapped[k] {
-            let lo = if k == 0 { f32::NEG_INFINITY } else { baselines[k - 1] + 0.1 * size };
-            let hi = if k == n_rows { f32::INFINITY } else { baselines[k] - 0.5 * size };
+            let lo = if k == 0 {
+                f32::NEG_INFINITY
+            } else {
+                baselines[k - 1] + 0.1 * size
+            };
+            let hi = if k == n_rows {
+                f32::INFINITY
+            } else {
+                baselines[k] - 0.5 * size
+            };
             if y > lo && y < hi {
                 row_bounds[k] = y;
             }
@@ -362,7 +404,11 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
             grid_rows[g0].sort_by_key(|x| x.col);
         } else {
             // No clean group: attach to the nearest row with a free slot.
-            let near = if pos < n_rows && (baselines[pos] - y).abs() < (y - baselines[pos - 1]).abs() { pos } else { pos - 1 };
+            let near = if pos < n_rows && (baselines[pos] - y).abs() < (y - baselines[pos - 1]).abs() {
+                pos
+            } else {
+                pos - 1
+            };
             let target = [near, pos.min(n_rows - 1), pos - 1].into_iter().find(|&r| free(r))?;
             grid_rows[target].push(cell);
             grid_rows[target].sort_by_key(|x| x.col);
@@ -382,7 +428,7 @@ pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules
             used[c.col] += 1;
         }
     }
-    if used.iter().any(|&u| u == 0) {
+    if used.contains(&0) {
         return None;
     }
 

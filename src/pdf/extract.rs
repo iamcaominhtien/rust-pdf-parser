@@ -8,8 +8,8 @@ use hayro_interpret::font::{Glyph as PdfGlyph, GlyphRun};
 use hayro_interpret::hayro_cmap::BfString;
 use hayro_interpret::util::TransformExt;
 use hayro_interpret::{
-    BlendMode, ClipPath, Context, Device, DrawMode, DrawProps, Image, ImageDrawProps,
-    InterpreterCache, InterpreterSettings, Paint, SoftMask, interpret_page,
+    BlendMode, ClipPath, Context, Device, DrawMode, DrawProps, Image, ImageDrawProps, InterpreterCache,
+    InterpreterSettings, Paint, SoftMask, interpret_page,
 };
 use hayro_syntax::page::Page;
 use kurbo::{Affine, BezPath, Point, Shape};
@@ -143,9 +143,7 @@ fn normalize_text(s: &str, out: &mut String) {
             '\u{FB03}' => out.push_str("ffi"),
             '\u{FB04}' => out.push_str("ffl"),
             '\u{FB05}' | '\u{FB06}' => out.push_str("st"),
-            '\u{00A0}' | '\u{2002}' | '\u{2003}' | '\u{2009}' | '\u{200A}' | '\u{202F}' => {
-                out.push(' ')
-            }
+            '\u{00A0}' | '\u{2002}' | '\u{2003}' | '\u{2009}' | '\u{200A}' | '\u{202F}' => out.push(' '),
             '\u{00AD}' => out.push('-'),
             '\u{2010}' | '\u{2011}' => out.push('-'),
             '\u{0}'..='\u{1F}' | '\u{7F}' | '\u{200B}'..='\u{200F}' | '\u{FEFF}' => {}
@@ -199,12 +197,7 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
 
     fn push_transparency_group(&mut self, _: f32, _: Option<SoftMask<'a>>, _: BlendMode) {}
 
-    fn draw_glyph_run(
-        &mut self,
-        glyph_run: &GlyphRun<'_, 'a>,
-        props: DrawProps<'a>,
-        draw_mode: &DrawMode,
-    ) {
+    fn draw_glyph_run(&mut self, glyph_run: &GlyphRun<'_, 'a>, props: DrawProps<'a>, draw_mode: &DrawMode) {
         let invisible = matches!(draw_mode, DrawMode::Invisible);
         let color = paint_color(&props.paint);
         let clip = self.clip();
@@ -226,7 +219,11 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
                 continue;
             }
             let angle = (b.atan2(a)).to_degrees() as f32;
-            let dir = if angle.abs() < 3.0 { Dir::Horizontal } else { Dir::Rotated };
+            let dir = if angle.abs() < 3.0 {
+                Dir::Horizontal
+            } else {
+                Dir::Rotated
+            };
 
             let (unicode, advance, font, outline_box) = match &**glyph {
                 PdfGlyph::Outline(g) => (
@@ -297,14 +294,15 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
         let (w, h) = (image.width(), image.height());
         let rect = kurbo::Rect::new(0.0, 0.0, w as f64, h as f64);
         let bbox = props.transform.transform_rect_bbox(rect);
-        if let Some(bbox) = self.visible(bbox) {
-            if bbox.width() > 0.5 && bbox.height() > 0.5 {
-                self.page.images.push(ImageBox {
-                    bbox,
-                    px_width: w,
-                    px_height: h,
-                });
-            }
+        if let Some(bbox) = self.visible(bbox)
+            && bbox.width() > 0.5
+            && bbox.height() > 0.5
+        {
+            self.page.images.push(ImageBox {
+                bbox,
+                px_width: w,
+                px_height: h,
+            });
         }
     }
 

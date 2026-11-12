@@ -1,7 +1,7 @@
 //! End-to-end test on a small PDF that is generated on the fly.
 
-use paper2html::model::BlockKind;
 use base64::Engine;
+use paper2html::model::BlockKind;
 use paper2html::{AnalyzeOptions, HtmlOptions, Mode, Paper};
 
 /// Builds a one-page PDF using the standard Helvetica fonts.
@@ -94,7 +94,11 @@ fn analyses_structure() {
     );
     assert!(paragraphs[1].ends_with("and it is long enough to span two lines."));
 
-    assert!(doc.blocks.iter().any(|b| matches!(b.kind, BlockKind::Authors) && b.text().contains("Ada Lovelace")));
+    assert!(
+        doc.blocks
+            .iter()
+            .any(|b| matches!(b.kind, BlockKind::Authors) && b.text().contains("Ada Lovelace"))
+    );
 }
 
 #[test]
@@ -102,24 +106,47 @@ fn renders_all_modes() {
     let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
     let analysis = paper.analyze();
 
-    let friendly = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Friendly, ..Default::default() });
+    let friendly = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Friendly,
+            ..Default::default()
+        },
+    );
     assert!(friendly.html.contains("<h1>A Tiny Test Paper</h1>"));
     assert!(friendly.html.contains("id=\"sec-1\""));
     assert!(friendly.html.contains("pipeline of the documentation tests."));
     assert!(friendly.files.is_empty());
 
-    let medium = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Medium, ..Default::default() });
+    let medium = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Medium,
+            ..Default::default()
+        },
+    );
     assert!(medium.html.contains("class=\"page\""));
     assert!(medium.html.contains("<h1 class=\"title\">A Tiny Test Paper</h1>"));
 
-    let hard = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Hard, ..Default::default() });
+    let hard = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Hard,
+            ..Default::default()
+        },
+    );
     assert!(hard.html.contains("data:image/svg+xml;base64,"));
     assert!(hard.html.contains("data-kind=\"paragraph\""));
     // The text of a paragraph is contiguous in the DOM.
     assert!(hard.html.contains("pipeline of the docu</span>"));
 
     // External images: the page background becomes a file.
-    let opts = HtmlOptions { mode: Mode::Hard, inline_images: false, asset_dir: "assets".into(), ..Default::default() };
+    let opts = HtmlOptions {
+        mode: Mode::Hard,
+        inline_images: false,
+        asset_dir: "assets".into(),
+        ..Default::default()
+    };
     let external = paper.to_html(&analysis, &opts);
     assert_eq!(external.files.len(), 1);
     assert!(external.files[0].0.starts_with("assets/"));
@@ -148,7 +175,11 @@ fn rebuilds_tables() {
     let cells: Vec<Vec<String>> = table
         .rows
         .iter()
-        .map(|r| r.iter().map(|c| c.spans.iter().map(|s| s.text.as_str()).collect::<String>()).collect())
+        .map(|r| {
+            r.iter()
+                .map(|c| c.spans.iter().map(|s| s.text.as_str()).collect::<String>())
+                .collect()
+        })
         .collect();
     assert_eq!(
         cells,
@@ -165,7 +196,13 @@ fn rebuilds_tables() {
     assert_eq!(table.rule_bottom, [2, 2, 2]);
 
     for mode in [Mode::Friendly, Mode::Medium] {
-        let out = paper.to_html(&analysis, &HtmlOptions { mode, ..Default::default() });
+        let out = paper.to_html(
+            &analysis,
+            &HtmlOptions {
+                mode,
+                ..Default::default()
+            },
+        );
         assert!(out.html.contains("<table class=\"tbl\">"), "{mode:?}");
         assert!(out.html.contains(">Gamma</td>"), "{mode:?}");
         // No picture of the table is embedded.
@@ -173,9 +210,18 @@ fn rebuilds_tables() {
     }
 
     // Tables can be left alone.
-    let plain = paper.analyze_with(AnalyzeOptions { tables: false, ..Default::default() });
+    let plain = paper.analyze_with(AnalyzeOptions {
+        tables: false,
+        ..Default::default()
+    });
     assert!(plain.doc.blocks.iter().all(|b| b.table.is_none()));
-    let out = paper.to_html(&plain, &HtmlOptions { mode: Mode::Friendly, ..Default::default() });
+    let out = paper.to_html(
+        &plain,
+        &HtmlOptions {
+            mode: Mode::Friendly,
+            ..Default::default()
+        },
+    );
     assert!(out.html.contains("data:image/png"));
 }
 
@@ -183,7 +229,13 @@ fn rebuilds_tables() {
 fn hard95_is_all_text() {
     let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
     let analysis = paper.analyze();
-    let out = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Hard95, ..Default::default() });
+    let out = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Hard95,
+            ..Default::default()
+        },
+    );
     let html = &out.html;
 
     // Paragraphs are flowing blocks holding the lines of the PDF ...
@@ -200,7 +252,9 @@ fn hard95_is_all_text() {
     let marker = "data:image/svg+xml;base64,";
     let start = html.find(marker).expect("page picture") + marker.len();
     let end = start + html[start..].find('"').unwrap();
-    let svg = base64::engine::general_purpose::STANDARD.decode(&html[start..end]).unwrap();
+    let svg = base64::engine::general_purpose::STANDARD
+        .decode(&html[start..end])
+        .unwrap();
     let svg = String::from_utf8(svg).unwrap();
     assert!(svg.starts_with("<svg"));
     assert!(!svg.contains("<use "), "glyphs left in the page picture");
@@ -208,10 +262,18 @@ fn hard95_is_all_text() {
     assert!(svg.contains("<path"));
 
     // The facsimile mode still draws the text itself.
-    let hard = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Hard, ..Default::default() });
+    let hard = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Hard,
+            ..Default::default()
+        },
+    );
     let start = hard.html.find(marker).unwrap() + marker.len();
     let end = start + hard.html[start..].find('"').unwrap();
-    let svg = base64::engine::general_purpose::STANDARD.decode(&hard.html[start..end]).unwrap();
+    let svg = base64::engine::general_purpose::STANDARD
+        .decode(&hard.html[start..end])
+        .unwrap();
     assert!(String::from_utf8(svg).unwrap().contains("<use "));
 }
 
@@ -219,11 +281,25 @@ fn hard95_is_all_text() {
 fn threads_do_not_change_output() {
     let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
     let render = |jobs: usize| {
-        let analysis = paper.analyze_with(AnalyzeOptions { jobs, ..Default::default() });
+        let analysis = paper.analyze_with(AnalyzeOptions {
+            jobs,
+            ..Default::default()
+        });
         let json = serde_json::to_string(&analysis.doc).unwrap();
         let html: Vec<String> = [Mode::Hard, Mode::Hard95, Mode::Medium, Mode::Friendly]
             .into_iter()
-            .map(|mode| paper.to_html(&analysis, &HtmlOptions { mode, jobs, ..Default::default() }).html)
+            .map(|mode| {
+                paper
+                    .to_html(
+                        &analysis,
+                        &HtmlOptions {
+                            mode,
+                            jobs,
+                            ..Default::default()
+                        },
+                    )
+                    .html
+            })
             .collect();
         (json, html)
     };
@@ -238,7 +314,15 @@ fn page_pictures_load_lazily() {
     let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
     let analysis = paper.analyze();
     for mode in [Mode::Hard, Mode::Hard95] {
-        let html = paper.to_html(&analysis, &HtmlOptions { mode, ..Default::default() }).html;
+        let html = paper
+            .to_html(
+                &analysis,
+                &HtmlOptions {
+                    mode,
+                    ..Default::default()
+                },
+            )
+            .html;
         let bg = html.find("<img class=\"bg\"").expect("page picture");
         let tag = &html[bg..bg + html[bg..].find('>').unwrap()];
         assert!(tag.contains("loading=\"lazy\""), "{mode:?}");

@@ -96,13 +96,20 @@ fn span_html(s: &Span, text: &str, gaps: &mut std::slice::Iter<'_, f32>) -> Stri
     }
     let color = (s.color != [0; 3]).then(|| format!("color:#{:02x}{:02x}{:02x}", s.color[0], s.color[1], s.color[2]));
     if !classes.is_empty() || color.is_some() {
-        let cls = if classes.is_empty() { String::new() } else { format!(" class=\"{}\"", classes.join(" ")) };
+        let cls = if classes.is_empty() {
+            String::new()
+        } else {
+            format!(" class=\"{}\"", classes.join(" "))
+        };
         let style = color.map(|c| format!(" style=\"{c}\"")).unwrap_or_default();
         out = format!("<span{cls}{style}>{out}</span>");
     }
     match &s.href {
         Some(h) if h.starts_with('#') => format!("<a href=\"{}\">{out}</a>", esc(h)),
-        Some(h) => format!("<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">{out}</a>", esc(h)),
+        Some(h) => format!(
+            "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">{out}</a>",
+            esc(h)
+        ),
         None => out,
     }
 }
@@ -159,7 +166,13 @@ fn fragments(lines: &[Line]) -> Vec<Fragment> {
             _ => true,
         };
         if new {
-            out.push(Fragment { start: i, end: i + 1, page: l.page, x0: l.bbox.x0, x1: l.bbox.x1 });
+            out.push(Fragment {
+                start: i,
+                end: i + 1,
+                page: l.page,
+                x0: l.bbox.x0,
+                x1: l.bbox.x1,
+            });
         } else {
             let f = out.last_mut().unwrap();
             f.end = i + 1;
@@ -236,7 +249,11 @@ fn flow_block(doc: &Document, b: &Block, pi: usize, u: &Units) -> String {
         .iter()
         .map(|l| l.bbox.x0)
         .fold(f32::INFINITY, f32::min);
-    let indent = if rest_x0.is_finite() { first.bbox.x0 - rest_x0 } else { 0.0 };
+    let indent = if rest_x0.is_finite() {
+        first.bbox.x0 - rest_x0
+    } else {
+        0.0
+    };
     let full = b
         .lines
         .iter()
@@ -332,7 +349,10 @@ fn table_box(t: &Table, u: &Units) -> String {
         }
         let tag = if ri < t.header_rows { "th" } else { "td" };
         match cell {
-            None => out.push_str(&format!("<{tag} class=\"e{}\"></{tag}>", table_rule_classes(t, ri, col, 1, 1))),
+            None => out.push_str(&format!(
+                "<{tag} class=\"e{}\"></{tag}>",
+                table_rule_classes(t, ri, col, 1, 1)
+            )),
             Some(cell) => {
                 let c0 = cell.col.min(t.n_cols - 1);
                 let c1 = (cell.col + cell.colspan).min(t.n_cols) - 1;
@@ -384,7 +404,12 @@ fn equation(b: &Block, u: &Units) -> String {
         b.id
     );
     for r in &b.eq_runs {
-        let span = Span { text: r.text.clone(), style: r.style | MATH, href: None, color: r.color };
+        let span = Span {
+            text: r.text.clone(),
+            style: r.style | MATH,
+            href: None,
+            color: r.color,
+        };
         let html = span_html(&span, &r.text, &mut [].iter());
         let ink = r
             .ink
@@ -427,11 +452,16 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
     let doc = &analysis.doc;
     let title = doc_title(doc);
     let lower = doc.body_font.to_ascii_lowercase();
-    let computer_modern = ["cmr", "lmr", "lmroman", "cmu", "sfrm", "ecrm"].iter().any(|p| lower.contains(p));
+    let computer_modern = ["cmr", "lmr", "lmroman", "cmu", "sfrm", "ecrm"]
+        .iter()
+        .any(|p| lower.contains(p));
 
     let mut pages = String::new();
     for (pi, p) in doc.pages.iter().enumerate() {
-        let u = Units { pw: p.width, ph: p.height };
+        let u = Units {
+            pw: p.width,
+            ph: p.height,
+        };
         let mut layer = String::new();
         // Origins of all glyphs that are drawn as HTML on this page; they
         // are removed from the picture of the page.
@@ -463,7 +493,10 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
                     let html = flow_block(doc, b, pi, &u);
                     if !html.is_empty() {
                         layer.push_str(&html);
-                        b.lines.iter().filter(|l| l.page == pi).for_each(|l| add_origins(&mut drawn, l));
+                        b.lines
+                            .iter()
+                            .filter(|l| l.page == pi)
+                            .for_each(|l| add_origins(&mut drawn, l));
                     }
                     // Content of a float: a table, or text placed line by line.
                     if b.inner_lines.first().is_some_and(|l| l.page == pi) {
@@ -500,7 +533,12 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
         if let Some(rotated) = analysis.rotated.get(pi) {
             let mut html = String::new();
             for r in rotated {
-                let span = Span { text: r.text.clone(), style: r.style, href: None, color: r.color };
+                let span = Span {
+                    text: r.text.clone(),
+                    style: r.style,
+                    href: None,
+                    color: r.color,
+                };
                 html.push_str(&format!(
                     "<span class=\"rt\" style=\"left:{};top:{};font-size:{};transform:rotate({:.2}deg)\" data-w=\"{}\">{}</span>",
                     u.x(r.x),
@@ -539,7 +577,12 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
         .meta
         .arxiv_id
         .as_ref()
-        .map(|id| format!("<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>", esc(id)))
+        .map(|id| {
+            format!(
+                "<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>",
+                esc(id)
+            )
+        })
         .unwrap_or_default();
     format!(
         r#"<!DOCTYPE html>

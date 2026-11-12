@@ -7,10 +7,10 @@ use crate::par;
 use crate::pdf::extract::{RawPage, extract_page};
 use crate::pdf::fonts::FontInfo;
 use crate::pdf::{FontRegistry, PageRenderer};
-use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use hayro_interpret::{InterpreterCache, InterpreterSettings};
 use hayro_syntax::Pdf;
+use std::collections::HashMap;
 
 /// A loaded PDF.
 pub struct Paper {
@@ -61,7 +61,13 @@ impl Paper {
         let extracted = par::map(
             pages.len(),
             jobs,
-            || (FontRegistry::new(), InterpreterCache::new(), InterpreterSettings::default()),
+            || {
+                (
+                    FontRegistry::new(),
+                    InterpreterCache::new(),
+                    InterpreterSettings::default(),
+                )
+            },
             |(fonts, cache, settings), i| {
                 let page = extract_page(&pages[i], i, fonts, cache, settings);
                 // The fonts this page refers to, by local index.

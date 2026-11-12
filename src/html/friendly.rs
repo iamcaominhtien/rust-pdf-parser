@@ -34,7 +34,10 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
         }
     }
     meta.push(format!("{} pages", doc.pages.len()));
-    head.push_str(&format!("<div class=\"meta\">{}</div>\n", meta.iter().map(|m| format!("<span>{m}</span>")).collect::<String>()));
+    head.push_str(&format!(
+        "<div class=\"meta\">{}</div>\n",
+        meta.iter().map(|m| format!("<span>{m}</span>")).collect::<String>()
+    ));
     for b in front.iter().filter(|b| matches!(b.kind, BlockKind::Note)) {
         head.push_str(&format!("<p class=\"note\">{}</p>\n", spans_html(&b.spans)));
     }
@@ -45,32 +48,43 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
         .filter(|b| !matches!(b.kind, BlockKind::Title | BlockKind::Authors | BlockKind::Note))
         .collect();
 
-    let ctx = FlowCtx { unit: WidthUnit::Em { pt_per_em: doc.body_size } };
+    let ctx = FlowCtx {
+        unit: WidthUnit::Em {
+            pt_per_em: doc.body_size,
+        },
+    };
     let mut content = render_flow(&front_rest, images, &ctx);
     content.push_str(&render_flow(body, images, &ctx));
 
     let mut toc = String::new();
     for b in body {
-        if let (BlockKind::Heading { level }, Some(a)) = (&b.kind, &b.anchor) {
-            if *level <= 3 {
-                toc.push_str(&format!(
-                    "<li class=\"l{level}\"><a href=\"#{}\">{}</a></li>\n",
-                    esc(a),
-                    esc(&plain(&b.spans))
-                ));
-            }
+        if let (BlockKind::Heading { level }, Some(a)) = (&b.kind, &b.anchor)
+            && *level <= 3
+        {
+            toc.push_str(&format!(
+                "<li class=\"l{level}\"><a href=\"#{}\">{}</a></li>\n",
+                esc(a),
+                esc(&plain(&b.spans))
+            ));
         }
     }
     let toc = if toc.is_empty() {
         String::new()
     } else {
-        format!("<nav class=\"toc\" aria-label=\"Table of contents\"><p class=\"toc-title\">Contents</p><ol>\n{toc}</ol></nav>\n")
+        format!(
+            "<nav class=\"toc\" aria-label=\"Table of contents\"><p class=\"toc-title\">Contents</p><ol>\n{toc}</ol></nav>\n"
+        )
     };
     let source = doc
         .meta
         .arxiv_id
         .as_ref()
-        .map(|id| format!("<a href=\"https://arxiv.org/pdf/{}\" target=\"_blank\" rel=\"noopener noreferrer\">PDF</a>", esc(id)))
+        .map(|id| {
+            format!(
+                "<a href=\"https://arxiv.org/pdf/{}\" target=\"_blank\" rel=\"noopener noreferrer\">PDF</a>",
+                esc(id)
+            )
+        })
         .unwrap_or_default();
 
     format!(

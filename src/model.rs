@@ -28,7 +28,12 @@ fn is_black(c: &[u8; 3]) -> bool {
 
 impl Span {
     pub fn plain(text: impl Into<String>) -> Self {
-        Self { text: text.into(), style: 0, href: None, color: [0; 3] }
+        Self {
+            text: text.into(),
+            style: 0,
+            href: None,
+            color: [0; 3],
+        }
     }
 }
 

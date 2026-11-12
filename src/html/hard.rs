@@ -91,7 +91,9 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
                 spans.push_str(&line_span(&l.line, &format!("{} ", l.line.text()), pw, ph));
             }
             if !spans.is_empty() {
-                layer.push_str(&format!("<div class=\"b\" data-kind=\"page-furniture\">{spans}</div>\n"));
+                layer.push_str(&format!(
+                    "<div class=\"b\" data-kind=\"page-furniture\">{spans}</div>\n"
+                ));
             }
         }
         let bg = format!(
@@ -108,7 +110,12 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
         .meta
         .arxiv_id
         .as_ref()
-        .map(|id| format!("<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>", esc(id)))
+        .map(|id| {
+            format!(
+                "<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>",
+                esc(id)
+            )
+        })
         .unwrap_or_default();
     format!(
         r#"<!DOCTYPE html>

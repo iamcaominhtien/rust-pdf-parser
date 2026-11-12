@@ -7,7 +7,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 #[derive(Parser)]
-#[command(name = "paper2html", version, about = "Convert scientific-paper PDFs (arXiv) into clean, readable HTML")]
+#[command(
+    name = "paper2html",
+    version,
+    about = "Convert scientific-paper PDFs (arXiv) into clean, readable HTML"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -129,10 +133,10 @@ fn load(input: &str) -> Result<(Paper, String)> {
 }
 
 fn write_file(path: &Path, data: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
     }
     std::fs::write(path, data).with_context(|| format!("writing {}", path.display()))
 }
@@ -164,7 +168,10 @@ fn convert(args: ConvertArgs) -> Result<()> {
 
     // Resolve where each mode goes.
     let out_is_dir = args.all
-        || args.output.as_ref().is_some_and(|o| o.is_dir() || o.extension().is_none());
+        || args
+            .output
+            .as_ref()
+            .is_some_and(|o| o.is_dir() || o.extension().is_none());
     let dir: PathBuf = match (&args.output, out_is_dir) {
         (Some(o), true) => o.clone(),
         (Some(o), false) => o.parent().map(Path::to_path_buf).unwrap_or_default(),
@@ -200,7 +207,11 @@ fn convert(args: ConvertArgs) -> Result<()> {
             mode.name(),
             file.display(),
             out.html.len() as f64 / 1e6,
-            if out.files.is_empty() { String::new() } else { format!(" + {} image files", out.files.len()) },
+            if out.files.is_empty() {
+                String::new()
+            } else {
+                format!(" + {} image files", out.files.len())
+            },
             t.elapsed().as_secs_f32()
         );
     }
@@ -256,7 +267,13 @@ fn inspect(input: &str) -> Result<()> {
                 kind,
                 label.clone().unwrap_or_default(),
                 image
-                    .map(|i| format!("[{:.0},{:.0} {:.0}x{:.0}]", i.rect.x0, i.rect.y0, i.rect.width(), i.rect.height()))
+                    .map(|i| format!(
+                        "[{:.0},{:.0} {:.0}x{:.0}]",
+                        i.rect.x0,
+                        i.rect.y0,
+                        i.rect.width(),
+                        i.rect.height()
+                    ))
                     .unwrap_or_else(|| "[no image]".into())
             ),
             BlockKind::Footnote { marker } => format!("FN {marker}"),
@@ -266,7 +283,11 @@ fn inspect(input: &str) -> Result<()> {
             Some(t) => format!("{kind} <table {}x{} hdr={}>", t.rows.len(), t.n_cols, t.header_rows),
             None => kind,
         };
-        let zone = if b.loc.zone_cols > 1 { format!("{}/{}", b.loc.col + 1, b.loc.zone_cols) } else { "-".into() };
+        let zone = if b.loc.zone_cols > 1 {
+            format!("{}/{}", b.loc.col + 1, b.loc.zone_cols)
+        } else {
+            "-".into()
+        };
         if writeln!(o, "p{:<3} {:<4} {:<22} {}", b.page + 1, zone, kind, short).is_err() {
             break;
         }

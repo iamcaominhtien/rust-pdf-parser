@@ -50,26 +50,75 @@ pub enum RawBlock {
     Footnote(TextBlock),
 }
 
-static EQNO: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\((?:[A-Z]\.?)?\d+(?:\.\d+)*[a-z]?\)$").unwrap());
+static EQNO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\((?:[A-Z]\.?)?\d+(?:\.\d+)*[a-z]?\)$").unwrap());
 /// A bullet at the start of a line.
-pub static BULLET: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[•◦▪■–∗⋆·‣▶►○●◆\-]\s").unwrap());
+pub static BULLET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[•◦▪■–∗⋆·‣▶►○●◆\-]\s").unwrap());
 /// An enumeration label at the start of a line.
-pub static NUM_LABEL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:\(\d{1,2}\)|\([a-z]\)|\([ivx]{1,4}\)|\d{1,2}[.)]|[a-z]\))\s").unwrap()
-});
+pub static NUM_LABEL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:\(\d{1,2}\)|\([a-z]\)|\([ivx]{1,4}\)|\d{1,2}[.)]|[a-z]\))\s").unwrap());
 pub static LIST_LABEL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(?:[•◦▪■–∗⋆·‣▶►○●◆\-]\s|\(\d{1,2}\)\s|\([a-z]\)\s|\([ivx]{1,4}\)\s|\d{1,2}[.)]\s|[a-z]\)\s)").unwrap()
 });
 
 fn is_math_char(c: char) -> bool {
-    matches!(c,
-        '=' | '+' | '−' | '×' | '÷' | '·' | '∑' | '∏' | '∫' | '√' | '∞' | '≤' | '≥' | '≠' | '≈'
-        | '∈' | '∉' | '⊂' | '⊆' | '∪' | '∩' | '∧' | '∨' | '¬' | '→' | '←' | '↔' | '⇒' | '⇔'
-        | '∀' | '∃' | '∂' | '∇' | '∝' | '∼' | '≡' | '⟨' | '⟩' | '‖' | '|' | '<' | '>' | '±'
-        | '∓' | '⊕' | '⊗' | '∘' | '′' | '⊤' | '⊥' | '∥' | '≜' | '≪' | '≫' | '↦' | '∖')
-        || ('\u{0391}'..='\u{03C9}').contains(&c)
+    matches!(
+        c,
+        '=' | '+'
+            | '−'
+            | '×'
+            | '÷'
+            | '·'
+            | '∑'
+            | '∏'
+            | '∫'
+            | '√'
+            | '∞'
+            | '≤'
+            | '≥'
+            | '≠'
+            | '≈'
+            | '∈'
+            | '∉'
+            | '⊂'
+            | '⊆'
+            | '∪'
+            | '∩'
+            | '∧'
+            | '∨'
+            | '¬'
+            | '→'
+            | '←'
+            | '↔'
+            | '⇒'
+            | '⇔'
+            | '∀'
+            | '∃'
+            | '∂'
+            | '∇'
+            | '∝'
+            | '∼'
+            | '≡'
+            | '⟨'
+            | '⟩'
+            | '‖'
+            | '|'
+            | '<'
+            | '>'
+            | '±'
+            | '∓'
+            | '⊕'
+            | '⊗'
+            | '∘'
+            | '′'
+            | '⊤'
+            | '⊥'
+            | '∥'
+            | '≜'
+            | '≪'
+            | '≫'
+            | '↦'
+            | '∖'
+    ) || ('\u{0391}'..='\u{03C9}').contains(&c)
         || ('\u{1D400}'..='\u{1D7FF}').contains(&c)
 }
 
@@ -80,7 +129,11 @@ struct RowStats {
 }
 
 fn row_stats(lines: &[&Line], fonts: &[FontInfo]) -> RowStats {
-    let mut st = RowStats { n: 0, math: 0, prose: 0 };
+    let mut st = RowStats {
+        n: 0,
+        math: 0,
+        prose: 0,
+    };
     for l in lines {
         let mut run = 0usize;
         for g in &l.glyphs {
@@ -110,7 +163,12 @@ fn row_stats(lines: &[&Line], fonts: &[FontInfo]) -> RowStats {
 
 enum Row {
     Text(Line),
-    Equation { lines: Vec<Line>, bbox: Rect, number: Option<String>, number_line: Option<Line> },
+    Equation {
+        lines: Vec<Line>,
+        bbox: Rect,
+        number: Option<String>,
+        number_line: Option<Line>,
+    },
     Float(usize),
 }
 
@@ -131,12 +189,7 @@ fn bold_dominant(l: &Line, fonts: &[FontInfo]) -> bool {
     l.font_frac(fonts, |f| f.bold) >= 0.95
 }
 
-pub fn build_blocks(
-    page: &PageData,
-    leaves: &[Leaf],
-    stats: &DocStats,
-    fonts: &[FontInfo],
-) -> Vec<RawBlock> {
+pub fn build_blocks(page: &PageData, leaves: &[Leaf], stats: &DocStats, fonts: &[FontInfo]) -> Vec<RawBlock> {
     let mut out = Vec::new();
     for (leaf_idx, leaf) in leaves.iter().enumerate() {
         let loc = Loc {
@@ -226,7 +279,8 @@ pub fn build_blocks(
             // White space above and below, as around a displayed formula.
             let isolated = {
                 let me = ink_boxes[pi];
-                let above = pi == 0 || ink_boxes[pi - 1].is_unset() || me.y0 - ink_boxes[pi - 1].y1 > 0.55 * stats.body_size;
+                let above =
+                    pi == 0 || ink_boxes[pi - 1].is_unset() || me.y0 - ink_boxes[pi - 1].y1 > 0.55 * stats.body_size;
                 let below = pi + 1 >= ink_boxes.len()
                     || ink_boxes[pi + 1].is_unset()
                     || ink_boxes[pi + 1].y0 - me.y1 > 0.55 * stats.body_size;
@@ -284,7 +338,14 @@ pub fn build_blocks(
                 && isolated
                 && math_frac >= 0.08
                 && prose_frac <= 0.8
-                && content.iter().any(|l| l.glyphs.iter().any(|g| matches!(g.text.as_str(), "=" | "≤" | "≥" | "≈" | "∈" | "→" | "∝" | "≡" | "<" | ">")))
+                && content.iter().any(|l| {
+                    l.glyphs.iter().any(|g| {
+                        matches!(
+                            g.text.as_str(),
+                            "=" | "≤" | "≥" | "≈" | "∈" | "→" | "∝" | "≡" | "<" | ">"
+                        )
+                    })
+                })
             {
                 // A centred formula made mostly of operator names.
                 true
@@ -293,9 +354,14 @@ pub fn build_blocks(
             };
             // A formula-like line that did not qualify on its own; it is
             // promoted below if it sits right next to an equation row.
-            let has_relation = content
-                .iter()
-                .any(|l| l.glyphs.iter().any(|g| matches!(g.text.as_str(), "=" | "≤" | "≥" | "≈" | "∈" | "→" | "∝" | "≡" | "<" | ">")));
+            let has_relation = content.iter().any(|l| {
+                l.glyphs.iter().any(|g| {
+                    matches!(
+                        g.text.as_str(),
+                        "=" | "≤" | "≥" | "≈" | "∈" | "→" | "∝" | "≡" | "<" | ">"
+                    )
+                })
+            });
             let weak_eq = !is_eq
                 && ((has_relation
                     && left_indent >= 1.2 * em
@@ -309,7 +375,12 @@ pub fn build_blocks(
                 let mut lines = lines;
                 let number_line = if number.is_some() { lines.pop() } else { None };
                 debug_assert_eq!(lines.len(), n);
-                rows.push(Row::Equation { lines, bbox: ink, number, number_line });
+                rows.push(Row::Equation {
+                    lines,
+                    bbox: ink,
+                    number,
+                    number_line,
+                });
                 weak.push(None);
             } else {
                 weak.push(weak_eq.then_some((lines.clone(), ink)));
@@ -324,14 +395,23 @@ pub fn build_blocks(
                 let Some((_, ink)) = &weak[i] else { continue };
                 let near = |j: usize| match &rows[j] {
                     Row::Equation { bbox, .. } => {
-                        let gap = if bbox.cy() < ink.cy() { ink.y0 - bbox.y1 } else { bbox.y0 - ink.y1 };
+                        let gap = if bbox.cy() < ink.cy() {
+                            ink.y0 - bbox.y1
+                        } else {
+                            bbox.y0 - ink.y1
+                        };
                         gap < 0.9 * stats.leading
                     }
                     _ => false,
                 };
                 if (i > 0 && near(i - 1)) || (i + 1 < rows.len() && near(i + 1)) {
                     let (lines, bbox) = weak[i].take().unwrap();
-                    rows[i] = Row::Equation { lines, bbox, number: None, number_line: None };
+                    rows[i] = Row::Equation {
+                        lines,
+                        bbox,
+                        number: None,
+                        number_line: None,
+                    };
                     changed = true;
                 }
             }
@@ -344,8 +424,20 @@ pub fn build_blocks(
         // numerators and denominators).
         let mut merged: Vec<Row> = Vec::new();
         for r in rows {
-            if let Row::Equation { lines, bbox, number, number_line } = r {
-                if let Some(Row::Equation { lines: pl, bbox: pb, number: pn, number_line: pnl }) = merged.last_mut() {
+            if let Row::Equation {
+                lines,
+                bbox,
+                number,
+                number_line,
+            } = r
+            {
+                if let Some(Row::Equation {
+                    lines: pl,
+                    bbox: pb,
+                    number: pn,
+                    number_line: pnl,
+                }) = merged.last_mut()
+                {
                     let gap = bbox.y0 - pb.y1;
                     let overlap = gap < 0.0;
                     if overlap || (gap < 0.9 * stats.leading && !(pn.is_some() && number.is_some())) {
@@ -361,7 +453,12 @@ pub fn build_blocks(
                         continue;
                     }
                 }
-                merged.push(Row::Equation { lines, bbox, number, number_line });
+                merged.push(Row::Equation {
+                    lines,
+                    bbox,
+                    number,
+                    number_line,
+                });
             } else {
                 merged.push(r);
             }
@@ -423,7 +520,9 @@ pub fn build_blocks(
                 while k < rows.len() {
                     let Row::Text(l) = &rows[k] else { break };
                     let marked = l.starts_with_superscript()
-                        || l.glyphs.first().is_some_and(|g| matches!(g.text.as_str(), "∗" | "†" | "‡" | "§" | "¶" | "*"));
+                        || l.glyphs
+                            .first()
+                            .is_some_and(|g| matches!(g.text.as_str(), "∗" | "†" | "‡" | "§" | "¶" | "*"));
                     let gap_ok = k == 0
                         || match &rows[k - 1] {
                             Row::Text(p) => l.baseline - p.baseline > 1.25 * stats.leading * l.size / stats.body_size,
@@ -463,14 +562,16 @@ pub fn build_blocks(
                 };
                 let a = &p.last().unwrap().0;
                 let em = line.size;
-                let short_a = !ends_with_hyphen(a)
-                    && a.bbox.x1 + 0.25 * em + line.first_word_width() < right - 1.0;
+                let short_a = !ends_with_hyphen(a) && a.bbox.x1 + 0.25 * em + line.first_word_width() < right - 1.0;
                 let text = line.text();
                 let bullet_b = BULLET.is_match(&text);
                 let num_b = NUM_LABEL.is_match(&text);
                 let marker_b = footnote
                     && (line.starts_with_superscript()
-                        || line.glyphs.first().is_some_and(|g| matches!(g.text.as_str(), "∗" | "†" | "‡" | "§" | "¶" | "*")));
+                        || line
+                            .glyphs
+                            .first()
+                            .is_some_and(|g| matches!(g.text.as_str(), "∗" | "†" | "‡" | "§" | "¶" | "*")));
                 let first_num = NUM_LABEL.is_match(&p[0].0.text());
                 let aligned_first = (line.bbox.x0 - p[0].0.bbox.x0).abs() <= 0.6 * em;
                 let brk = if centered {
@@ -505,7 +606,11 @@ pub fn build_blocks(
                     gap_before,
                     bbox,
                 };
-                out.push(if footnote { RawBlock::Footnote(tb) } else { RawBlock::Text(tb) });
+                out.push(if footnote {
+                    RawBlock::Footnote(tb)
+                } else {
+                    RawBlock::Text(tb)
+                });
             }
         };
 
@@ -522,9 +627,20 @@ pub fn build_blocks(
                     out.push(RawBlock::Float { idx, loc });
                     prev_baseline = None;
                 }
-                Row::Equation { lines, bbox, number, number_line } => {
+                Row::Equation {
+                    lines,
+                    bbox,
+                    number,
+                    number_line,
+                } => {
                     flush_group(&mut group, &mut out, footnote);
-                    out.push(RawBlock::Equation(EquationBlock { lines, bbox, number, number_line, loc }));
+                    out.push(RawBlock::Equation(EquationBlock {
+                        lines,
+                        bbox,
+                        number,
+                        number_line,
+                        loc,
+                    }));
                     prev_baseline = None;
                 }
                 Row::Text(line) => {

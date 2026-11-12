@@ -53,7 +53,7 @@ where
             .map(|_| {
                 std::thread::Builder::new()
                     .stack_size(STACK_SIZE)
-                    .spawn_scoped(scope, &worker)
+                    .spawn_scoped(scope, worker)
                     .expect("cannot start a worker thread")
             })
             .collect();
@@ -72,10 +72,15 @@ mod tests {
     #[test]
     fn keeps_order() {
         for jobs in [0, 1, 3, 16] {
-            let out = super::map(50, jobs, || 0usize, |calls, i| {
-                *calls += 1;
-                i * i
-            });
+            let out = super::map(
+                50,
+                jobs,
+                || 0usize,
+                |calls, i| {
+                    *calls += 1;
+                    i * i
+                },
+            );
             assert_eq!(out, (0..50).map(|i| i * i).collect::<Vec<_>>());
         }
         assert!(super::map(0, 4, || (), |_, i| i).is_empty());

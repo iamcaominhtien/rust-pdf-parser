@@ -31,17 +31,27 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let mut pages = String::new();
     for (pi, p) in doc.pages.iter().enumerate() {
         let blocks: Vec<&Block> = doc.blocks.iter().filter(|b| b.page == pi).collect();
-        let ctx = FlowCtx { unit: WidthUnit::Cqw { page_width: p.width } };
+        let ctx = FlowCtx {
+            unit: WidthUnit::Cqw { page_width: p.width },
+        };
         let mut inner = String::new();
 
-        let (footnotes, flow): (Vec<&Block>, Vec<&Block>) =
-            blocks.iter().copied().partition(|b| matches!(b.kind, BlockKind::Footnote { .. }));
+        let (footnotes, flow): (Vec<&Block>, Vec<&Block>) = blocks
+            .iter()
+            .copied()
+            .partition(|b| matches!(b.kind, BlockKind::Footnote { .. }));
 
         // Consecutive blocks of the same zone form one container.
         let mut i = 0;
         while i < flow.len() {
             // Adjacent single-column zones form one flow.
-            let zone_key = |b: &Block| if b.loc.zone_cols <= 1 { (0, 1) } else { (b.loc.zone + 1, b.loc.zone_cols) };
+            let zone_key = |b: &Block| {
+                if b.loc.zone_cols <= 1 {
+                    (0, 1)
+                } else {
+                    (b.loc.zone + 1, b.loc.zone_cols)
+                }
+            };
             let key = zone_key(flow[i]);
             let mut j = i;
             while j < flow.len() && zone_key(flow[j]) == key {
@@ -102,7 +112,12 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
         .meta
         .arxiv_id
         .as_ref()
-        .map(|id| format!("<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>", esc(id)))
+        .map(|id| {
+            format!(
+                "<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>",
+                esc(id)
+            )
+        })
         .unwrap_or_default();
     format!(
         r#"<!DOCTYPE html>

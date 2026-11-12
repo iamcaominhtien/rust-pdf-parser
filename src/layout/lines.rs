@@ -127,11 +127,7 @@ impl Line {
         if self.glyphs.is_empty() {
             return 0.0;
         }
-        let n = self
-            .glyphs
-            .iter()
-            .filter(|g| pred(&fonts[g.font as usize]))
-            .count();
+        let n = self.glyphs.iter().filter(|g| pred(&fonts[g.font as usize])).count();
         n as f32 / self.glyphs.len() as f32
     }
 
@@ -166,7 +162,11 @@ impl Seg {
         self.x1 = self.glyphs.iter().map(|g| g.x1).fold(f32::NEG_INFINITY, f32::max);
         // Dominant size and baseline among the glyphs that sit on the baseline.
         let base: Vec<&LineGlyph> = self.glyphs.iter().filter(|g| g.script == 0).collect();
-        let pool: Vec<&LineGlyph> = if base.is_empty() { self.glyphs.iter().collect() } else { base };
+        let pool: Vec<&LineGlyph> = if base.is_empty() {
+            self.glyphs.iter().collect()
+        } else {
+            base
+        };
         self.size = crate::geom::weighted_mode(pool.iter().map(|g| (g.size, 1.0)), 0.25, 10.0);
         let size = self.size;
         let ys: Vec<f32> = pool
@@ -174,7 +174,11 @@ impl Seg {
             .filter(|g| (g.size - size).abs() < 0.3)
             .map(|g| g.y)
             .collect();
-        self.y = if ys.is_empty() { pool[0].y } else { crate::geom::median(&ys, pool[0].y) };
+        self.y = if ys.is_empty() {
+            pool[0].y
+        } else {
+            crate::geom::median(&ys, pool[0].y)
+        };
     }
 }
 
@@ -215,14 +219,17 @@ fn compose_accents(glyphs: &mut Vec<LineGlyph>) {
         let a = &glyphs[i];
         let aw = (a.x1 - a.x0).max(0.5);
         let overlap = |b: &LineGlyph| -> f32 {
-            let single_letter = b.text.chars().count() == 1
-                && b.text.chars().next().is_some_and(|c| c.is_alphabetic());
+            let single_letter = b.text.chars().count() == 1 && b.text.chars().next().is_some_and(|c| c.is_alphabetic());
             if !single_letter || b.script != a.script {
                 return 0.0;
             }
             (a.x1.min(b.x1) - a.x0.max(b.x0)) / aw.min((b.x1 - b.x0).max(0.5))
         };
-        let next = if i + 1 < glyphs.len() { overlap(&glyphs[i + 1]) } else { 0.0 };
+        let next = if i + 1 < glyphs.len() {
+            overlap(&glyphs[i + 1])
+        } else {
+            0.0
+        };
         let prev = if i > 0 { overlap(&glyphs[i - 1]) } else { 0.0 };
         let target = if next >= 0.4 && next >= prev {
             Some(i + 1)
@@ -273,7 +280,12 @@ fn finalize(page: usize, mut seg: Seg) -> Line {
         };
         // Use the furthest right edge seen so far so that overlapping glyphs
         // (accents, stacked scripts) do not create spurious gaps.
-        let right = seg.glyphs[..i].iter().rev().take(3).map(|g| g.x1).fold(f32::NEG_INFINITY, f32::max);
+        let right = seg.glyphs[..i]
+            .iter()
+            .rev()
+            .take(3)
+            .map(|g| g.x1)
+            .fold(f32::NEG_INFINITY, f32::max);
         let gap = cur.x0 - right.max(prev.x1);
         let space = gap > 0.14 * reference;
         seg.glyphs[i].space_before = space;
@@ -281,10 +293,7 @@ fn finalize(page: usize, mut seg: Seg) -> Line {
     if let Some(g) = seg.glyphs.first_mut() {
         g.space_before = false;
     }
-    let ink = seg
-        .glyphs
-        .iter()
-        .fold(Rect::EMPTY, |acc, g| acc.union(&g.ink));
+    let ink = seg.glyphs.iter().fold(Rect::EMPTY, |acc, g| acc.union(&g.ink));
     let font = {
         let mut counts: std::collections::HashMap<u16, usize> = std::collections::HashMap::new();
         for g in seg.glyphs.iter().filter(|g| g.script == 0) {
@@ -397,7 +406,10 @@ pub fn split_at_gaps(line: &Line, min_gap: f32) -> Vec<Line> {
     if groups.len() <= 1 {
         return vec![line.clone()];
     }
-    groups.into_iter().map(|g| finalize(line.page, Seg::from_glyphs(g))).collect()
+    groups
+        .into_iter()
+        .map(|g| finalize(line.page, Seg::from_glyphs(g)))
+        .collect()
 }
 
 pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
@@ -453,7 +465,11 @@ pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
                     size: g.size,
                     length: g.adv.max(0.0),
                     font: g.font,
-                    color: if g.color.iter().all(|&c| c < 48) { [0; 3] } else { g.color },
+                    color: if g.color.iter().all(|&c| c < 48) {
+                        [0; 3]
+                    } else {
+                        g.color
+                    },
                     origins: vec![(g.x, g.y)],
                 });
             }
@@ -482,7 +498,11 @@ pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
             ox: g.x,
             oy: g.y,
             extra: None,
-            color: if g.color.iter().all(|&c| c < 48) { [0; 3] } else { g.color },
+            color: if g.color.iter().all(|&c| c < 48) {
+                [0; 3]
+            } else {
+                g.color
+            },
         });
     }
 

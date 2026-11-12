@@ -5,9 +5,9 @@ mod hard;
 mod hard95;
 mod medium;
 
-use crate::document::Analysis;
+use crate::analysis::document::Analysis;
+use crate::backend::PageRenderer;
 use crate::model::*;
-use crate::pdf::PageRenderer;
 use base64::Engine;
 use hayro_syntax::Pdf;
 use regex::Regex;
@@ -162,7 +162,7 @@ impl ImageStore<'_> {
 
     /// Draws all recorded pictures and replaces the placeholders in `html`.
     fn finish(self, pdf: &Pdf, html: String) -> HtmlOutput {
-        let drawn = crate::par::map(
+        let drawn = crate::common::parallel::map(
             self.jobs.len(),
             self.opts.jobs,
             || PageRenderer::new(pdf),
@@ -274,8 +274,8 @@ pub(crate) fn caption_html(spans: &[Span]) -> String {
     spans_html(spans)
 }
 
-pub(crate) fn float_class(kind: crate::layout::floats::FloatKind) -> &'static str {
-    use crate::layout::floats::FloatKind::*;
+pub(crate) fn float_class(kind: crate::analysis::floats::FloatKind) -> &'static str {
+    use crate::analysis::floats::FloatKind::*;
     match kind {
         Figure => "fig",
         Table => "tab",

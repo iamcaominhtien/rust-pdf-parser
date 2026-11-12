@@ -1,14 +1,14 @@
 //! The structured document produced by the layout analysis and consumed by
 //! the HTML renderers.
 
-use crate::geom::Rect;
-use crate::layout::Line;
-use crate::layout::blocks::Loc;
-use crate::layout::floats::FloatKind;
+use crate::analysis::Line;
+use crate::analysis::blocks::Loc;
+use crate::analysis::floats::FloatKind;
+use crate::common::geom::Rect;
 use serde::Serialize;
 
-pub use crate::layout::lines::{BOLD, ITALIC, MATH, MONO, SANS, SUB, SUP};
-pub use crate::layout::tables::Align;
+pub use crate::analysis::lines::{BOLD, ITALIC, MATH, MONO, SANS, SUB, SUP};
+pub use crate::analysis::tables::Align;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Span {

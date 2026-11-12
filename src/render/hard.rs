@@ -4,7 +4,7 @@
 //! paragraph is contiguous even though it is positioned line by line.
 
 use super::*;
-use crate::layout::Line;
+use crate::analysis::Line;
 
 const CSS: &str = include_str!("hard.css");
 const JS: &str = include_str!("hard.js");

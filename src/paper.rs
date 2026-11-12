@@ -1,12 +1,12 @@
 //! High-level entry points: PDF bytes in, structured document and HTML out.
 
-use crate::document::{Analysis, AnalyzeOptions, analyze};
-use crate::html::{HtmlOptions, HtmlOutput, render};
+use crate::analysis::document::{Analysis, AnalyzeOptions, analyze};
+use crate::backend::extract::{RawPage, extract_page};
+use crate::backend::fonts::FontInfo;
+use crate::backend::{FontRegistry, PageRenderer};
+use crate::common::parallel;
 use crate::model::Meta;
-use crate::par;
-use crate::pdf::extract::{RawPage, extract_page};
-use crate::pdf::fonts::FontInfo;
-use crate::pdf::{FontRegistry, PageRenderer};
+use crate::render::{HtmlOptions, HtmlOutput, render};
 use anyhow::{Result, anyhow};
 use hayro_interpret::{InterpreterCache, InterpreterSettings};
 use hayro_syntax::Pdf;
@@ -58,7 +58,7 @@ impl Paper {
     /// name and in page order (the same numbering a single pass gives).
     fn extract(&self, jobs: usize) -> (Vec<RawPage>, Vec<FontInfo>) {
         let pages = self.pdf.pages();
-        let extracted = par::map(
+        let extracted = parallel::map(
             pages.len(),
             jobs,
             || {
@@ -88,7 +88,7 @@ impl Paper {
             let map: HashMap<u16, u16> = used
                 .into_iter()
                 .map(|(local, info)| {
-                    if local == crate::pdf::fonts::UNKNOWN_FONT {
+                    if local == crate::backend::fonts::UNKNOWN_FONT {
                         return (local, local);
                     }
                     let global = *by_name.entry(info.name.clone()).or_insert_with(|| {

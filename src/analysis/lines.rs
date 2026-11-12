@@ -3,8 +3,8 @@
 //! Glyphs are clustered by baseline, split at large horizontal gaps, and
 //! sub/superscripts are attached to the line they belong to.
 
-use crate::geom::Rect;
-use crate::pdf::{Dir, FontInfo, RawPage};
+use crate::backend::{Dir, FontInfo, RawPage};
+use crate::common::geom::Rect;
 use std::collections::HashSet;
 use unicode_normalization::UnicodeNormalization;
 
@@ -167,7 +167,7 @@ impl Seg {
         } else {
             base
         };
-        self.size = crate::geom::weighted_mode(pool.iter().map(|g| (g.size, 1.0)), 0.25, 10.0);
+        self.size = crate::common::geom::weighted_mode(pool.iter().map(|g| (g.size, 1.0)), 0.25, 10.0);
         let size = self.size;
         let ys: Vec<f32> = pool
             .iter()
@@ -177,7 +177,7 @@ impl Seg {
         self.y = if ys.is_empty() {
             pool[0].y
         } else {
-            crate::geom::median(&ys, pool[0].y)
+            crate::common::geom::median(&ys, pool[0].y)
         };
     }
 }

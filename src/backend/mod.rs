@@ -1,4 +1,4 @@
-//! PDF access: loading, content extraction and rendering.
+//! Adapter around the hayro PDF library: content extraction, fonts and rendering.
 
 pub mod extract;
 pub mod fonts;

@@ -3,8 +3,8 @@
 use super::lines::{Line, merge_row};
 use super::order::{ItemRef, Leaf};
 use super::page::{DocStats, PageData};
-use crate::geom::Rect;
-use crate::pdf::FontInfo;
+use crate::backend::FontInfo;
+use crate::common::geom::Rect;
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -548,7 +548,7 @@ pub fn build_blocks(page: &PageData, leaves: &[Leaf], stats: &DocStats, fonts: &
             let left = lines.iter().map(|l| l.0.bbox.x0).fold(f32::INFINITY, f32::min);
             let right = lines.iter().map(|l| l.0.bbox.x1).fold(f32::NEG_INFINITY, f32::max);
             let cxs: Vec<f32> = lines.iter().map(|l| l.0.bbox.cx()).collect();
-            let mcx = crate::geom::median(&cxs, 0.0);
+            let mcx = crate::common::geom::median(&cxs, 0.0);
             let centered = lines.len() >= 2
                 && cxs.iter().all(|c| (c - mcx).abs() <= 2.5)
                 && lines.iter().any(|l| (l.0.bbox.x0 - left).abs() > 3.0)

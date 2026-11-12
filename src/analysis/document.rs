@@ -2,16 +2,16 @@
 //! front matter, headings, lists, references, paragraph merging across
 //! columns and pages, de-hyphenation and cross-reference links.
 
-use crate::geom::{Rect, median};
-use crate::layout::Line;
-use crate::layout::blocks::{EquationBlock, LIST_LABEL, Loc, RawBlock, TextBlock, build_blocks};
-use crate::layout::floats::{Float, FloatKind, detect_floats, join_caption_labels, table_caption_votes};
-use crate::layout::lines::split_at_gaps;
-use crate::layout::order::order_page;
-use crate::layout::page::{DocStats, PageData, compute_stats, remove_furniture};
-use crate::layout::tables::{Grid, extract_grid};
+use crate::analysis::Line;
+use crate::analysis::blocks::{EquationBlock, LIST_LABEL, Loc, RawBlock, TextBlock, build_blocks};
+use crate::analysis::floats::{Float, FloatKind, detect_floats, join_caption_labels, table_caption_votes};
+use crate::analysis::lines::split_at_gaps;
+use crate::analysis::order::order_page;
+use crate::analysis::page::{DocStats, PageData, compute_stats, remove_furniture};
+use crate::analysis::tables::{Grid, extract_grid};
+use crate::backend::{FontInfo, RawPage};
+use crate::common::geom::{Rect, median};
 use crate::model::*;
-use crate::pdf::{FontInfo, RawPage};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;

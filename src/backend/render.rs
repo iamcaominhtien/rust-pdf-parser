@@ -1,6 +1,6 @@
 //! Rasterisation of pages and page regions, and SVG export of whole pages.
 
-use crate::geom::Rect;
+use crate::common::geom::Rect;
 use hayro::vello_cpu::color::palette::css::{TRANSPARENT, WHITE};
 use hayro::vello_cpu::{Pixmap, RasterizerSettings, RenderContext, Resources, TargetInit};
 use hayro::{RenderCache, RenderSettings, render_into};

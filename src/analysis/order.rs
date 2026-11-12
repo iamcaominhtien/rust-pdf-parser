@@ -8,7 +8,7 @@
 use super::floats::Float;
 use super::lines::Line;
 use super::page::DocStats;
-use crate::geom::Rect;
+use crate::common::geom::Rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemRef {

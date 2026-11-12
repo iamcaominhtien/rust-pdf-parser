@@ -11,7 +11,7 @@
 //! other means of presenting the table.
 
 use super::lines::Line;
-use crate::geom::{Rect, median};
+use crate::common::geom::{Rect, median};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Align {

@@ -7,8 +7,8 @@
 
 use super::lines::Line;
 use super::page::{DocStats, PageData};
-use crate::geom::Rect;
-use crate::pdf::FontInfo;
+use crate::backend::FontInfo;
+use crate::common::geom::Rect;
 use regex::Regex;
 use serde::Serialize;
 use std::sync::LazyLock;

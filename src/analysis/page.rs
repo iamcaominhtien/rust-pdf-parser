@@ -1,8 +1,8 @@
 //! Per-page working data and document-wide statistics / furniture removal.
 
 use super::lines::{Line, RotatedText, build_lines};
-use crate::geom::{Rect, weighted_mode};
-use crate::pdf::{ImageBox, PathBox, RawPage};
+use crate::backend::{ImageBox, PathBox, RawPage};
+use crate::common::geom::{Rect, weighted_mode};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;

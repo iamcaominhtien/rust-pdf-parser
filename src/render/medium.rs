@@ -3,7 +3,7 @@
 //! boundaries.
 
 use super::*;
-use crate::geom::median;
+use crate::common::geom::median;
 
 const CSS: &str = include_str!("medium.css");
 

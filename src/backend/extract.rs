@@ -3,7 +3,7 @@
 //! the bounding boxes of vector drawing operations.
 
 use super::fonts::{FontRegistry, UNKNOWN_FONT};
-use crate::geom::Rect;
+use crate::common::geom::Rect;
 use hayro_interpret::font::{Glyph as PdfGlyph, GlyphRun};
 use hayro_interpret::hayro_cmap::BfString;
 use hayro_interpret::util::TransformExt;

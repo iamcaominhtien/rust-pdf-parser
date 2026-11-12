@@ -1,7 +1,8 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use paper2html::model::BlockKind;
-use paper2html::{AnalyzeOptions, HtmlOptions, Mode, PageImage, Paper, arxiv};
+use paper2html::source::arxiv;
+use paper2html::{AnalyzeOptions, HtmlOptions, Mode, PageImage, Paper};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -147,7 +148,7 @@ fn convert(args: ConvertArgs) -> Result<()> {
     }
     let (paper, stem) = load(&args.input)?;
     let t = Instant::now();
-    let jobs = paper2html::par::resolve_jobs(args.jobs);
+    let jobs = paper2html::common::parallel::resolve_jobs(args.jobs);
     let analysis = paper.analyze_with(AnalyzeOptions {
         tables: args.tables == TablesArg::Auto,
         jobs,

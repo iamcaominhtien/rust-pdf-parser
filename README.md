@@ -122,6 +122,14 @@ công thức…), tiện để kiểm tra khi kết quả chưa như ý.
 Mỗi trang được đọc và vẽ độc lập trên một luồng, mỗi luồng có cache riêng nên RAM tăng theo
 số luồng. Bố cục và việc dựng HTML vẫn chạy một luồng. Trên máy ít RAM, dùng `-j 1` hoặc `-j 2`.
 
+Khi mở file, ảnh nền trang của `hard`/`hard-95` chỉ được vẽ khi cuộn gần tới (lazy loading),
+nên bài dài mở nhanh: báo cáo GPT-4 100 trang ở `hard` từ khoảng 7 s xuống khoảng 1–1,5 s. Chữ
+của `hard-95` luôn có đủ ngay từ đầu, công cụ dịch không phải chờ cuộn. Khi in, trình duyệt tự
+vẽ đủ mọi trang.
+
+Những điểm đã đo nhưng chưa cải thiện (ảnh bị nén hai lần ở `hard`/`hard-95`, in trang khác khổ
+giấy…) được ghi trong [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
+
 PDF tải từ arXiv được cache ở `~/.cache/paper2html` (đổi bằng biến môi trường
 `PAPER2HTML_CACHE`).
 

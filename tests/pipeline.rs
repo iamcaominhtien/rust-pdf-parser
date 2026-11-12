@@ -232,3 +232,17 @@ fn threads_do_not_change_output() {
     // No placeholder is left behind.
     assert!(one.1.iter().all(|h| !h.contains('\u{1}')));
 }
+
+#[test]
+fn page_pictures_load_lazily() {
+    let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
+    let analysis = paper.analyze();
+    for mode in [Mode::Hard, Mode::Hard95] {
+        let html = paper.to_html(&analysis, &HtmlOptions { mode, ..Default::default() }).html;
+        let bg = html.find("<img class=\"bg\"").expect("page picture");
+        let tag = &html[bg..bg + html[bg..].find('>').unwrap()];
+        assert!(tag.contains("loading=\"lazy\""), "{mode:?}");
+        // The picture keeps its proportions before it is loaded.
+        assert!(tag.contains("width=\"") && tag.contains("height=\""), "{mode:?}");
+    }
+}

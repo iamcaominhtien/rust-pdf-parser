@@ -95,12 +95,12 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
             }
         }
         let bg = format!(
-            "<img class=\"bg\" src=\"{}\" alt=\"Page {}\" width=\"{pw}\" height=\"{ph}\">",
+            "<img class=\"bg\" src=\"{}\" alt=\"Page {}\" width=\"{pw}\" height=\"{ph}\" loading=\"lazy\" decoding=\"async\">",
             images.page(pi),
             pi + 1
         );
         pages.push_str(&format!(
-            "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{pw};--ph:{ph}\">\n{bg}\n<div class=\"tl\">\n{layer}</div>\n</section>\n",
+            "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{pw};--ph:{ph};aspect-ratio:{pw}/{ph}\">\n{bg}\n<div class=\"tl\">\n{layer}</div>\n</section>\n",
             n = pi + 1,
         ));
     }

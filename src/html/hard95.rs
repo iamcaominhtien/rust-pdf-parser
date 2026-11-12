@@ -520,7 +520,7 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
         }
 
         let bg = format!(
-            "<img class=\"bg\" src=\"{}\" alt=\"\" width=\"{}\" height=\"{}\">",
+            "<img class=\"bg\" src=\"{}\" alt=\"\" width=\"{}\" height=\"{}\" loading=\"lazy\" decoding=\"async\">",
             images.page_without_text(pi, drawn),
             p.width,
             p.height

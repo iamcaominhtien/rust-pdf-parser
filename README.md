@@ -262,6 +262,18 @@ Có ba lớp test:
   kiểm tra cụ thể (cột EN-DE/EN-FR của bảng Transformer, dòng tiêu đề các bảng BERT ở đầu trang).
   Mốc là kết quả hiện tại: tốt hơn thì qua, tệ hơn thì đỏ. Khi cải thiện được, siết mốc lại
   (`P2H_PRINT_METRICS=1 cargo test --test real_papers -- --nocapture` in ra số đo).
+- **Snapshot đầu ra** (cũng trong `tests/real_papers.rs`): mã sha256 của HTML từng chế độ và của
+  JSON, cho từng bài, lưu trong `tests/data/snapshots/`. Đầu ra đổi dù chỉ một ký tự là test đỏ,
+  kèm tên bài và chế độ bị đổi. Sắp xếp lại code thì snapshot phải giữ nguyên. Khi cố ý đổi
+  đầu ra, cập nhật rồi commit cùng thay đổi code:
+
+  ```bash
+  P2H_UPDATE_SNAPSHOTS=1 cargo test --test real_papers
+  ```
+
+  Mã băm bỏ qua điểm ảnh của ảnh PNG/JPEG (có thể lệch vài đơn vị giữa các loại CPU), chỉ tính
+  chữ, cấu trúc HTML, SVG vector và kích thước ảnh. Riêng bài LIGO (CC BY 4.0) lưu cả JSON đầy đủ,
+  nên `git diff` cho thấy chính xác nội dung nào đã đổi.
 
 Test không bao giờ tự tải gì. Chỉ bài LIGO (CC BY 4.0) nằm trong repo; các bài khác không được
 phép phân phối lại nên phải tải bằng script trên. Bài nào chưa tải thì test bỏ qua và in ra danh

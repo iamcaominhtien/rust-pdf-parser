@@ -12,10 +12,20 @@
 //! are lower bounds, so an improvement passes and a regression fails. When a
 //! change improves a number, tighten the bound here. Set
 //! `P2H_PRINT_METRICS=1` to print the measured values.
+//!
+//! On top of these bounds, every output is compared with a snapshot in
+//! `tests/data/snapshots`: a fingerprint (sha256) of the HTML of each mode and
+//! of the JSON, so that any change in the output, however small, is noticed.
+//! A restructuring of the code must leave them unchanged. When a change of
+//! output is intended, regenerate them with
+//! `P2H_UPDATE_SNAPSHOTS=1 cargo test --test real_papers` and commit them; the
+//! diff then shows which papers and modes changed. For papers whose licence
+//! allows it the full JSON is kept too, so `git diff` shows what changed.
 
 use paper2html::model::{BlockKind, Span};
 use paper2html::{AnalyzeOptions, HtmlOptions, Mode, Paper};
 use regex::Regex;
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 struct Expect {
@@ -68,8 +78,95 @@ fn plain(spans: &[Span]) -> String {
         .to_string()
 }
 
+/// Papers whose licence allows the full JSON output to be kept in the
+/// repository (CC BY 4.0), so that a change shows up in `git diff`.
+const FULL_JSON: &[&str] = &["1602.03837v1"];
+
+/// Fingerprints of the outputs of one paper: (mode, sha256), plus the JSON.
+struct Snapshot {
+    fingerprints: Vec<(&'static str, String)>,
+    json: String,
+}
+
+fn hex(digest: impl AsRef<[u8]>) -> String {
+    digest.as_ref().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Fingerprint of a rendered mode: the HTML and every file it refers to,
+/// except the pixels of images. Those can differ slightly between CPUs (the
+/// image decoders and the rasteriser use SIMD code chosen at run time), so
+/// only the size of a PNG and the vector content of an SVG count.
+fn fingerprint(html: &str, files: &[(String, Vec<u8>)]) -> String {
+    let embedded = regex::bytes::Regex::new(r"data:image/[a-z+]+;base64,[A-Za-z0-9+/=]*").unwrap();
+    let mut h = Sha256::new();
+    h.update(html.as_bytes());
+    for (name, data) in files {
+        h.update(name.as_bytes());
+        if name.ends_with(".svg") {
+            h.update(embedded.replace_all(data, &b"data:image"[..]));
+        } else if data.starts_with(b"\x89PNG") && data.len() >= 24 {
+            h.update(&data[16..24]); // width and height
+        }
+    }
+    hex(h.finalize())
+}
+
+/// Compares the outputs of a paper with its stored snapshot, or stores them
+/// when `P2H_UPDATE_SNAPSHOTS=1`.
+fn check_snapshot(id: &str, snap: &Snapshot) {
+    let dir = data_dir().join("snapshots");
+    let file = dir.join(format!("{id}.txt"));
+    let json_file = dir.join(format!("{id}.json"));
+    let keep_json = FULL_JSON.contains(&id);
+    let text: String = snap.fingerprints.iter().map(|(m, h)| format!("{m} {h}\n")).collect();
+
+    if std::env::var("P2H_UPDATE_SNAPSHOTS").is_ok_and(|v| v == "1") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(&file, &text).unwrap();
+        if keep_json {
+            std::fs::write(&json_file, &snap.json).unwrap();
+        }
+        return;
+    }
+
+    let old = std::fs::read_to_string(&file).unwrap_or_else(|_| {
+        panic!(
+            "{id}: no snapshot at {}; create it with P2H_UPDATE_SNAPSHOTS=1 cargo test --test real_papers",
+            file.display()
+        )
+    });
+    if old == text {
+        return;
+    }
+    let changed: Vec<&str> = snap
+        .fingerprints
+        .iter()
+        .filter(|(m, h)| !old.lines().any(|l| l == format!("{m} {h}")))
+        .map(|(m, _)| *m)
+        .collect();
+    let mut msg = format!(
+        "{id}: the output changed ({}).\n\
+         If the change is intended, run P2H_UPDATE_SNAPSHOTS=1 cargo test --test real_papers \
+         and commit tests/data/snapshots.",
+        changed.join(", ")
+    );
+    if keep_json && let Ok(old_json) = std::fs::read_to_string(&json_file) {
+        let (a, b): (Vec<&str>, Vec<&str>) = (old_json.lines().collect(), snap.json.lines().collect());
+        if let Some(i) = (0..a.len().max(b.len())).find(|&i| a.get(i) != b.get(i)) {
+            msg.push_str(&format!("\nFirst difference in the JSON, line {}:", i + 1));
+            for l in a.iter().skip(i).take(6) {
+                msg.push_str(&format!("\n  - {l}"));
+            }
+            for l in b.iter().skip(i).take(6) {
+                msg.push_str(&format!("\n  + {l}"));
+            }
+        }
+    }
+    panic!("{msg}");
+}
+
 /// Analyses a paper, renders every mode and measures it.
-fn measure(paper: &Paper) -> Metrics {
+fn measure(paper: &Paper) -> (Metrics, Snapshot) {
     let analysis = paper.analyze();
     let doc = &analysis.doc;
 
@@ -112,6 +209,8 @@ fn measure(paper: &Paper) -> Metrics {
     let compound = Regex::new(r"\b[a-z]{2,}-[a-z]{2,}\b").unwrap();
     let hyphenated = paragraphs.iter().map(|p| compound.find_iter(p).count()).sum();
 
+    let json = serde_json::to_string_pretty(doc).expect("serialisable document");
+    let mut fingerprints = Vec::new();
     let mut glyphs_left = 0;
     for mode in [Mode::Hard, Mode::Hard95, Mode::Medium, Mode::Friendly] {
         let out = paper.to_html(
@@ -131,6 +230,7 @@ fn measure(paper: &Paper) -> Metrics {
             assert!(out.html.contains(name.as_str()), "{mode:?}: {name} is not referenced");
             assert!(!data.is_empty(), "{mode:?}: {name} is empty");
         }
+        fingerprints.push((mode.name(), fingerprint(&out.html, &out.files)));
         if mode == Mode::Hard95 {
             glyphs_left = out
                 .files
@@ -140,19 +240,21 @@ fn measure(paper: &Paper) -> Metrics {
                 .sum();
         }
     }
-    Metrics {
+    fingerprints.push(("json", hex(Sha256::digest(json.as_bytes()))));
+    let metrics = Metrics {
         title,
         tables,
         broken_paragraphs,
         split_words,
         glyphs_left,
         hyphenated,
-    }
+    };
+    (metrics, Snapshot { fingerprints, json })
 }
 
 fn check(e: &Expect) -> Option<Metrics> {
     let paper = load(e.id)?;
-    let m = measure(&paper);
+    let (m, snapshot) = measure(&paper);
     if std::env::var("P2H_PRINT_METRICS").is_ok() {
         eprintln!("{}: {m:?}", e.id);
     }
@@ -192,6 +294,7 @@ fn check(e: &Expect) -> Option<Metrics> {
         m.hyphenated,
         e.max_hyphenated
     );
+    check_snapshot(e.id, &snapshot);
     Some(m)
 }
 

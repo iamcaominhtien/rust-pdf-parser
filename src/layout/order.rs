@@ -58,14 +58,27 @@ fn gutters(items: &[It], min_gutter: f32) -> Vec<(f32, f32)> {
         .collect()
 }
 
+/// "Height" of a group of items in rows: distinct text rows plus three per
+/// float. Pieces of one stretched-out line count once.
 fn weight(items: &[It]) -> usize {
-    items
-        .iter()
-        .map(|i| match i.r {
-            ItemRef::Line(_) => 1,
-            ItemRef::Float(_) => 3,
-        })
-        .sum()
+    let mut ys: Vec<f32> = Vec::new();
+    let mut floats = 0;
+    for i in items {
+        match i.r {
+            ItemRef::Line(_) => ys.push(i.bbox.cy()),
+            ItemRef::Float(_) => floats += 1,
+        }
+    }
+    ys.sort_by(|a, b| a.total_cmp(b));
+    let mut rows = 0;
+    let mut last = f32::NEG_INFINITY;
+    for y in ys {
+        if y - last > 3.0 {
+            rows += 1;
+        }
+        last = y;
+    }
+    rows + 3 * floats
 }
 
 fn extent(items: &[It]) -> Rect {
@@ -75,7 +88,7 @@ fn extent(items: &[It]) -> Rect {
 /// Splits a zone at its widest valid gutter (recursively), returning the
 /// columns from left to right. A single column means "do not split".
 fn columns(items: Vec<It>, min_gutter: f32) -> Vec<Vec<It>> {
-    if items.len() < 4 {
+    if items.len() < 6 {
         return vec![items];
     }
     let ext = extent(&items);
@@ -86,7 +99,9 @@ fn columns(items: Vec<It>, min_gutter: f32) -> Vec<Vec<It>> {
         let (left, right): (Vec<It>, Vec<It>) = items.iter().partition(|i| i.bbox.cx() < mid);
         let (le, re) = (extent(&left), extent(&right));
         let wide_enough = le.width() >= 0.15 * ext.width() && re.width() >= 0.15 * ext.width();
-        if weight(&left) >= 2 && weight(&right) >= 2 && wide_enough {
+        // Two lines side by side are more often an accident (a line broken
+        // by a wide gap) than a column layout.
+        if weight(&left) >= 3 && weight(&right) >= 3 && wide_enough {
             let mut out = columns(left, min_gutter);
             out.extend(columns(right, min_gutter));
             return out;

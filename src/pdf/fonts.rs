@@ -307,3 +307,29 @@ fn describe(dict: &Dict<'_>) -> FontInfo {
     }
     FontInfo::from_name(&name, flags, angle, weight)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::FontInfo;
+
+    #[test]
+    fn font_names() {
+        let f = FontInfo::from_name("ABCDEF+CMBX10", 0, 0.0, 0.0);
+        assert_eq!(f.name, "CMBX10");
+        assert!(f.bold && !f.italic && !f.math);
+
+        let f = FontInfo::from_name("NimbusRomNo9L-ReguItal", 0, 0.0, 0.0);
+        assert!(f.italic && !f.bold);
+
+        let f = FontInfo::from_name("NimbusRomNo9L-Medi", 0, 0.0, 0.0);
+        assert!(f.bold);
+
+        // Math italic is italic, the symbol font is not (despite its angle).
+        assert!(FontInfo::from_name("CMMI10", 0, -14.0, 0.0).italic);
+        let sy = FontInfo::from_name("CMSY10", 0, -14.0, 0.0);
+        assert!(sy.math && !sy.italic);
+
+        assert!(FontInfo::from_name("SFTT1000", 0, 0.0, 0.0).mono);
+        assert!(!FontInfo::from_name("Helvetica", 0, 0.0, 0.0).bold);
+    }
+}

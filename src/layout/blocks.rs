@@ -495,7 +495,7 @@ pub fn build_blocks(
                     lines,
                     loc,
                     left,
-                    right: right.max(if footnote { right } else { right }),
+                    right,
                     centered,
                     gap_before,
                     bbox,
@@ -548,7 +548,6 @@ pub fn build_blocks(
             }
         }
         flush_group(&mut group, &mut out, false);
-        let _ = leaf_cx;
     }
     out
 }

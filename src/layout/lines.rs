@@ -287,7 +287,7 @@ fn finalize(page: usize, mut seg: Seg) -> Line {
 fn merge_same_baseline(mut segs: Vec<Seg>, max_gap_em: f32) -> Vec<Seg> {
     segs.sort_by(|a, b| a.y.total_cmp(&b.y).then(a.x0.total_cmp(&b.x0)));
     let mut out: Vec<Seg> = Vec::with_capacity(segs.len());
-    let mut i = 0;
+    let i = 0;
     while i < segs.len() {
         // Collect the group of segments with (nearly) the same baseline.
         let mut j = i + 1;
@@ -356,8 +356,7 @@ pub fn merge_row(page: usize, lines: Vec<Line>) -> Line {
     finalize(page, Seg::from_glyphs(glyphs))
 }
 
-pub fn build_lines(raw: &RawPage, fonts: &[FontInfo]) -> (Vec<Line>, Vec<RotatedText>) {
-    let _ = fonts;
+pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
     let has_visible = raw.glyphs.iter().any(|g| !g.invisible);
     let mut seen: HashSet<(i32, i32, u64)> = HashSet::new();
     let mut glyphs: Vec<LineGlyph> = Vec::new();

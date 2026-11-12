@@ -282,9 +282,12 @@ fn strip_chars(spans: &mut Vec<Span>, mut n: usize) {
 // ---------------------------------------------------------------------------
 
 static XREF: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?P<url>https?://[^\s<>]+)|\[(?P<cite>\d{1,3}(?:\s*[,;–-]\s*\d{1,3})*)\]|(?P<obj>(?:Figures?|Figs?\.|Tables?|Algorithms?|Sections?|Sec\.|Appendix|Eqs?\.|Equations?)\s*~?\s*\(?(?P<num>(?:\d{1,3}|[A-Z])(?:\.\d{1,2})*)\)?)",
-    )
+    Regex::new(concat!(
+        r"(?P<url>https?://[^\s<>]+)",
+        r"|\[(?P<cite>\d{1,3}(?:\s*[,;–-]\s*\d{1,3})*)\]",
+        r"|(?P<obj>(?:Figures?|Figs?\.|Tables?|Algorithms?|Sections?|Sec\.|Appendix)\s*~?\s*(?P<num>(?:\d{1,3}|[A-Z])(?:\.\d{1,2})*))",
+        r"|(?P<eq>(?:Eqs?\.|Eqn\.|Equations?)\s*~?\s*(?:\((?P<eqa>\d{1,3}(?:\.\d{1,2})*[a-z]?)\)|(?P<eqb>\d{1,3}(?:\.\d{1,2})*)))",
+    ))
     .unwrap()
 });
 
@@ -297,7 +300,7 @@ fn link_spans(spans: Vec<Span>, anchors: &HashSet<String>, own: Option<&str>) ->
         }
         let mut last = 0;
         let text = s.text.clone();
-        let mut push = |t: &str, href: Option<String>, out: &mut Vec<Span>| {
+        let push = |t: &str, href: Option<String>, out: &mut Vec<Span>| {
             if !t.is_empty() {
                 out.push(Span { text: t.to_string(), style: s.style, href });
             }
@@ -325,16 +328,16 @@ fn link_spans(spans: Vec<Span>, anchors: &HashSet<String>, own: Option<&str>) ->
                 }
                 push(&text[pos..cite.end()], None, &mut out);
                 last = cite.end();
-            } else if let (Some(_), Some(num)) = (c.name("obj"), c.name("num")) {
+            } else if let Some(num) = c.name("num").or(c.name("eqa")).or(c.name("eqb")) {
                 let word = m.as_str().to_ascii_lowercase();
-                let prefix = if word.starts_with("fig") {
+                let prefix = if c.name("eq").is_some() {
+                    "eq"
+                } else if word.starts_with("fig") {
                     "fig"
                 } else if word.starts_with("tab") {
                     "tab"
                 } else if word.starts_with("alg") {
                     "alg"
-                } else if word.starts_with("eq") {
-                    "eq"
                 } else {
                     "sec"
                 };
@@ -363,9 +366,9 @@ pub struct Analysis {
 }
 
 pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta) -> Analysis {
-    let mut pages: Vec<PageData> = raw_pages.into_iter().map(|r| PageData::from_raw(r, fonts)).collect();
+    let mut pages: Vec<PageData> = raw_pages.into_iter().map(PageData::from_raw).collect();
     let stats = compute_stats(&pages);
-    let furniture = remove_furniture(&mut pages, &stats);
+    let furniture = remove_furniture(&mut pages);
     meta.arxiv_id = meta.arxiv_id.or(furniture.arxiv_id);
     meta.arxiv_stamp = furniture.arxiv_stamp;
 
@@ -375,7 +378,7 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta) -> A
     // Convention for table captions (above or below the table).
     let (mut votes_above, mut votes_below) = (0, 0);
     for page in pages.iter() {
-        let (a, b) = table_caption_votes(page, &stats, fonts);
+        let (a, b) = table_caption_votes(page, fonts);
         votes_above += a;
         votes_below += b;
     }
@@ -656,7 +659,6 @@ fn classify_front_matter(nodes: &mut Vec<Node>, pages: &[PageData], stats: &DocS
         i += 1;
         keep
     });
-    let n_new = new_nodes.len();
     nodes.splice(first..first, new_nodes);
 
     // Whatever else shared a zone with the author grid (typically the
@@ -675,7 +677,6 @@ fn classify_front_matter(nodes: &mut Vec<Node>, pages: &[PageData], stats: &DocS
             }
         }
     }
-    let _ = n_new;
 }
 
 /// Splits reference blocks that contain several labelled entries.
@@ -1027,12 +1028,7 @@ fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats) {
     }
 }
 
-fn line_key(l: &Line) -> (i32, i32) {
-    ((l.bbox.x0 * 10.0) as i32, (l.baseline * 10.0) as i32)
-}
-
 fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts: &[FontInfo], mut meta: Meta) -> Document {
-    let _ = line_key;
     let vocab = build_vocab(nodes.iter().filter_map(|n| match &n.kind {
         NodeKind::Text(t) | NodeKind::Footnote(t) => Some(t.lines.as_slice()),
         NodeKind::Float(f) => Some(f.caption.as_slice()),
@@ -1042,7 +1038,7 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
 
     let mut blocks: Vec<Block> = Vec::new();
     let mut anchors: HashSet<String> = HashSet::new();
-    let mut unique = |base: String, anchors: &mut HashSet<String>| -> String {
+    let unique = |base: String, anchors: &mut HashSet<String>| -> String {
         let mut a = base.clone();
         let mut k = 2;
         while !anchors.insert(a.clone()) {
@@ -1255,10 +1251,19 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
                 let s = &b.spans[i];
                 if s.style & SUP != 0 && s.style & MATH == 0 && s.href.is_none() {
                     // Not an exponent: the mark follows a word or punctuation.
-                    let prev_digit = i > 0
-                        && b.spans[i - 1].text.chars().last().is_some_and(|c| c.is_ascii_digit())
-                        && b.spans[i - 1].style & SUP == 0;
-                    if let (Some(a), false) = (fn_markers.get(s.text.trim()), prev_digit) {
+                    // A footnote mark follows a word or punctuation; a digit
+                    // or a single letter before it means an exponent (x², c²).
+                    let exponent = i == 0 || b.spans[i - 1].style & SUP != 0 || {
+                        let prev = b.spans[i - 1].text.trim_end();
+                        let run = prev.chars().rev().take_while(|c| c.is_alphabetic()).count();
+                        match prev.chars().last() {
+                            Some(c) if c.is_ascii_digit() => true,
+                            Some(c) if c.is_alphabetic() => run < 2,
+                            Some(_) => false,
+                            None => true,
+                        }
+                    };
+                    if let (Some(a), false) = (fn_markers.get(s.text.trim()), exponent) {
                         b.spans[i].href = Some(format!("#{a}"));
                     }
                 }
@@ -1290,4 +1295,59 @@ fn slug_marker(m: &str) -> String {
             _ => "x".to_string(),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn vocab(words: &[&str]) -> HashSet<String> {
+        words.iter().map(|w| w.to_string()).collect()
+    }
+
+    #[test]
+    fn soft_hyphens_are_removed() {
+        let v = vocab(&["multi", "head", "multi-head", "self", "attention", "information"]);
+        // Unknown fragments: a plain word break.
+        assert!(remove_hyphen("dot-product (multi-", "plicative) attention", &v));
+        // The joined word is known.
+        assert!(remove_hyphen("more in-", "formation is needed", &v));
+        // Both halves are words of their own and the compound is not known.
+        assert!(!remove_hyphen("layers of self-", "attention are used", &v));
+        // A compound seen elsewhere in the document keeps its hyphen.
+        assert!(!remove_hyphen("we use multi-", "head attention", &v));
+        // Capitalised or non-alphabetic continuations keep the hyphen.
+        assert!(!remove_hyphen("the English-", "German task", &v));
+        assert!(!remove_hyphen("pages 10-", "20 of the", &v));
+        // Part of a longer hyphenated compound.
+        assert!(!remove_hyphen("a state-of-", "the-art model", &v));
+    }
+
+    #[test]
+    fn cross_references_are_linked() {
+        let anchors: HashSet<String> = ["ref-2", "fig-3", "sec-4.1"].iter().map(|s| s.to_string()).collect();
+        let spans = vec![Span { text: "As in [2, 7] and Figure 3 (see Section 4.1), cf. https://example.org/x.".into(), style: 0, href: None }];
+        let eq_anchors: HashSet<String> = ["eq-3".to_string()].into_iter().collect();
+        let eq = link_spans(vec![Span { text: "by Eq. (3) and".into(), style: 0, href: None }], &eq_anchors, None);
+        assert!(eq.iter().any(|s| s.text == "Eq. (3)" && s.href.as_deref() == Some("#eq-3")));
+        let out = link_spans(spans, &anchors, None);
+        let links: Vec<(&str, &str)> = out.iter().filter_map(|s| s.href.as_deref().map(|h| (s.text.as_str(), h))).collect();
+        assert_eq!(
+            links,
+            [("2", "#ref-2"), ("Figure 3", "#fig-3"), ("Section 4.1", "#sec-4.1"), ("https://example.org/x", "https://example.org/x")]
+        );
+        // The text itself is unchanged.
+        let text: String = out.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(text, "As in [2, 7] and Figure 3 (see Section 4.1), cf. https://example.org/x.");
+    }
+
+    #[test]
+    fn heading_patterns() {
+        assert!(HEADING_NUM.is_match("3.2.1 Scaled Dot-Product Attention"));
+        assert!(HEADING_ROMAN.is_match("IV. EXPERIMENTS"));
+        assert!(REF_HEADING.is_match("References"));
+        assert!(REF_HEADING.is_match("7 References"));
+        assert!(!REF_HEADING.is_match("References to prior work"));
+        assert!(ABSTRACT_INLINE.is_match("Abstract—We propose"));
+    }
 }

@@ -246,7 +246,7 @@ fn inspect(input: &str) -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Convert(args) => convert(args),
@@ -258,5 +258,12 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Inspect { input } => inspect(&input),
+    }
+}
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
     }
 }

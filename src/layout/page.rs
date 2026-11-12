@@ -2,7 +2,7 @@
 
 use super::lines::{Line, RotatedText, build_lines};
 use crate::geom::{Rect, weighted_mode};
-use crate::pdf::{FontInfo, ImageBox, PathBox, RawPage};
+use crate::pdf::{ImageBox, PathBox, RawPage};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -15,19 +15,15 @@ pub struct PageData {
     pub rotated: Vec<RotatedText>,
     pub images: Vec<ImageBox>,
     pub paths: Vec<PathBox>,
-    /// Every line of the page before anything was removed (used by the
-    /// facsimile renderer for lines that are not part of a text block).
-    pub all_lines: Vec<Line>,
 }
 
 impl PageData {
-    pub fn from_raw(raw: RawPage, fonts: &[FontInfo]) -> Self {
-        let (lines, rotated) = build_lines(&raw, fonts);
+    pub fn from_raw(raw: RawPage) -> Self {
+        let (lines, rotated) = build_lines(&raw);
         Self {
             index: raw.index,
             width: raw.width,
             height: raw.height,
-            all_lines: lines.clone(),
             lines,
             rotated,
             images: raw.images,
@@ -125,7 +121,7 @@ pub struct Furniture {
 
 /// Removes running headers/footers, page numbers, margin line numbers and the
 /// arXiv margin stamp from the pages.
-pub fn remove_furniture(pages: &mut [PageData], stats: &DocStats) -> Furniture {
+pub fn remove_furniture(pages: &mut [PageData]) -> Furniture {
     let mut out = Furniture::default();
 
     // arXiv stamp: rotated text in the left margin of the first page.

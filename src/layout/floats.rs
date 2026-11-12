@@ -72,7 +72,7 @@ struct Cap {
     label: String,
 }
 
-fn find_captions(page: &PageData, stats: &DocStats, fonts: &[FontInfo]) -> Vec<Cap> {
+fn find_captions(page: &PageData, fonts: &[FontInfo]) -> Vec<Cap> {
     let lines = &page.lines;
     let mut used = vec![false; lines.len()];
     let mut caps = Vec::new();
@@ -171,7 +171,7 @@ fn find_captions(page: &PageData, stats: &DocStats, fonts: &[FontInfo]) -> Vec<C
             }
             // The previous line ended early although the next word would
             // have fit: the caption is over.
-            if idxs.len() >= 1 && p.bbox.x1 + 0.3 * l.size + n.first_word_width() < bbox.x1 - 2.0 && idxs.len() > 1 {
+            if idxs.len() > 1 && p.bbox.x1 + 0.3 * l.size + n.first_word_width() < bbox.x1 - 2.0 {
                 break;
             }
             if leading.is_none() {
@@ -184,7 +184,6 @@ fn find_captions(page: &PageData, stats: &DocStats, fonts: &[FontInfo]) -> Vec<C
                 break;
             }
         }
-        let _ = stats;
         for &j in &idxs {
             used[j] = true;
         }
@@ -227,6 +226,14 @@ fn cluster_graphics(page: &PageData) -> Vec<Comp> {
             continue;
         }
         elems.push(Elem { bbox: im.bbox, image: true, rule: false });
+    }
+    // Rotated text (axis labels) belongs to the drawing it is part of.
+    for r in &page.rotated {
+        let compact: String = r.text.chars().filter(|c| !c.is_whitespace()).collect();
+        if compact.starts_with("arXiv:") || r.bbox.is_unset() {
+            continue;
+        }
+        elems.push(Elem { bbox: r.bbox, image: false, rule: false });
     }
     for p in &page.paths {
         if p.bbox.width() > 0.95 * page.width && p.bbox.height() > 0.95 * page.height {
@@ -371,7 +378,7 @@ fn rule_tables(page: &PageData, caps: &[Cap]) -> Vec<Comp> {
         // Split the group where a caption starts between two rules, or where
         // the rules are implausibly far apart.
         let mut cur: Vec<Rect> = vec![rs[0]];
-        let mut flush = |cur: &mut Vec<Rect>, out: &mut Vec<Comp>| {
+        let flush = |cur: &mut Vec<Rect>, out: &mut Vec<Comp>| {
             if cur.len() >= 2 {
                 let bbox = cur.iter().fold(Rect::EMPTY, |a, r| a.union(r));
                 if bbox.height() >= 12.0 {
@@ -405,8 +412,8 @@ fn rule_tables(page: &PageData, caps: &[Cap]) -> Vec<Comp> {
 /// Collects evidence on whether table captions are set above or below the
 /// table in this document: returns (votes for above, votes for below) from
 /// captions that have a table on one side only.
-pub fn table_caption_votes(page: &PageData, stats: &DocStats, fonts: &[FontInfo]) -> (usize, usize) {
-    let caps = find_captions(page, stats, fonts);
+pub fn table_caption_votes(page: &PageData, fonts: &[FontInfo]) -> (usize, usize) {
+    let caps = find_captions(page, fonts);
     if !caps.iter().any(|c| c.kind == FloatKind::Table) {
         return (0, 0);
     }
@@ -441,7 +448,7 @@ pub fn detect_floats(
     fonts: &[FontInfo],
     table_caption_above: Option<bool>,
 ) -> Vec<Float> {
-    let caps = find_captions(page, stats, fonts);
+    let caps = find_captions(page, fonts);
     let is_caption_line: Vec<bool> = {
         let mut v = vec![false; page.lines.len()];
         for c in &caps {
@@ -586,6 +593,15 @@ pub fn detect_floats(
         }
     }
 
+    // Left margin of the running text on this page.
+    let text_left = page
+        .lines
+        .iter()
+        .filter(|l| l.char_count() >= 45)
+        .map(|l| l.bbox.x0)
+        .fold(f32::INFINITY, f32::min);
+    let text_left = if text_left.is_finite() { text_left } else { 0.0 };
+
     // Text absorption.
     let mut absorbed: Vec<Option<usize>> = vec![None; page.lines.len()]; // float index
     struct Pending {
@@ -691,7 +707,6 @@ pub fn detect_floats(
         // Short isolated labels right above or below the drawing (titles of
         // sub-figures), as long as they are not headings or paragraph ends.
         if !p.table_like {
-            let core = region;
             let region_before = region;
             let mut grown = region;
             for (i, l) in page.lines.iter().enumerate() {
@@ -708,8 +723,15 @@ pub fn detect_floats(
                 if !(stacked || beside) {
                     continue;
                 }
+                // A bold line may be a section heading -- unless it is
+                // centred over the drawing and away from the text margin,
+                // which makes it the drawing's title.
+                let centred_title = (l.bbox.cx() - region.cx()).abs() <= 0.1 * region.width().max(40.0)
+                    && l.bbox.x0 > text_left + 15.0
+                    && stacked;
                 let heading_like = l.size >= stats.body_size - 0.5
-                    && ((l.char_count() >= 4 && l.font_frac(fonts, |f| f.bold) >= 0.6) || HEADING_LIKE.is_match(&l.text()));
+                    && (HEADING_LIKE.is_match(&l.text())
+                        || (l.char_count() >= 4 && l.font_frac(fonts, |f| f.bold) >= 0.6 && !centred_title));
                 if heading_like {
                     continue;
                 }
@@ -730,7 +752,6 @@ pub fn detect_floats(
                 }
             }
             region = grown;
-            let _ = core;
         }
         // Sub-captions and labels between the drawing and the caption.
         if let Some(ci) = p.cap {
@@ -752,7 +773,19 @@ pub fn detect_floats(
                 region.y0 = region.y0.max(cap.bbox.y1 + 0.5).min(region.y1 - 1.0);
             }
         }
-        p.region = Some(region.inflate(3.0, 3.0).intersect(&page.rect()));
+        // ... nor any other caption on the page.
+        let mut region = region.inflate(3.0, 3.0).intersect(&page.rect());
+        for (ci, cap) in caps.iter().enumerate() {
+            if p.cap == Some(ci) || !region.intersects(&cap.bbox) {
+                continue;
+            }
+            if cap.bbox.cy() < region.cy() {
+                region.y0 = region.y0.max(cap.bbox.y1 + 0.5).min(region.y1 - 1.0);
+            } else {
+                region.y1 = region.y1.min(cap.bbox.y0 - 0.5).max(region.y0 + 1.0);
+            }
+        }
+        p.region = Some(region);
     }
 
     let mut floats: Vec<Float> = Vec::new();

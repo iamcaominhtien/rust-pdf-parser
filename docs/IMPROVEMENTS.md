@@ -70,3 +70,30 @@ hẹp hơn khổ Letter (ví dụ Faster R-CNN, 567 × 774 pt) bị cao hơn t�
 ## 5. `medium` / `friendly`
 
 - Công thức hiển thị (display equation) vẫn là ảnh.
+
+## 6. Tài liệu rất dài (khoảng 1000 trang)
+
+Thử với "Dive into Deep Learning" (arXiv 2106.11342, 1185 trang, PDF 39,5 MB), máy 4 vCPU:
+
+| Chế độ | 4 luồng | 1 luồng | RAM đỉnh | File ra | Mở trong Chromium |
+| --- | --- | --- | --- | --- | --- |
+| `friendly` | 7,9 s | 20,5 s | 0,9–1,1 GB | 105 MB | 5,4 s |
+| `medium` | 7,5 s | – | 1,1 GB | 105 MB | – |
+| `hard-95` | 10,9 s | 25,1 s | 1,0–1,2 GB | 142 MB | 9,7 s |
+| `hard` | 10,3 s | – | 1,7 GB | 481 MB | 13,7 s |
+
+- **RAM:** riêng khâu đọc và phân tích đã cần khoảng 900 MB, vì toàn bộ ký tự của mọi trang được giữ
+  trong bộ nhớ cùng lúc (mỗi ký tự là một struct có `String` riêng). Hướng sửa: biểu diễn ký tự
+  gọn hơn; bỏ dữ liệu thô của trang ngay sau khi dựng dòng; ghi HTML ra file dần thay vì giữ cả
+  chuỗi.
+- **Mở file:** một file HTML 100–500 MB mở chậm (5–14 s). Hướng sửa: tách tài liệu dài thành nhiều
+  file theo chương, có mục lục.
+
+## 7. Xử lý hàng loạt
+
+- Chưa có lệnh xử lý nhiều tài liệu. Hiện phải dùng script ngoài, ví dụ
+  `ls *.pdf | xargs -P 2 -I{} paper2html convert {} -m hard-95 -j 1 -o out/`.
+  Nên có lệnh `batch`: chạy song song N tài liệu, bỏ qua tài liệu đã xong, ghi log lỗi.
+- Tải từ arXiv chưa giới hạn tốc độ. arXiv yêu cầu công cụ tự động tải chậm (hướng dẫn API của họ
+  là khoảng 1 yêu cầu mỗi 3 giây); tải hàng nghìn bài liên tục có thể bị chặn. Cần thêm giới hạn
+  tốc độ, hoặc dùng kho dữ liệu hàng loạt (bulk data) của arXiv.

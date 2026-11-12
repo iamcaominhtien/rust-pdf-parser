@@ -36,6 +36,15 @@ pub struct Float {
     pub bbox: Rect,
     /// Text found inside the region (labels, table cells), for alt text.
     pub inner_text: String,
+    /// The lines inside the region.
+    pub inner_lines: Vec<Line>,
+    /// The region looks like a table (ruled, or tabular rows of text).
+    pub table_like: bool,
+    /// Horizontal rules inside the region with their line width.
+    pub hrules: Vec<(Rect, f32)>,
+    pub vrules: Vec<Rect>,
+    /// The region contains images or drawings other than rules and fills.
+    pub complex: bool,
 }
 
 static CAPTION: LazyLock<Regex> = LazyLock::new(|| {
@@ -409,6 +418,44 @@ fn rule_tables(page: &PageData, caps: &[Cap]) -> Vec<Comp> {
     out
 }
 
+/// A caption label can be separated from its text by a gap wide enough to
+/// break the line in two ("Table 2:      SQuAD results ..."). Joins a bare
+/// label with the text that follows it on the same baseline.
+pub fn join_caption_labels(page: &mut PageData) {
+    let mut i = 0;
+    while i < page.lines.len() {
+        let text = page.lines[i].text();
+        let bare = CAPTION.find(&text).is_some_and(|m| m.end() == text.trim_end().len());
+        if !bare {
+            i += 1;
+            continue;
+        }
+        let (baseline, size, x1) = (page.lines[i].baseline, page.lines[i].size, page.lines[i].bbox.x1);
+        let next = page
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(j, l)| {
+                *j != i
+                    && (l.baseline - baseline).abs() < 0.6
+                    && (l.size - size).abs() < 0.4
+                    && l.bbox.x0 > x1
+                    && l.bbox.x0 - x1 < 4.0 * size
+            })
+            .min_by(|a, b| a.1.bbox.x0.total_cmp(&b.1.bbox.x0))
+            .map(|(j, _)| j);
+        let Some(j) = next else {
+            i += 1;
+            continue;
+        };
+        let other = page.lines.remove(j);
+        let i2 = if j < i { i - 1 } else { i };
+        let label = page.lines[i2].clone();
+        page.lines[i2] = super::lines::merge_row(page.index, vec![label, other]);
+        i = i2 + 1;
+    }
+}
+
 /// Collects evidence on whether table captions are set above or below the
 /// table in this document: returns (votes for above, votes for below) from
 /// captions that have a table on one side only.
@@ -577,7 +624,7 @@ pub fn detect_floats(
     }
 
     // Uncaptioned graphics that are large enough to matter.
-    let mut graphic_regions: Vec<Rect> = Vec::new();
+    let mut graphic_regions: Vec<(Rect, bool)> = Vec::new();
     for k in comps.iter().filter(|k| k.owner.is_none()) {
         let (w, h) = (k.bbox.width(), k.bbox.height());
         let keep = (k.n_images >= 1 && w >= 30.0 && h >= 30.0)
@@ -585,10 +632,11 @@ pub fn detect_floats(
             || (k.table_like && k.n_rules >= 3);
         if keep {
             // Merge with an overlapping graphic region if there is one.
-            if let Some(r) = graphic_regions.iter_mut().find(|r| r.inflate(8.0, 8.0).intersects(&k.bbox)) {
-                *r = r.union(&k.bbox);
+            if let Some(r) = graphic_regions.iter_mut().find(|r| r.0.inflate(8.0, 8.0).intersects(&k.bbox)) {
+                r.0 = r.0.union(&k.bbox);
+                r.1 &= k.table_like;
             } else {
-                graphic_regions.push(k.bbox);
+                graphic_regions.push((k.bbox, k.table_like));
             }
         }
     }
@@ -622,13 +670,13 @@ pub fn detect_floats(
             table_like,
         });
     }
-    for r in graphic_regions {
+    for (r, table_like) in graphic_regions {
         pending.push(Pending {
             kind: FloatKind::Graphic,
             region: Some(r),
             cap: None,
             above: true,
-            table_like: false,
+            table_like,
         });
     }
 
@@ -810,6 +858,25 @@ pub fn detect_floats(
         if bbox.is_unset() {
             continue;
         }
+        let (mut hrules, mut vrules, mut complex) = (Vec::new(), Vec::new(), false);
+        if let Some(region) = p.region {
+            let inside = |r: &Rect| region.contains_point(r.cx(), r.cy());
+            complex = page.images.iter().any(|im| region.intersects(&im.bbox));
+            let mut other = 0;
+            for q in page.paths.iter().filter(|q| inside(&q.bbox)) {
+                let white_fill = q.filled && !q.stroked && q.is_white();
+                if q.is_hrule() && q.bbox.width() >= 6.0 && !white_fill {
+                    hrules.push((q.bbox, q.line_width.max(q.bbox.height())));
+                } else if q.is_vrule() && q.bbox.height() >= 6.0 && !white_fill {
+                    vrules.push(q.bbox);
+                } else if q.filled && !q.stroked && q.elements <= 6 {
+                    // Cell shading.
+                } else {
+                    other += 1;
+                }
+            }
+            complex |= other > 2;
+        }
         floats.push(Float {
             kind: p.kind,
             page: page.index,
@@ -818,6 +885,11 @@ pub fn detect_floats(
             label: p.cap.map(|ci| caps[ci].label.clone()),
             bbox,
             inner_text,
+            inner_lines: inner.iter().map(|l| (*l).clone()).collect(),
+            table_like: p.table_like,
+            hrules,
+            vrules,
+            complex,
         });
     }
 

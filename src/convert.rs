@@ -1,6 +1,6 @@
 //! High-level entry points: PDF bytes in, structured document and HTML out.
 
-use crate::document::{Analysis, analyze};
+use crate::document::{Analysis, AnalyzeOptions, analyze};
 use crate::html::{HtmlOptions, HtmlOutput, render};
 use crate::model::Meta;
 use crate::pdf::extract::extract_page;
@@ -36,6 +36,10 @@ impl Paper {
 
     /// Runs content extraction and layout analysis.
     pub fn analyze(&self) -> Analysis {
+        self.analyze_with(AnalyzeOptions::default())
+    }
+
+    pub fn analyze_with(&self, opts: AnalyzeOptions) -> Analysis {
         let cache = InterpreterCache::new();
         let settings = InterpreterSettings::default();
         let mut fonts = FontRegistry::new();
@@ -50,7 +54,7 @@ impl Paper {
             source: self.source.clone(),
             ..Default::default()
         };
-        analyze(raw, &fonts.infos, meta)
+        analyze(raw, &fonts.infos, meta, opts)
     }
 
     pub fn renderer(&self) -> PageRenderer<'_> {

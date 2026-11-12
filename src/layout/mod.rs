@@ -5,5 +5,6 @@ pub mod floats;
 pub mod lines;
 pub mod order;
 pub mod page;
+pub mod tables;
 
 pub use lines::{Line, LineGlyph, RotatedText};

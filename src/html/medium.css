@@ -68,3 +68,17 @@ aside.footnote{margin:0 0 .3em;text-align:justify}
   p,ul.list li,figcaption{text-align:left}
 }
 @media print{.topbar{display:none}body{background:#fff}.page{box-shadow:none;margin:0;break-after:page;width:100%}}
+.tbl-wrap{overflow-x:auto;max-width:100%}
+table.tbl{border-collapse:collapse;margin:0 auto;font-size:.9em;line-height:1.25;text-align:left}
+.tbl th,.tbl td{padding:.14em .55em;vertical-align:baseline;font-weight:400}
+.tbl .nw{white-space:nowrap}
+.tbl .l{text-align:left}
+.tbl .c{text-align:center}
+.tbl .r{text-align:right}
+.tbl .ra1{border-top:.5px solid var(--ink)}
+.tbl .ra2{border-top:1.2px solid var(--ink)}
+.tbl .rb1{border-bottom:.5px solid var(--ink)}
+.tbl .rb2{border-bottom:1.2px solid var(--ink)}
+.tbl .rl{border-left:.5px solid var(--ink)}
+.tbl .rr{border-right:.5px solid var(--ink)}
+.tbl .mid{vertical-align:middle}

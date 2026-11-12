@@ -26,6 +26,7 @@ pub struct FontInfo {
     /// Adobe "Mathematical Pi 1" style font whose glyphs are encoded on
     /// Latin-1 letters (used by APS/Elsevier typesetting).
     pub math_pi: bool,
+    pub sans: bool,
 }
 
 impl FontInfo {
@@ -84,7 +85,14 @@ impl FontInfo {
         let italic = if math { math_italic } else { italic };
 
         let math_pi = l.starts_with("advp4c4e74") || l.contains("mathematicalpi-one") || l.contains("mathpi-one");
+        let sans = !math
+            && !mono
+            && has(&[
+                "helvet", "arial", "sans", "cmss", "nimbussan", "verdana", "calibri", "roboto", "lato", "lmss",
+                "tahoma", "futura", "avenir", "gotham", "inter-", "segoe", "frutiger", "univers", "phv", "sfss",
+            ]);
         Self {
+            sans,
             name,
             bold: bold && !math_pi,
             italic: italic && !math_pi,

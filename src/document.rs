@@ -4,10 +4,12 @@
 
 use crate::geom::{Rect, median};
 use crate::layout::Line;
+use crate::layout::lines::split_at_gaps;
 use crate::layout::blocks::{EquationBlock, LIST_LABEL, Loc, RawBlock, TextBlock, build_blocks};
-use crate::layout::floats::{Float, FloatKind, detect_floats, table_caption_votes};
+use crate::layout::floats::{Float, FloatKind, detect_floats, join_caption_labels, table_caption_votes};
 use crate::layout::order::order_page;
 use crate::layout::page::{DocStats, PageData, compute_stats, remove_furniture};
+use crate::layout::tables::{Grid, extract_grid};
 use crate::model::*;
 use crate::pdf::{FontInfo, RawPage};
 use regex::Regex;
@@ -209,54 +211,211 @@ struct TextBuilder<'a> {
     vocab: &'a HashSet<String>,
 }
 
+struct Built {
+    /// The running text of the block.
+    spans: Vec<Span>,
+    line_texts: Vec<String>,
+    hlines: Vec<HLine>,
+}
+
 impl TextBuilder<'_> {
-    /// Converts lines into styled spans, joining the lines into running text.
-    /// `skip` glyphs are dropped from the start of the first line and `mask`
-    /// style bits are cleared (e.g. bold inside headings).
-    fn build(&self, lines: &[Line], skip: usize, mask: u8) -> (Vec<Span>, Vec<String>) {
+    /// Styled text of a single line, exactly as it appears.
+    fn line_spans(&self, line: &Line) -> Vec<Span> {
         let mut spans: Vec<Span> = Vec::new();
-        let mut line_texts: Vec<String> = Vec::new();
-        let texts: Vec<String> = lines.iter().map(|l| l.text()).collect();
-        for (li, line) in lines.iter().enumerate() {
-            let mut lt = String::new();
-            let start = if li == 0 { skip.min(line.glyphs.len()) } else { 0 };
-            for (gi, g) in line.glyphs.iter().enumerate().skip(start) {
-                let style = line.style_of(g, self.fonts) & !mask;
-                let space = g.space_before && gi > start;
-                let piece = if space { format!(" {}", g.text) } else { g.text.clone() };
-                lt.push_str(&piece);
-                match spans.last_mut() {
-                    Some(s) if s.style == style => s.text.push_str(&piece),
-                    Some(s) if space => {
+        for (gi, g) in line.glyphs.iter().enumerate() {
+            let style = line.style_of(g, self.fonts);
+            let space = g.space_before && gi > 0;
+            match spans.last_mut() {
+                Some(s) if s.style == style && s.color == g.color => {
+                    if space {
                         s.text.push(' ');
-                        spans.push(Span { text: g.text.clone(), style, href: None });
                     }
-                    _ => spans.push(Span { text: piece, style, href: None }),
+                    s.text.push_str(&g.text);
                 }
+                Some(s) => {
+                    if space {
+                        s.text.push(' ');
+                    }
+                    spans.push(Span { text: g.text.clone(), style, href: None, color: g.color });
+                }
+                None => spans.push(Span { text: g.text.clone(), style, href: None, color: g.color }),
             }
+        }
+        spans
+    }
+
+    /// Converts lines into styled spans, joining the lines into running text.
+    /// `skip` glyphs are dropped from the start of the running text and
+    /// `mask` style bits are cleared in it (e.g. bold inside headings). The
+    /// per-line output keeps everything.
+    fn build(&self, lines: &[Line], skip: usize, mask: u8) -> Built {
+        let texts: Vec<String> = lines.iter().map(|l| l.text()).collect();
+        let mut hlines: Vec<HLine> = Vec::with_capacity(lines.len());
+        let mut line_texts: Vec<String> = Vec::with_capacity(lines.len());
+        for (li, line) in lines.iter().enumerate() {
+            let mut ls = self.line_spans(line);
+            let mut soft_hyphen = false;
             if li + 1 < lines.len() {
-                let next = &texts[li + 1];
-                let ends_hyphen = lt.ends_with('-') && lt.chars().count() > 1;
-                if ends_hyphen {
-                    if remove_hyphen(&texts[li], next, self.vocab) {
-                        lt.pop();
-                        if let Some(s) = spans.last_mut() {
-                            s.text.pop();
-                            if s.text.is_empty() {
-                                spans.pop();
+                let lt = &texts[li];
+                if lt.ends_with('-') && lt.chars().count() > 1 {
+                    if remove_hyphen(lt, &texts[li + 1], self.vocab) {
+                        if let Some(last) = ls.last_mut() {
+                            last.text.pop();
+                            if last.text.is_empty() {
+                                ls.pop();
                             }
                         }
+                        soft_hyphen = true;
                     }
                 } else if !lt.ends_with('/') && !lt.is_empty() {
-                    lt.push(' ');
-                    if let Some(s) = spans.last_mut() {
-                        s.text.push(' ');
+                    if let Some(last) = ls.last_mut() {
+                        last.text.push(' ');
                     }
                 }
             }
-            line_texts.push(lt);
+            line_texts.push(ls.iter().map(|s| s.text.as_str()).collect());
+            hlines.push(HLine { spans: ls, soft_hyphen });
         }
-        (spans, line_texts)
+        let mut spans: Vec<Span> = Vec::new();
+        for s in hlines.iter().flat_map(|h| h.spans.iter()) {
+            let style = s.style & !mask;
+            match spans.last_mut() {
+                Some(p) if p.style == style && p.color == s.color => p.text.push_str(&s.text),
+                _ => spans.push(Span { text: s.text.clone(), style, href: None, color: s.color }),
+            }
+        }
+        if skip > 0 && !lines.is_empty() {
+            let n: usize = lines[0].glyphs.iter().take(skip).map(|g| g.text.chars().count()).sum();
+            strip_chars(&mut spans, n);
+        }
+        Built { spans, line_texts, hlines }
+    }
+
+    /// Positioned glyph runs of a displayed formula.
+    fn eq_runs(&self, lines: &[Line]) -> Vec<EqRun> {
+        let mut runs: Vec<EqRun> = Vec::new();
+        for line in lines {
+            // (run, font, right edge)
+            let mut cur: Option<(EqRun, u16, f32)> = None;
+            for g in &line.glyphs {
+                // No Unicode value: the glyph stays part of the page picture.
+                if g.text.contains('\u{FFFD}') {
+                    if let Some((r, _, _)) = cur.take() {
+                        runs.push(r);
+                    }
+                    continue;
+                }
+                let style = line.style_of(g, self.fonts) & !(SUP | SUB);
+                let axis = g.oy - 0.25 * g.size;
+                let odd = g.ink.height() > 1.3 * g.size
+                    || (g.ink.cy() - axis).abs() > 0.6 * g.size
+                    || g.text == "\u{221A}";
+                if odd {
+                    if let Some((r, _, _)) = cur.take() {
+                        runs.push(r);
+                    }
+                    runs.push(EqRun {
+                        text: g.text.clone(),
+                        x: g.ox,
+                        y: g.oy,
+                        width: (g.x1 - g.x0).max(0.1),
+                        size: g.size,
+                        style,
+                        color: g.color,
+                        ink: Some(g.ink),
+                    });
+                    continue;
+                }
+                let joins = cur.as_ref().is_some_and(|(r, font, end)| {
+                    *font == g.font
+                        && (r.size - g.size).abs() < 0.1
+                        && (r.y - g.oy).abs() < 0.2
+                        && r.color == g.color
+                        && g.x0 - end < 0.6 * g.size
+                        && g.x0 >= r.x
+                });
+                if joins {
+                    let (r, _, end) = cur.as_mut().unwrap();
+                    if g.space_before {
+                        r.text.push(' ');
+                    }
+                    r.text.push_str(&g.text);
+                    *end = g.x1;
+                    r.width = g.x1 - r.x;
+                } else {
+                    if let Some((r, _, _)) = cur.take() {
+                        runs.push(r);
+                    }
+                    cur = Some((
+                        EqRun {
+                            text: g.text.clone(),
+                            x: g.x0,
+                            y: g.oy,
+                            width: (g.x1 - g.x0).max(0.1),
+                            size: g.size,
+                            style,
+                            color: g.color,
+                            ink: None,
+                        },
+                        g.font,
+                        g.x1,
+                    ));
+                }
+            }
+            if let Some((r, _, _)) = cur.take() {
+                runs.push(r);
+            }
+        }
+        runs
+    }
+
+    fn table(&self, grid: Grid) -> Table {
+        let rows = grid
+            .rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| {
+                        let mut spans: Vec<Span> = Vec::new();
+                        for (i, l) in cell.lines.iter().enumerate() {
+                            if i > 0 {
+                                if let Some(last) = spans.last_mut() {
+                                    last.text.push(' ');
+                                }
+                            }
+                            spans.extend(self.line_spans(l));
+                        }
+                        TableCell { col: cell.col, colspan: cell.colspan, rowspan: cell.rowspan, spans }
+                    })
+                    .collect()
+            })
+            .collect();
+        Table {
+            n_cols: grid.n_cols,
+            header_rows: grid.header_rows,
+            col_align: grid
+                .col_align
+                .iter()
+                .map(|a| match a {
+                    Align::Left => "left",
+                    Align::Center => "center",
+                    Align::Right => "right",
+                })
+                .collect(),
+            rows,
+            rule_above: grid.rule_above,
+            rule_bottom: grid.rule_bottom,
+            rule_left: grid.rule_left,
+            rule_right: grid.rule_right,
+            geom: TableGeom {
+                bbox: grid.bbox,
+                col_bounds: grid.col_bounds,
+                col_text: grid.col_text,
+                row_bounds: grid.row_bounds,
+                row_baselines: grid.row_baselines,
+                size: grid.size,
+            },
+        }
     }
 }
 
@@ -302,7 +461,7 @@ fn link_spans(spans: Vec<Span>, anchors: &HashSet<String>, own: Option<&str>) ->
         let text = s.text.clone();
         let push = |t: &str, href: Option<String>, out: &mut Vec<Span>| {
             if !t.is_empty() {
-                out.push(Span { text: t.to_string(), style: s.style, href });
+                out.push(Span { text: t.to_string(), style: s.style, href, color: s.color });
             }
         };
         for c in XREF.captures_iter(&text) {
@@ -358,23 +517,40 @@ fn link_spans(spans: Vec<Span>, anchors: &HashSet<String>, own: Option<&str>) ->
 // Analysis
 // ---------------------------------------------------------------------------
 
-pub struct Analysis {
-    pub doc: Document,
-    /// Lines that are not part of any text block (inside figures and
-    /// tables), per page, for the facsimile text layer.
-    pub loose_lines: Vec<Vec<Line>>,
+/// Options of the layout analysis.
+#[derive(Debug, Clone, Copy)]
+pub struct AnalyzeOptions {
+    /// Reconstruct the row/column structure of tables.
+    pub tables: bool,
 }
 
-pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta) -> Analysis {
+impl Default for AnalyzeOptions {
+    fn default() -> Self {
+        Self { tables: true }
+    }
+}
+
+pub struct Analysis {
+    pub doc: Document,
+    /// Lines that belong to no block (running heads, page numbers, equation
+    /// numbers), per page. The position-preserving renderers draw them.
+    pub loose: Vec<Vec<PLine>>,
+    /// Rotated text, per page.
+    pub rotated: Vec<Vec<RotatedRun>>,
+}
+
+pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts: AnalyzeOptions) -> Analysis {
     let mut pages: Vec<PageData> = raw_pages.into_iter().map(PageData::from_raw).collect();
     let stats = compute_stats(&pages);
     let furniture = remove_furniture(&mut pages);
     meta.arxiv_id = meta.arxiv_id.or(furniture.arxiv_id);
-    meta.arxiv_stamp = furniture.arxiv_stamp;
+    meta.arxiv_stamp = furniture.arxiv_stamp.clone();
 
     // --- per-page layout ---
     let mut nodes: Vec<Node> = Vec::new();
-    let mut loose_lines: Vec<Vec<Line>> = Vec::new();
+    for page in pages.iter_mut() {
+        join_caption_labels(page);
+    }
     // Convention for table captions (above or below the table).
     let (mut votes_above, mut votes_below) = (0, 0);
     for page in pages.iter() {
@@ -391,28 +567,7 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta) -> A
     };
 
     for page in pages.iter_mut() {
-        let before: Vec<Line> = page.lines.clone();
         let floats = detect_floats(page, &stats, fonts, table_caption_above);
-        // Lines swallowed by floats (but not captions) stay selectable.
-        let kept: HashSet<(i32, i32)> = page
-            .lines
-            .iter()
-            .map(|l| ((l.bbox.x0 * 10.0) as i32, (l.baseline * 10.0) as i32))
-            .collect();
-        let caption_keys: HashSet<(i32, i32)> = floats
-            .iter()
-            .flat_map(|f| f.caption.iter())
-            .map(|l| ((l.bbox.x0 * 10.0) as i32, (l.baseline * 10.0) as i32))
-            .collect();
-        loose_lines.push(
-            before
-                .into_iter()
-                .filter(|l| {
-                    let k = ((l.bbox.x0 * 10.0) as i32, (l.baseline * 10.0) as i32);
-                    !kept.contains(&k) && !caption_keys.contains(&k)
-                })
-                .collect(),
-        );
 
         let leaves = order_page(&page.lines, &floats, &stats);
         let leaf_bounds: Vec<(f32, f32)> = leaves.iter().map(|l| (l.bbox.x0, l.bbox.x1)).collect();
@@ -450,8 +605,44 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta) -> A
     split_references(&mut nodes);
     merge_paragraphs(&mut nodes, &stats);
 
-    let doc = build_document(nodes, &pages, &stats, fonts, meta);
-    Analysis { doc, loose_lines }
+    let rotated = pages
+        .iter()
+        .map(|p| {
+            p.rotated
+                .iter()
+                .filter(|r| !r.text.contains('\u{FFFD}') && !r.text.trim().is_empty())
+                .map(|r| {
+                    let f = &fonts[r.font as usize];
+                    let mut style = 0;
+                    if f.bold {
+                        style |= BOLD;
+                    }
+                    if f.italic {
+                        style |= ITALIC;
+                    }
+                    if f.mono {
+                        style |= MONO;
+                    }
+                    if f.sans {
+                        style |= SANS;
+                    }
+                    RotatedRun {
+                        text: r.text.clone(),
+                        x: r.x,
+                        y: r.y,
+                        angle: r.angle,
+                        size: r.size,
+                        length: r.length,
+                        style,
+                        color: r.color,
+                        origins: r.origins.clone(),
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    let (doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);
+    Analysis { doc, loose, rotated }
 }
 
 fn classify_front_matter(nodes: &mut Vec<Node>, pages: &[PageData], stats: &DocStats, fonts: &[FontInfo]) {
@@ -1028,13 +1219,53 @@ fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats) {
     }
 }
 
-fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts: &[FontInfo], mut meta: Meta) -> Document {
+fn new_block(id: usize, kind: BlockKind, loc: Loc, bbox: Rect) -> Block {
+    Block {
+        id,
+        kind,
+        page: loc.page,
+        bbox,
+        spans: Vec::new(),
+        rows: Vec::new(),
+        anchor: None,
+        loc,
+        lines: Vec::new(),
+        line_texts: Vec::new(),
+        hlines: Vec::new(),
+        table: None,
+        inner_lines: Vec::new(),
+        inner_spans: Vec::new(),
+        eq_runs: Vec::new(),
+    }
+}
+
+fn is_footnote_symbol(s: &str) -> bool {
+    matches!(s, "∗" | "†" | "‡" | "§" | "¶" | "*")
+}
+
+fn build_document(
+    nodes: Vec<Node>,
+    pages: &[PageData],
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    mut meta: Meta,
+    furniture: Vec<Vec<Line>>,
+    opts: AnalyzeOptions,
+) -> (Document, Vec<Vec<PLine>>) {
     let vocab = build_vocab(nodes.iter().filter_map(|n| match &n.kind {
         NodeKind::Text(t) | NodeKind::Footnote(t) => Some(t.lines.as_slice()),
         NodeKind::Float(f) => Some(f.caption.as_slice()),
         _ => None,
     }));
     let tb = TextBuilder { fonts, vocab: &vocab };
+
+    let mut loose: Vec<Vec<PLine>> = vec![Vec::new(); pages.len()];
+    for (pi, lines) in furniture.into_iter().enumerate() {
+        for line in lines {
+            let spans = tb.line_spans(&line);
+            loose[pi].push(PLine { line, spans, kind: "header" });
+        }
+    }
 
     let mut blocks: Vec<Block> = Vec::new();
     let mut anchors: HashSet<String> = HashSet::new();
@@ -1058,108 +1289,96 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
                 let bbox = t.lines.iter().fold(Rect::EMPTY, |a, l| a.union(&l.bbox));
                 let mut rows = Vec::new();
                 let mut anchor = None;
-                let (kind, spans, line_texts) = match n.class {
+                let (kind, built) = match n.class {
                     Class::Title => {
-                        let (s, lt) = tb.build(&t.lines, 0, BOLD);
-                        title_parts.push(s.iter().map(|x| x.text.as_str()).collect());
-                        (BlockKind::Title, s, lt)
+                        let b = tb.build(&t.lines, 0, BOLD);
+                        title_parts.push(b.spans.iter().map(|x| x.text.as_str()).collect());
+                        (BlockKind::Title, b)
                     }
                     Class::Authors => {
                         // One row per baseline; side-by-side pieces are
                         // separated by an em space.
                         let mut last_baseline = f32::NEG_INFINITY;
                         for l in &t.lines {
-                            let mut spans = tb.build(std::slice::from_ref(l), 0, 0).0;
+                            let mut spans = tb.line_spans(l);
                             if (l.baseline - last_baseline).abs() < 2.0 && !rows.is_empty() {
                                 let row: &mut Vec<Span> = rows.last_mut().unwrap();
-                                row.push(Span { text: "\u{2003}".into(), style: 0, href: None });
+                                row.push(Span::plain("\u{2003}"));
                                 row.append(&mut spans);
                             } else {
                                 rows.push(spans);
                             }
                             last_baseline = l.baseline;
                         }
-                        let (s, lt) = tb.build(&t.lines, 0, 0);
-                        (BlockKind::Authors, s, lt)
+                        (BlockKind::Authors, tb.build(&t.lines, 0, 0))
                     }
-                    Class::Note => {
-                        let (s, lt) = tb.build(&t.lines, 0, 0);
-                        (BlockKind::Note, s, lt)
-                    }
+                    Class::Note => (BlockKind::Note, tb.build(&t.lines, 0, 0)),
                     Class::Heading { level, number } => {
-                        let (s, lt) = tb.build(&t.lines, 0, BOLD);
-                        let text: String = s.iter().map(|x| x.text.as_str()).collect();
+                        let b = tb.build(&t.lines, 0, BOLD);
+                        let text: String = b.spans.iter().map(|x| x.text.as_str()).collect();
                         let base = match &number {
                             Some(num) => format!("sec-{num}"),
                             None => format!("sec-{}", slug(&text)),
                         };
                         anchor = Some(unique(base, &mut anchors));
-                        (BlockKind::Heading { level }, s, lt)
+                        (BlockKind::Heading { level }, b)
                     }
                     Class::ListItem { bullet } => {
-                        let skip = if bullet { 1 } else { 0 };
-                        let (mut s, lt) = tb.build(&t.lines, skip, 0);
-                        if let Some(f) = s.first_mut() {
-                            f.text = f.text.trim_start().to_string();
-                        }
+                        let b = tb.build(&t.lines, if bullet { 1 } else { 0 }, 0);
                         let marker = if bullet {
                             None
                         } else {
-                            let text: String = s.iter().map(|x| x.text.as_str()).collect();
+                            let text: String = b.spans.iter().map(|x| x.text.as_str()).collect();
                             LIST_LABEL.find(&text).map(|m| m.as_str().trim().to_string())
                         };
-                        (BlockKind::ListItem { marker }, s, lt)
+                        (BlockKind::ListItem { marker }, b)
                     }
                     Class::Reference => {
-                        let (s, lt) = tb.build(&t.lines, 0, 0);
-                        let text: String = s.iter().map(|x| x.text.as_str()).collect();
+                        let b = tb.build(&t.lines, 0, 0);
+                        let text: String = b.spans.iter().map(|x| x.text.as_str()).collect();
                         let label = REF_LABEL
                             .captures(text.trim())
                             .map(|c| c.name("a").or(c.name("b")).unwrap().as_str().to_string());
                         if let Some(l) = &label {
                             anchor = Some(unique(format!("ref-{}", slug(l)), &mut anchors));
                         }
-                        (BlockKind::Reference { label }, s, lt)
+                        (BlockKind::Reference { label }, b)
                     }
                     Class::Paragraph { in_abstract } => {
-                        let (mut s, lt) = tb.build(&t.lines, 0, 0);
+                        let mut b = tb.build(&t.lines, 0, 0);
                         if n.strip_prefix > 0 {
-                            strip_chars(&mut s, n.strip_prefix);
+                            strip_chars(&mut b.spans, n.strip_prefix);
                         }
-                        (BlockKind::Paragraph { in_abstract }, s, lt)
+                        (BlockKind::Paragraph { in_abstract }, b)
                     }
-                    Class::Unknown => {
-                        let (s, lt) = tb.build(&t.lines, 0, 0);
-                        (BlockKind::Paragraph { in_abstract: false }, s, lt)
-                    }
+                    Class::Unknown => (BlockKind::Paragraph { in_abstract: false }, tb.build(&t.lines, 0, 0)),
                 };
-                blocks.push(Block { id, kind, page: loc.page, bbox, spans, rows, anchor, loc, lines: t.lines, line_texts });
+                let mut block = new_block(id, kind, loc, bbox);
+                block.spans = built.spans;
+                block.line_texts = built.line_texts;
+                block.hlines = built.hlines;
+                block.rows = rows;
+                block.anchor = anchor;
+                block.lines = t.lines;
+                blocks.push(block);
             }
             NodeKind::Footnote(t) => {
                 let bbox = t.lines.iter().fold(Rect::EMPTY, |a, l| a.union(&l.bbox));
                 let first = &t.lines[0];
                 let mut skip = first.glyphs.iter().take_while(|g| g.script == 1).count();
-                if skip == 0 && first.glyphs.first().is_some_and(|g| matches!(g.text.as_str(), "∗" | "†" | "‡" | "§" | "¶" | "*")) {
+                if skip == 0 && first.glyphs.first().is_some_and(|g| is_footnote_symbol(&g.text)) {
                     skip = 1;
                 }
                 let marker: String = first.glyphs[..skip].iter().map(|g| g.text.as_str()).collect();
-                let (mut spans, line_texts) = tb.build(&t.lines, skip, 0);
-                if let Some(f) = spans.first_mut() {
-                    f.text = f.text.trim_start().to_string();
-                }
+                let built = tb.build(&t.lines, skip, 0);
                 let anchor = (!marker.is_empty()).then(|| unique(format!("fn-{}", slug_marker(&marker)), &mut anchors));
-                blocks.push(Block {
-                    id,
-                    kind: BlockKind::Footnote { marker },
-                    page: loc.page,
-                    bbox,
-                    spans,
-                    rows: Vec::new(),
-                    anchor,
-                    loc,
-                    lines: t.lines,
-                    line_texts,
-                });
+                let mut block = new_block(id, BlockKind::Footnote { marker }, loc, bbox);
+                block.spans = built.spans;
+                block.line_texts = built.line_texts;
+                block.hlines = built.hlines;
+                block.anchor = anchor;
+                block.lines = t.lines;
+                blocks.push(block);
             }
             NodeKind::Equation(e) => {
                 let mut lines = e.lines;
@@ -1173,25 +1392,28 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
                         Some(unique(format!("eq-u{eq_counter}"), &mut anchors))
                     }
                 };
-                let line_texts = lines.iter().map(|l| l.text()).collect();
-                blocks.push(Block {
+                if let Some(line) = e.number_line {
+                    let spans = tb.line_spans(&line);
+                    loose[loc.page].push(PLine { line, spans, kind: "eqno" });
+                }
+                let mut block = new_block(
                     id,
-                    kind: BlockKind::Equation {
+                    BlockKind::Equation {
                         image: ImageSpec { page: loc.page, rect, transparent: true },
                         number: e.number,
                     },
-                    page: loc.page,
-                    bbox: rect,
-                    spans: vec![Span { text: alt, style: 0, href: None }],
-                    rows: Vec::new(),
-                    anchor,
                     loc,
-                    lines,
-                    line_texts,
-                });
+                    rect,
+                );
+                block.spans = vec![Span::plain(alt)];
+                block.line_texts = lines.iter().map(|l| l.text()).collect();
+                block.eq_runs = tb.eq_runs(&lines);
+                block.anchor = anchor;
+                block.lines = lines;
+                blocks.push(block);
             }
             NodeKind::Float(f) => {
-                let (spans, line_texts) = tb.build(&f.caption, 0, 0);
+                let built = tb.build(&f.caption, 0, 0);
                 let anchor = f.label.as_ref().map(|label| {
                     let num = label.rsplit(' ').next().unwrap_or("");
                     let prefix = match f.kind {
@@ -1203,24 +1425,40 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
                 });
                 let mut rows = Vec::new();
                 if !f.inner_text.is_empty() {
-                    rows.push(vec![Span { text: f.inner_text.clone(), style: 0, href: None }]);
+                    rows.push(vec![Span::plain(f.inner_text.clone())]);
                 }
-                blocks.push(Block {
+                let tabular = f.kind == FloatKind::Table || (f.kind == FloatKind::Graphic && f.table_like);
+                let table = match f.region {
+                    Some(region) if opts.tables && tabular && !f.complex => {
+                        // Cells can be closer together than the gap at which
+                        // lines are broken; split more finely. Pieces that
+                        // end up in the same column are joined again.
+                        let pieces: Vec<Line> =
+                            f.inner_lines.iter().flat_map(|l| split_at_gaps(l, 0.55 * l.size)).collect();
+                        extract_grid(region, &pieces, &f.hrules, &f.vrules).map(|g| tb.table(g))
+                    }
+                    _ => None,
+                };
+                let mut block = new_block(
                     id,
-                    kind: BlockKind::Figure {
+                    BlockKind::Figure {
                         kind: f.kind,
                         image: f.region.map(|rect| ImageSpec { page: f.page, rect, transparent: false }),
                         label: f.label.clone(),
                     },
-                    page: loc.page,
-                    bbox: f.bbox,
-                    spans,
-                    rows,
-                    anchor,
                     loc,
-                    lines: f.caption,
-                    line_texts,
-                });
+                    f.bbox,
+                );
+                block.spans = built.spans;
+                block.line_texts = built.line_texts;
+                block.hlines = built.hlines;
+                block.rows = rows;
+                block.anchor = anchor;
+                block.lines = f.caption;
+                block.inner_spans = f.inner_lines.iter().map(|l| tb.line_spans(l)).collect();
+                block.inner_lines = f.inner_lines;
+                block.table = table;
+                blocks.push(block);
             }
         }
     }
@@ -1245,12 +1483,21 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
             b.spans = link_spans(spans, &anchors, own.as_deref());
             let rows = std::mem::take(&mut b.rows);
             b.rows = rows.into_iter().map(|r| link_spans(r, &anchors, None)).collect();
+            for h in b.hlines.iter_mut() {
+                let spans = std::mem::take(&mut h.spans);
+                h.spans = link_spans(spans, &anchors, own.as_deref());
+            }
+            if let Some(t) = b.table.as_mut() {
+                for cell in t.rows.iter_mut().flatten() {
+                    let spans = std::mem::take(&mut cell.spans);
+                    cell.spans = link_spans(spans, &anchors, None);
+                }
+            }
         }
         if !is_footnote {
             for i in 0..b.spans.len() {
                 let s = &b.spans[i];
                 if s.style & SUP != 0 && s.style & MATH == 0 && s.href.is_none() {
-                    // Not an exponent: the mark follows a word or punctuation.
                     // A footnote mark follows a word or punctuation; a digit
                     // or a single letter before it means an exponent (x², c²).
                     let exponent = i == 0 || b.spans[i - 1].style & SUP != 0 || {
@@ -1274,13 +1521,15 @@ fn build_document(nodes: Vec<Node>, pages: &[PageData], stats: &DocStats, fonts:
     if !title_parts.is_empty() {
         meta.title = Some(title_parts.join(" ").split_whitespace().collect::<Vec<_>>().join(" "));
     }
-    Document {
+    let doc = Document {
         meta,
         pages: pages.iter().map(|p| PageInfo { width: p.width, height: p.height }).collect(),
         body_size: stats.body_size,
         leading: stats.leading,
+        body_font: fonts.get(stats.body_font as usize).map(|f| f.name.clone()).unwrap_or_default(),
         blocks,
-    }
+    };
+    (doc, loose)
 }
 
 fn slug_marker(m: &str) -> String {
@@ -1326,9 +1575,9 @@ mod tests {
     #[test]
     fn cross_references_are_linked() {
         let anchors: HashSet<String> = ["ref-2", "fig-3", "sec-4.1"].iter().map(|s| s.to_string()).collect();
-        let spans = vec![Span { text: "As in [2, 7] and Figure 3 (see Section 4.1), cf. https://example.org/x.".into(), style: 0, href: None }];
+        let spans = vec![Span::plain("As in [2, 7] and Figure 3 (see Section 4.1), cf. https://example.org/x.")];
         let eq_anchors: HashSet<String> = ["eq-3".to_string()].into_iter().collect();
-        let eq = link_spans(vec![Span { text: "by Eq. (3) and".into(), style: 0, href: None }], &eq_anchors, None);
+        let eq = link_spans(vec![Span::plain("by Eq. (3) and")], &eq_anchors, None);
         assert!(eq.iter().any(|s| s.text == "Eq. (3)" && s.href.as_deref() == Some("#eq-3")));
         let out = link_spans(spans, &anchors, None);
         let links: Vec<(&str, &str)> = out.iter().filter_map(|s| s.href.as_deref().map(|h| (s.text.as_str(), h))).collect();

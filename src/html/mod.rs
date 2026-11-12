@@ -2,6 +2,7 @@
 
 mod friendly;
 mod hard;
+mod hard95;
 mod medium;
 
 use crate::document::Analysis;
@@ -16,6 +17,9 @@ pub enum Mode {
     /// Facsimile: every page looks exactly like the PDF, with a selectable
     /// text layer organised by paragraph.
     Hard,
+    /// Like `Hard`, but everything that is text is real, visible HTML text
+    /// placed where it is in the PDF; only true graphics remain pictures.
+    Hard95,
     /// Page and column structure preserved, text reflowed as real HTML.
     Medium,
     /// Single-column, responsive article optimised for reading.
@@ -26,6 +30,7 @@ impl Mode {
     pub fn name(&self) -> &'static str {
         match self {
             Mode::Hard => "hard",
+            Mode::Hard95 => "hard-95",
             Mode::Medium => "medium",
             Mode::Friendly => "friendly",
         }
@@ -81,6 +86,7 @@ pub fn render(analysis: &Analysis, renderer: &PageRenderer<'_>, opts: &HtmlOptio
         Mode::Friendly => friendly::render(&analysis.doc, &mut images),
         Mode::Medium => medium::render(&analysis.doc, &mut images),
         Mode::Hard => hard::render(analysis, &mut images),
+        Mode::Hard95 => hard95::render(analysis, &mut images),
     };
     HtmlOutput { html, files: images.files }
 }
@@ -110,6 +116,12 @@ impl ImageStore<'_, '_> {
             .renderer
             .region_png(spec.page, spec.rect, self.opts.scale, spec.transparent)?;
         Some(self.emit(png, "image/png", "png", hint))
+    }
+
+    /// Renders a page as SVG without the glyphs selected by `remove`.
+    pub fn page_without_text(&mut self, page: usize, remove: &dyn Fn(f32, f32) -> bool) -> Option<String> {
+        let svg = self.renderer.page_svg_without_text(page, remove)?;
+        Some(self.emit(svg.into_bytes(), "image/svg+xml", "svg", &format!("page-{}", page + 1)))
     }
 
     /// Renders a whole page (hard mode background).
@@ -351,6 +363,7 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_, '_>, ct
                 let alt = esc(&figure_alt(b, label));
                 let img = image
                     .as_ref()
+                    .filter(|_| b.table.is_none())
                     .and_then(|spec| images.region(spec, cls).map(|src| (src, spec)))
                     .map(|(src, spec)| {
                         format!(
@@ -359,6 +372,11 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_, '_>, ct
                         )
                     })
                     .unwrap_or_default();
+                // A reconstructed table replaces the picture of the table.
+                let img = match &b.table {
+                    Some(t) => format!("<div class=\"tbl-wrap\">{}</div>", table_html(t)),
+                    None => img,
+                };
                 let cap = if b.spans.is_empty() {
                     String::new()
                 } else {
@@ -375,6 +393,116 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_, '_>, ct
         }
     }
     close(group, &mut out);
+    out
+}
+
+/// Classes describing the rules around the cell at (`row`, `col`) spanning
+/// `colspan` x `rowspan` positions: `ra1`/`ra2` thin/heavy rule above, `rb*`
+/// below, `rl`/`rr` vertical rules.
+pub(crate) fn table_rule_classes(t: &Table, row: usize, col: usize, colspan: usize, rowspan: usize) -> String {
+    let n_rows = t.rows.len();
+    let end = (col + colspan).min(t.n_cols);
+    let last_row = (row + rowspan).min(n_rows) - 1;
+    let mut cls = String::new();
+    let above = t.rule_above[row][col..end].iter().copied().max().unwrap_or(0);
+    if above > 0 {
+        cls.push_str(&format!(" ra{above}"));
+    }
+    if last_row + 1 == n_rows {
+        let below = t.rule_bottom[col..end].iter().copied().max().unwrap_or(0);
+        if below > 0 {
+            cls.push_str(&format!(" rb{below}"));
+        }
+    }
+    if t.rule_left[row][col] {
+        cls.push_str(" rl");
+    }
+    if end == t.n_cols && t.rule_right[row] {
+        cls.push_str(" rr");
+    }
+    cls
+}
+
+/// Walks the cells of a table in document order, including the empty
+/// positions, and calls `emit(row, col, cell)` for each.
+pub(crate) fn table_walk(t: &Table, mut emit: impl FnMut(usize, usize, Option<&TableCell>)) {
+    let n_rows = t.rows.len();
+    // Positions covered by a row-spanning cell from an earlier row.
+    let mut covered = vec![vec![false; t.n_cols]; n_rows];
+    for (ri, row) in t.rows.iter().enumerate() {
+        let mut c = 0;
+        for cell in row {
+            while c < cell.col.min(t.n_cols) {
+                if !covered[ri][c] {
+                    emit(ri, c, None);
+                }
+                c += 1;
+            }
+            emit(ri, cell.col, Some(cell));
+            for r in ri + 1..(ri + cell.rowspan).min(n_rows) {
+                for cc in cell.col..(cell.col + cell.colspan).min(t.n_cols) {
+                    covered[r][cc] = true;
+                }
+            }
+            c = cell.col + cell.colspan;
+        }
+        while c < t.n_cols {
+            if !covered[ri][c] {
+                emit(ri, c, None);
+            }
+            c += 1;
+        }
+    }
+}
+
+/// A reconstructed table as an HTML `<table>`.
+pub(crate) fn table_html(t: &Table) -> String {
+    let mut out = String::from("<table class=\"tbl\">");
+    let mut open_row: Option<usize> = None;
+    table_walk(t, |ri, col, cell| {
+        if open_row != Some(ri) {
+            if open_row.is_some() {
+                out.push_str("</tr>");
+            }
+            if ri == 0 && t.header_rows > 0 {
+                out.push_str("<thead>");
+            }
+            if ri == t.header_rows {
+                if t.header_rows > 0 {
+                    out.push_str("</thead>");
+                }
+                out.push_str("<tbody>");
+            }
+            out.push_str("<tr>");
+            open_row = Some(ri);
+        }
+        let tag = if ri < t.header_rows { "th" } else { "td" };
+        match cell {
+            None => out.push_str(&format!("<{tag} class=\"e{}\"></{tag}>", table_rule_classes(t, ri, col, 1, 1))),
+            Some(cell) => {
+                let align = if cell.colspan > 1 { "c" } else { &t.col_align[cell.col.min(t.n_cols - 1)][..1] };
+                let short = plain(&cell.spans).chars().count() <= 28;
+                let mut attrs = String::new();
+                if cell.colspan > 1 {
+                    attrs.push_str(&format!(" colspan=\"{}\"", cell.colspan));
+                }
+                if cell.rowspan > 1 {
+                    attrs.push_str(&format!(" rowspan=\"{}\"", cell.rowspan));
+                }
+                out.push_str(&format!(
+                    "<{tag}{attrs} class=\"{align}{}{}{}\">{}</{tag}>",
+                    if short { " nw" } else { "" },
+                    if cell.rowspan > 1 { " mid" } else { "" },
+                    table_rule_classes(t, ri, cell.col, cell.colspan, cell.rowspan),
+                    spans_html(&cell.spans)
+                ));
+            }
+        }
+    });
+    if open_row.is_some() {
+        out.push_str("</tr>");
+    }
+    out.push_str("</tbody></table>");
     out
 }
 

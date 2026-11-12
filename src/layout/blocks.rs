@@ -37,6 +37,8 @@ pub struct EquationBlock {
     /// Ink extent of the equation without its number.
     pub bbox: Rect,
     pub number: Option<String>,
+    /// The line holding the equation number, if any.
+    pub number_line: Option<Line>,
     pub loc: Loc,
 }
 
@@ -108,7 +110,7 @@ fn row_stats(lines: &[&Line], fonts: &[FontInfo]) -> RowStats {
 
 enum Row {
     Text(Line),
-    Equation { lines: Vec<Line>, bbox: Rect, number: Option<String> },
+    Equation { lines: Vec<Line>, bbox: Rect, number: Option<String>, number_line: Option<Line> },
     Float(usize),
 }
 
@@ -305,10 +307,9 @@ pub fn build_blocks(
             if is_eq {
                 let n = content.len();
                 let mut lines = lines;
-                if number.is_some() {
-                    lines.truncate(n);
-                }
-                rows.push(Row::Equation { lines, bbox: ink, number });
+                let number_line = if number.is_some() { lines.pop() } else { None };
+                debug_assert_eq!(lines.len(), n);
+                rows.push(Row::Equation { lines, bbox: ink, number, number_line });
                 weak.push(None);
             } else {
                 weak.push(weak_eq.then_some((lines.clone(), ink)));
@@ -330,7 +331,7 @@ pub fn build_blocks(
                 };
                 if (i > 0 && near(i - 1)) || (i + 1 < rows.len() && near(i + 1)) {
                     let (lines, bbox) = weak[i].take().unwrap();
-                    rows[i] = Row::Equation { lines, bbox, number: None };
+                    rows[i] = Row::Equation { lines, bbox, number: None, number_line: None };
                     changed = true;
                 }
             }
@@ -343,8 +344,8 @@ pub fn build_blocks(
         // numerators and denominators).
         let mut merged: Vec<Row> = Vec::new();
         for r in rows {
-            if let Row::Equation { lines, bbox, number } = r {
-                if let Some(Row::Equation { lines: pl, bbox: pb, number: pn }) = merged.last_mut() {
+            if let Row::Equation { lines, bbox, number, number_line } = r {
+                if let Some(Row::Equation { lines: pl, bbox: pb, number: pn, number_line: pnl }) = merged.last_mut() {
                     let gap = bbox.y0 - pb.y1;
                     let overlap = gap < 0.0;
                     if overlap || (gap < 0.9 * stats.leading && !(pn.is_some() && number.is_some())) {
@@ -352,11 +353,15 @@ pub fn build_blocks(
                         *pb = pb.union(&bbox);
                         if pn.is_none() {
                             *pn = number;
+                            *pnl = number_line;
+                        } else if let Some(nl) = number_line {
+                            // Keep the glyphs of a second number drawable.
+                            pl.push(nl);
                         }
                         continue;
                     }
                 }
-                merged.push(Row::Equation { lines, bbox, number });
+                merged.push(Row::Equation { lines, bbox, number, number_line });
             } else {
                 merged.push(r);
             }
@@ -517,9 +522,9 @@ pub fn build_blocks(
                     out.push(RawBlock::Float { idx, loc });
                     prev_baseline = None;
                 }
-                Row::Equation { lines, bbox, number } => {
+                Row::Equation { lines, bbox, number, number_line } => {
                     flush_group(&mut group, &mut out, footnote);
-                    out.push(RawBlock::Equation(EquationBlock { lines, bbox, number, loc }));
+                    out.push(RawBlock::Equation(EquationBlock { lines, bbox, number, number_line, loc }));
                     prev_baseline = None;
                 }
                 Row::Text(line) => {

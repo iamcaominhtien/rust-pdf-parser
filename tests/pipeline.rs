@@ -1,7 +1,8 @@
 //! End-to-end test on a small PDF that is generated on the fly.
 
 use paper2html::model::BlockKind;
-use paper2html::{HtmlOptions, Mode, Paper};
+use base64::Engine;
+use paper2html::{AnalyzeOptions, HtmlOptions, Mode, Paper};
 
 /// Builds a one-page PDF using the standard Helvetica fonts.
 fn tiny_pdf() -> Vec<u8> {
@@ -15,6 +16,22 @@ BT /F1 10 Tf 72 568 Td (A second paragraph follows the first one after some vert
 BT /F1 10 Tf 72 556 Td (long enough to span two lines.) Tj ET
 BT /F2 12 Tf 72 520 Td (2 Method) Tj ET
 BT /F1 10 Tf 72 500 Td (The method section has a single short line.) Tj ET
+BT /F1 10 Tf 72 462 Td (Table 1: Results of the tiny experiment.) Tj ET
+0.8 w 72 452 m 300 452 l S
+BT /F1 10 Tf 80 439 Td (Model) Tj ET
+BT /F1 10 Tf 170 439 Td (Score) Tj ET
+BT /F1 10 Tf 240 439 Td (Cost) Tj ET
+0.4 w 72 433 m 300 433 l S
+BT /F1 10 Tf 80 421 Td (Alpha) Tj ET
+BT /F1 10 Tf 170 421 Td (1.5) Tj ET
+BT /F1 10 Tf 240 421 Td (20) Tj ET
+BT /F1 10 Tf 80 409 Td (Beta) Tj ET
+BT /F1 10 Tf 170 409 Td (2.5) Tj ET
+BT /F1 10 Tf 240 409 Td (30) Tj ET
+BT /F1 10 Tf 80 397 Td (Gamma) Tj ET
+BT /F1 10 Tf 170 397 Td (3.5) Tj ET
+BT /F1 10 Tf 240 397 Td (40) Tj ET
+0.8 w 72 390 m 300 390 l S
 ";
     let objects = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
@@ -112,4 +129,88 @@ fn renders_all_modes() {
 #[test]
 fn rejects_garbage() {
     assert!(Paper::from_bytes(b"not a pdf".to_vec()).is_err());
+}
+
+#[test]
+fn rebuilds_tables() {
+    let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
+    let analysis = paper.analyze();
+    let block = analysis
+        .doc
+        .blocks
+        .iter()
+        .find(|b| matches!(b.kind, BlockKind::Figure { .. }))
+        .expect("the table float");
+    assert!(block.text().starts_with("Table 1: Results"));
+    let table = block.table.as_ref().expect("table structure");
+    assert_eq!(table.n_cols, 3);
+    assert_eq!(table.header_rows, 1);
+    let cells: Vec<Vec<String>> = table
+        .rows
+        .iter()
+        .map(|r| r.iter().map(|c| c.spans.iter().map(|s| s.text.as_str()).collect::<String>()).collect())
+        .collect();
+    assert_eq!(
+        cells,
+        [
+            ["Model", "Score", "Cost"],
+            ["Alpha", "1.5", "20"],
+            ["Beta", "2.5", "30"],
+            ["Gamma", "3.5", "40"],
+        ]
+    );
+    // Heavy rule on top, thin rule under the header, heavy rule at the bottom.
+    assert_eq!(table.rule_above[0], [2, 2, 2]);
+    assert_eq!(table.rule_above[1], [1, 1, 1]);
+    assert_eq!(table.rule_bottom, [2, 2, 2]);
+
+    for mode in [Mode::Friendly, Mode::Medium] {
+        let out = paper.to_html(&analysis, &HtmlOptions { mode, ..Default::default() });
+        assert!(out.html.contains("<table class=\"tbl\">"), "{mode:?}");
+        assert!(out.html.contains(">Gamma</td>"), "{mode:?}");
+        // No picture of the table is embedded.
+        assert!(!out.html.contains("data:image/png"), "{mode:?}");
+    }
+
+    // Tables can be left alone.
+    let plain = paper.analyze_with(AnalyzeOptions { tables: false });
+    assert!(plain.doc.blocks.iter().all(|b| b.table.is_none()));
+    let out = paper.to_html(&plain, &HtmlOptions { mode: Mode::Friendly, ..Default::default() });
+    assert!(out.html.contains("data:image/png"));
+}
+
+#[test]
+fn hard95_is_all_text() {
+    let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
+    let analysis = paper.analyze();
+    let out = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Hard95, ..Default::default() });
+    let html = &out.html;
+
+    // Paragraphs are flowing blocks holding the lines of the PDF ...
+    assert!(html.contains("class=\"fb one\" data-kind=\"paragraph\""));
+    assert!(html.contains("pipeline of the docu</span>"));
+    // ... the removed line-end hyphen is shown without being part of the text.
+    assert!(html.contains("class=\"ln hy\""));
+    // The table is a table.
+    assert!(html.contains("<div class=\"tb\" data-kind=\"table\""));
+    // (The test PDF is set in Helvetica, hence the sans-serif class.)
+    assert!(html.contains("<span class=\"s\">Gamma</span></td>"));
+
+    // The picture of the page no longer draws any glyph: all text is HTML.
+    let marker = "data:image/svg+xml;base64,";
+    let start = html.find(marker).expect("page picture") + marker.len();
+    let end = start + html[start..].find('"').unwrap();
+    let svg = base64::engine::general_purpose::STANDARD.decode(&html[start..end]).unwrap();
+    let svg = String::from_utf8(svg).unwrap();
+    assert!(svg.starts_with("<svg"));
+    assert!(!svg.contains("<use "), "glyphs left in the page picture");
+    // The rules of the table are still drawn.
+    assert!(svg.contains("<path"));
+
+    // The facsimile mode still draws the text itself.
+    let hard = paper.to_html(&analysis, &HtmlOptions { mode: Mode::Hard, ..Default::default() });
+    let start = hard.html.find(marker).unwrap() + marker.len();
+    let end = start + hard.html[start..].find('"').unwrap();
+    let svg = base64::engine::general_purpose::STANDARD.decode(&hard.html[start..end]).unwrap();
+    assert!(String::from_utf8(svg).unwrap().contains("<use "));
 }

@@ -117,6 +117,9 @@ fn normalize_furniture(text: &str) -> String {
 pub struct Furniture {
     pub arxiv_id: Option<String>,
     pub arxiv_stamp: Option<String>,
+    /// The removed lines of each page (they are still drawn by the
+    /// position-preserving renderers).
+    pub lines: Vec<Vec<Line>>,
 }
 
 /// Removes running headers/footers, page numbers, margin line numbers and the
@@ -215,23 +218,45 @@ pub fn remove_furniture(pages: &mut [PageData]) -> Furniture {
             }
         }
 
+        // Candidates: repeated lines and page numbers in the margins.
+        let candidate: Vec<bool> = p
+            .lines
+            .iter()
+            .map(|l| {
+                let Some(b) = band(p, l) else { return false };
+                let text = l.text();
+                let repeated = counts.get(&(normalize_furniture(&text), b)).copied().unwrap_or(0) >= min_repeat;
+                let outside = l.bbox.y1 <= body_top + 1.0 || l.bbox.y0 >= body_bottom - 1.0;
+                let is_page_no = PAGE_NUMBER.is_match(text.trim()) && l.char_count() <= 12;
+                (repeated || is_page_no) && outside
+            })
+            .collect();
         for (i, l) in p.lines.iter().enumerate() {
-            let Some(b) = band(p, l) else { continue };
-            let text = l.text();
-            let key = (normalize_furniture(&text), b);
-            let repeated = counts.get(&key).copied().unwrap_or(0) >= min_repeat;
-            let outside = l.bbox.y1 <= body_top + 1.0 || l.bbox.y0 >= body_bottom - 1.0;
-            let is_page_no = PAGE_NUMBER.is_match(text.trim()) && l.char_count() <= 12;
-            if (repeated && outside) || (is_page_no && outside) {
+            if !candidate[i] {
+                continue;
+            }
+            // Running heads stand apart from the content. A repeated line
+            // with other text right above or below it is content itself
+            // (for instance the header row of a table at the top of a page).
+            let crowded = p.lines.iter().enumerate().any(|(j, o)| {
+                let d = (o.baseline - l.baseline).abs();
+                !candidate[j] && d > 2.0 && d < 1.45 * l.size.max(o.size)
+            });
+            if !crowded {
                 drop[i] = true;
             }
         }
-        let mut i = 0;
-        p.lines.retain(|_| {
-            let keep = !drop[i];
-            i += 1;
-            keep
-        });
+        let mut kept = Vec::with_capacity(p.lines.len());
+        let mut removed = Vec::new();
+        for (i, l) in std::mem::take(&mut p.lines).into_iter().enumerate() {
+            if drop[i] {
+                removed.push(l);
+            } else {
+                kept.push(l);
+            }
+        }
+        p.lines = kept;
+        out.lines.push(removed);
     }
     out
 }

@@ -638,6 +638,8 @@ dependencies = [
  "moxcms",
  "num-traits",
  "png",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -763,6 +765,7 @@ dependencies = [
  "hayro-interpret",
  "hayro-svg",
  "hayro-syntax",
+ "image",
  "kurbo",
  "regex",
  "serde",

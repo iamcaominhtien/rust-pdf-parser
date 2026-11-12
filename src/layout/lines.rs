@@ -14,6 +14,7 @@ pub const MONO: u8 = 4;
 pub const MATH: u8 = 8;
 pub const SUP: u8 = 16;
 pub const SUB: u8 = 32;
+pub const SANS: u8 = 64;
 
 #[derive(Debug, Clone)]
 pub struct LineGlyph {
@@ -27,6 +28,13 @@ pub struct LineGlyph {
     pub script: i8,
     pub space_before: bool,
     pub ink: Rect,
+    /// Origin of the glyph as drawn in the PDF (identifies the glyph in the
+    /// rendered page).
+    pub ox: f32,
+    pub oy: f32,
+    /// Origin of an accent glyph that was folded into this one.
+    pub extra: Option<(f32, f32)>,
+    pub color: [u8; 3],
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +54,18 @@ pub struct Line {
 pub struct RotatedText {
     pub text: String,
     pub bbox: Rect,
+    /// Origin of the first glyph, on the baseline.
+    pub x: f32,
+    pub y: f32,
+    /// Direction of the baseline in degrees (y axis pointing down).
+    pub angle: f32,
+    pub size: f32,
+    /// Length along the baseline.
+    pub length: f32,
+    pub font: u16,
+    pub color: [u8; 3],
+    /// Origins of all glyphs.
+    pub origins: Vec<(f32, f32)>,
 }
 
 impl Line {
@@ -90,6 +110,9 @@ impl Line {
         }
         if f.math {
             s |= MATH;
+        }
+        if f.sans {
+            s |= SANS;
         }
         match g.script {
             1 => s |= SUP,
@@ -220,7 +243,9 @@ fn compose_accents(glyphs: &mut Vec<LineGlyph>) {
         let composed: String = format!("{base}{mark}").nfc().collect();
         let (ax0, ax1) = (glyphs[i].x0, glyphs[i].x1);
         let ink = glyphs[i].ink;
+        let accent_origin = (glyphs[i].ox, glyphs[i].oy);
         let g = &mut glyphs[t];
+        g.extra = Some(accent_origin);
         g.text = composed;
         g.x0 = g.x0.min(ax0);
         g.x1 = g.x1.max(ax1);
@@ -356,6 +381,25 @@ pub fn merge_row(page: usize, lines: Vec<Line>) -> Line {
     finalize(page, Seg::from_glyphs(glyphs))
 }
 
+/// Splits a line at horizontal gaps of at least `min_gap` points. Used
+/// inside tables, where neighbouring cells can be closer together than the
+/// distance at which lines are normally broken.
+pub fn split_at_gaps(line: &Line, min_gap: f32) -> Vec<Line> {
+    let mut groups: Vec<Vec<LineGlyph>> = Vec::new();
+    let mut right = f32::NEG_INFINITY;
+    for g in &line.glyphs {
+        if groups.is_empty() || g.x0 - right >= min_gap {
+            groups.push(Vec::new());
+        }
+        groups.last_mut().unwrap().push(g.clone());
+        right = right.max(g.x1);
+    }
+    if groups.len() <= 1 {
+        return vec![line.clone()];
+    }
+    groups.into_iter().map(|g| finalize(line.page, Seg::from_glyphs(g))).collect()
+}
+
 pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
     let has_visible = raw.glyphs.iter().any(|g| !g.invisible);
     let mut seen: HashSet<(i32, i32, u64)> = HashSet::new();
@@ -374,25 +418,43 @@ pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
             continue;
         }
         if g.dir == Dir::Rotated {
-            let d = rot_last.map(|(x, y, _, _)| ((g.x - x).powi(2) + (g.y - y).powi(2)).sqrt());
-            let same = match (rot_last, d) {
-                (Some((_, _, adv, angle)), Some(d)) => {
-                    (angle - g.angle).abs() < 2.0 && d < adv + 1.2 * g.size
-                }
-                _ => false,
-            };
+            // The glyph continues the current run if it lies on the same
+            // baseline, right after the previous glyph.
+            let (dir_x, dir_y) = (g.angle.to_radians().cos(), g.angle.to_radians().sin());
+            let step = rot_last.map(|(x, y, adv, angle)| {
+                let (dx, dy) = (g.x - x, g.y - y);
+                let along = dx * dir_x + dy * dir_y;
+                let across = (dx * dir_y - dy * dir_x).abs();
+                (along, across, adv, angle)
+            });
+            let same = step.is_some_and(|(along, across, adv, angle)| {
+                (angle - g.angle).abs() < 2.0
+                    && across < 0.25 * g.size
+                    && along > -0.3 * g.size
+                    && along < adv + 1.2 * g.size
+            });
             if same {
-                let (_, _, adv, _) = rot_last.unwrap();
+                let (along, _, adv, _) = step.unwrap();
                 let r = rotated.last_mut().unwrap();
-                if d.unwrap() > adv + 0.14 * g.size {
+                if along > adv + 0.14 * g.size {
                     r.text.push(' ');
                 }
                 r.text.push_str(&g.text);
                 r.bbox = r.bbox.union(&g.ink);
+                r.length = ((g.x - r.x).powi(2) + (g.y - r.y).powi(2)).sqrt() + g.adv.max(0.0);
+                r.origins.push((g.x, g.y));
             } else {
                 rotated.push(RotatedText {
                     text: g.text.clone(),
                     bbox: g.ink,
+                    x: g.x,
+                    y: g.y,
+                    angle: g.angle,
+                    size: g.size,
+                    length: g.adv.max(0.0),
+                    font: g.font,
+                    color: if g.color.iter().all(|&c| c < 48) { [0; 3] } else { g.color },
+                    origins: vec![(g.x, g.y)],
                 });
             }
             rot_last = Some((g.x, g.y, g.adv, g.angle));
@@ -417,6 +479,10 @@ pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
             script: 0,
             space_before: false,
             ink: g.ink,
+            ox: g.x,
+            oy: g.y,
+            extra: None,
+            color: if g.color.iter().all(|&c| c < 48) { [0; 3] } else { g.color },
         });
     }
 

@@ -15,4 +15,5 @@ pub mod model;
 pub mod pdf;
 
 pub use convert::{Paper, convert};
+pub use document::AnalyzeOptions;
 pub use html::{HtmlOptions, HtmlOutput, Mode, PageImage};

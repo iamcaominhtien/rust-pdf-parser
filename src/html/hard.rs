@@ -75,14 +75,23 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_, '_>) -> St
                 spans
             ));
         }
-        if let Some(loose) = analysis.loose_lines.get(pi) {
-            if !loose.is_empty() {
-                let mut spans = String::new();
-                for l in loose {
-                    let t = format!("{} ", l.text());
-                    spans.push_str(&line_span(l, &t, pw, ph));
-                }
-                layer.push_str(&format!("<div class=\"b\" data-kind=\"figure-text\">{spans}</div>\n"));
+        // Text inside figures and tables, running heads, equation numbers.
+        let mut spans = String::new();
+        for b in doc.blocks.iter().filter(|b| b.inner_lines.iter().any(|l| l.page == pi)) {
+            for l in b.inner_lines.iter().filter(|l| l.page == pi) {
+                spans.push_str(&line_span(l, &format!("{} ", l.text()), pw, ph));
+            }
+        }
+        if !spans.is_empty() {
+            layer.push_str(&format!("<div class=\"b\" data-kind=\"figure-text\">{spans}</div>\n"));
+        }
+        if let Some(loose) = analysis.loose.get(pi) {
+            let mut spans = String::new();
+            for l in loose {
+                spans.push_str(&line_span(&l.line, &format!("{} ", l.line.text()), pw, ph));
+            }
+            if !spans.is_empty() {
+                layer.push_str(&format!("<div class=\"b\" data-kind=\"page-furniture\">{spans}</div>\n"));
             }
         }
         let bg = images

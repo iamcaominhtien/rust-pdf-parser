@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use paper2html::model::BlockKind;
-use paper2html::{HtmlOptions, Mode, PageImage, Paper, arxiv};
+use paper2html::{AnalyzeOptions, HtmlOptions, Mode, PageImage, Paper, arxiv};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -36,6 +36,9 @@ enum Command {
 enum ModeArg {
     /// Facsimile of every page with a selectable text layer
     Hard,
+    /// Like hard, but all text is real HTML text placed as in the PDF
+    #[value(name = "hard-95")]
+    Hard95,
     /// Page and column layout kept, text reflowed
     Medium,
     /// Single-column responsive article
@@ -46,6 +49,7 @@ impl From<ModeArg> for Mode {
     fn from(m: ModeArg) -> Self {
         match m {
             ModeArg::Hard => Mode::Hard,
+            ModeArg::Hard95 => Mode::Hard95,
             ModeArg::Medium => Mode::Medium,
             ModeArg::Friendly => Mode::Friendly,
         }
@@ -58,6 +62,14 @@ enum ImagesArg {
     Inline,
     /// Write images to a folder next to the HTML file
     Files,
+}
+
+#[derive(Clone, Copy, ValueEnum, PartialEq)]
+enum TablesArg {
+    /// Rebuild tables as real HTML tables where their structure is clear
+    Auto,
+    /// Never rebuild tables (pictures in medium/friendly, placed text in hard-95)
+    Image,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -73,7 +85,7 @@ struct ConvertArgs {
     /// Fidelity mode
     #[arg(short, long, value_enum, default_value = "friendly")]
     mode: ModeArg,
-    /// Produce all three modes
+    /// Produce all four modes
     #[arg(long, conflicts_with = "mode")]
     all: bool,
     /// Output HTML file, or a directory (required to be a directory with --all)
@@ -88,6 +100,9 @@ struct ConvertArgs {
     /// Page background used by hard mode
     #[arg(long, value_enum, default_value = "svg")]
     page_image: PageImageArg,
+    /// How tables are handled
+    #[arg(long, value_enum, default_value = "auto")]
+    tables: TablesArg,
     /// Also write the structured document as JSON (for translation tools)
     #[arg(long)]
     json: bool,
@@ -125,16 +140,17 @@ fn convert(args: ConvertArgs) -> Result<()> {
     }
     let (paper, stem) = load(&args.input)?;
     let t = Instant::now();
-    let analysis = paper.analyze();
+    let analysis = paper.analyze_with(AnalyzeOptions { tables: args.tables == TablesArg::Auto });
+    let tables = analysis.doc.blocks.iter().filter(|b| b.table.is_some()).count();
     eprintln!(
-        "analysed {} pages, {} blocks in {:.2}s",
+        "analysed {} pages, {} blocks, {tables} tables rebuilt in {:.2}s",
         paper.page_count(),
         analysis.doc.blocks.len(),
         t.elapsed().as_secs_f32()
     );
 
     let modes: Vec<Mode> = if args.all {
-        vec![Mode::Hard, Mode::Medium, Mode::Friendly]
+        vec![Mode::Hard, Mode::Hard95, Mode::Medium, Mode::Friendly]
     } else {
         vec![args.mode.into()]
     };
@@ -237,6 +253,10 @@ fn inspect(input: &str) -> Result<()> {
             ),
             BlockKind::Footnote { marker } => format!("FN {marker}"),
             BlockKind::Reference { label } => format!("REF {}", label.clone().unwrap_or_default()),
+        };
+        let kind = match &b.table {
+            Some(t) => format!("{kind} <table {}x{} hdr={}>", t.rows.len(), t.n_cols, t.header_rows),
+            None => kind,
         };
         let zone = if b.loc.zone_cols > 1 { format!("{}/{}", b.loc.col + 1, b.loc.zone_cols) } else { "-".into() };
         if writeln!(o, "p{:<3} {:<4} {:<22} {}", b.page + 1, zone, kind, short).is_err() {

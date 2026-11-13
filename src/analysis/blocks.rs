@@ -624,6 +624,15 @@ fn bold_dominant(line: &Line, fonts: &[FontInfo], cfg: &BlocksConfig) -> bool {
     line.font_frac(fonts, |font| font.bold) >= cfg.bold_dominant_ratio
 }
 
+/// Whether the first visible glyph of the line is set in a bold font.
+fn starts_bold(line: &Line, fonts: &[FontInfo]) -> bool {
+    line.glyphs
+        .iter()
+        .find(|glyph| !glyph.text.trim().is_empty())
+        .and_then(|glyph| fonts.get(glyph.font as usize))
+        .is_some_and(|font| font.bold)
+}
+
 /// Whether the line starts with a footnote mark: a superscript or a
 /// footnote symbol.
 fn footnote_marked(line: &Line) -> bool {
@@ -1161,7 +1170,11 @@ fn starts_new_group(ctx: BlockContext, last: &Line, line: &Line, gap: f32) -> bo
         && line.char_count() > cfg.bold_flip_min_chars
         // A bold run-in heading that fills a whole line is rare; a flip
         // only separates blocks when the bold line stands alone.
-        && (bold_dominant(last, fonts, cfg) || gap > cfg.bold_flip_gap_leading * expected);
+        && (bold_dominant(last, fonts, cfg) || gap > cfg.bold_flip_gap_leading * expected)
+        // ... and it does not go on into the next line: a long run-in
+        // heading ("One-Stage Detection vs. Two-Stage Proposal + De- /
+        // tection. The OverFeat ...") ends in bold on the line below.
+        && !(bold_dominant(last, fonts, cfg) && starts_bold(line, fonts));
     big_gap || size_change || bold_flip
 }
 

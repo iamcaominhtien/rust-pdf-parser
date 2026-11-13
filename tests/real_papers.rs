@@ -523,7 +523,8 @@ fn adam_fraction_bars_are_not_tables() {
 /// they are footnotes, not list items, and the paragraph that runs past
 /// one into the next column stays whole. The caption of Table 4 ends in
 /// URLs set small; it still pairs with the table below it, not with
-/// Table 3 above.
+/// Table 3 above. Its bold run-in heads that wrap onto a second line are
+/// not headings.
 #[test]
 fn faster_rcnn_footnotes_and_tables() {
     let Some(paper) = load("1506.01497v3") else { return };
@@ -543,6 +544,18 @@ fn faster_rcnn_footnotes_and_tables() {
             .any(|block| plain(&block.spans).contains("built in commercial systems such as at Pinterests")),
         "paragraph split by footnote 1"
     );
+    // Bold run-in heads long enough to fill a line stay in their paragraph.
+    for head in [
+        "One-Stage Detection vs. Two-Stage Proposal + Detection. The OverFeat paper",
+        "Faster R-CNN in ILSVRC & COCO 2015 competitions We have demonstrated",
+    ] {
+        assert!(
+            blocks
+                .iter()
+                .any(|block| matches!(block.kind, BlockKind::Paragraph { .. }) && plain(&block.spans).starts_with(head)),
+            "run-in head not kept in its paragraph: {head:?}"
+        );
+    }
     let tables: Vec<(String, f32)> = blocks
         .iter()
         .filter_map(|block| match &block.kind {

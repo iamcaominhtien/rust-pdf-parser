@@ -64,7 +64,7 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
     classify_front_matter(&mut nodes, &pages, &stats, fonts, &layout.semantics);
     classify_body(&mut nodes, &stats, fonts, &layout.semantics);
     split_references(&mut nodes, &layout.semantics);
-    merge_paragraphs(&mut nodes, &stats, &layout.semantics);
+    merge_paragraphs(&mut nodes, &stats, fonts, &layout.semantics);
 
     let rotated = pages.iter().map(|page| rotated_runs(page, fonts)).collect();
     let (doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);

@@ -12,6 +12,7 @@ use super::patterns::*;
 use super::*;
 use crate::analysis::blocks::{LIST_LABEL, TextBlock};
 use crate::analysis::page::DocStats;
+use crate::model::LineGlyph;
 
 /// Tuning parameters of paragraph merging. Part of [`SemanticsConfig`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -75,7 +76,9 @@ impl Default for ParagraphsConfig {
 }
 
 /// Document-wide conventions that the merge decision depends on.
-struct DocumentStyle {
+struct DocumentStyle<'a> {
+    /// Fonts of the document (to tell bold glyphs).
+    fonts: &'a [FontInfo],
     /// Paragraphs start with an indented first line, so a finished sentence
     /// at a break followed by an unindented line continues the paragraph.
     uses_indent: bool,
@@ -111,13 +114,17 @@ struct Junction<'a> {
     indented_first: bool,
     /// `first` starts with a list label.
     labeled_first: bool,
+    /// `first` starts in bold after a `last` that does not end in bold: a
+    /// run-in heading ("**Object Proposals.** There is ...").
+    run_in_first: bool,
 }
 
 /// Joins paragraphs (and references and list items) split across columns
 /// and pages, then footnotes continued on the next column or page.
-pub(crate) fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats, cfg: &SemanticsConfig) {
+pub(crate) fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats, fonts: &[FontInfo], cfg: &SemanticsConfig) {
     let cfg = &cfg.paragraphs;
     let style = DocumentStyle {
+        fonts,
         uses_indent: uses_first_line_indent(nodes, stats, cfg),
         refs_labeled: references_are_labeled(nodes, cfg),
     };
@@ -210,7 +217,7 @@ fn continuation_of(nodes: &[Node], i: usize, style: &DocumentStyle, cfg: &Paragr
     if !first_in_leaf || !compatible_classes(&nodes[i].class, &nodes[j].class) || next_leaf == tail {
         return None;
     }
-    let junction = Junction::new(&nodes[i], &nodes[j], cfg);
+    let junction = Junction::new(&nodes[i], &nodes[j], style.fonts, cfg);
     junction.joins(style, cfg).then_some(j)
 }
 
@@ -239,7 +246,7 @@ impl<'a> Junction<'a> {
     /// # Panics
     ///
     /// If either node is not a text node.
-    fn new(prev: &'a Node, next: &'a Node, cfg: &ParagraphsConfig) -> Self {
+    fn new(prev: &'a Node, next: &'a Node, fonts: &[FontInfo], cfg: &ParagraphsConfig) -> Self {
         let (prev_block, next_block) = (prev.text_block().unwrap(), next.text_block().unwrap());
         let (last, first) = (prev_block.lines.last().unwrap(), &next_block.lines[0]);
         let em = first.size;
@@ -263,6 +270,13 @@ impl<'a> Junction<'a> {
             first.bbox.x0 > next.leaf_left + cfg.continuation_indent_min_em * em
         };
         let labeled_first = LIST_LABEL.is_match(first_text.trim());
+        let bold = |glyph: Option<&LineGlyph>| {
+            glyph
+                .and_then(|glyph| fonts.get(glyph.font as usize))
+                .is_some_and(|font| font.bold)
+        };
+        let visible = |glyph: &&LineGlyph| !glyph.text.trim().is_empty();
+        let run_in_first = bold(first.glyphs.iter().find(visible)) && !bold(last.glyphs.iter().rev().find(visible));
         Self {
             prev_class: &prev.class,
             next_class: &next.class,
@@ -276,6 +290,7 @@ impl<'a> Junction<'a> {
             short_last,
             indented_first,
             labeled_first,
+            run_in_first,
         }
     }
 
@@ -286,6 +301,7 @@ impl<'a> Junction<'a> {
     fn joins(&self, style: &DocumentStyle, cfg: &ParagraphsConfig) -> bool {
         self.size_rule(cfg)
             .or_else(|| self.reference_rule(style, cfg))
+            .or_else(|| self.run_in_rule())
             .or_else(|| self.list_label_rule())
             .or_else(|| self.hyphen_rule())
             .or_else(|| self.layout_break_rule())
@@ -310,6 +326,11 @@ impl<'a> Junction<'a> {
                 && (style.refs_labeled
                     || self.first.bbox.x0 > self.next_leaf_left + cfg.ref_continuation_indent_min_em * self.em),
         )
+    }
+
+    /// A run-in heading starts a new paragraph.
+    fn run_in_rule(&self) -> Option<bool> {
+        self.run_in_first.then_some(false)
     }
 
     /// A list label starts a new item if it is a bullet item or the text

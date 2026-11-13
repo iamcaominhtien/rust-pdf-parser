@@ -1,6 +1,7 @@
 //! HTML output in four fidelity modes (see [`Mode`]).
 
 mod assets;
+mod code;
 mod escape;
 mod flow;
 mod friendly;

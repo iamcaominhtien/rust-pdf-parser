@@ -177,6 +177,50 @@ figure.tab figcaption:first-child,figure.alg figcaption:first-child{margin:0 0 v
 .cap-label{font-weight:600;color:var(--rubric);margin-right:.35em;font-variant-numeric:tabular-nums}
 figcaption em{font-family:var(--serif);font-size:1.05em}
 
+/* ---------- Code listings ---------- */
+figure.code{margin:var(--s6) 0}
+.code-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s4);margin:0 0 var(--s2)}
+.code-head figcaption{margin:0}
+.code-tools{display:flex;gap:var(--s2);margin-left:auto;flex:none}
+.code-hl[aria-pressed="true"]{border-color:var(--ink)}
+.code-copy .ok{display:none}
+.code-copy[data-state="copied"] .ok{display:inline}
+.code-copy[data-state="copied"] .cp{display:none}
+.code-box{position:relative}
+pre.listing{margin:0;padding:var(--s3) var(--s4);background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);
+  font-family:var(--mono);font-size:var(--fs-code);line-height:var(--lh-code);font-weight:400;font-variant-ligatures:none;tab-size:4;
+  white-space:pre;overflow-x:auto;scrollbar-width:thin;counter-reset:ln;text-align:left}
+pre.listing code{display:block;min-width:max-content;font:inherit;color:inherit;background:none;padding:0;border-radius:0}
+pre.listing .l{display:block;min-height:calc(var(--lh-code) * 1em)}
+pre.listing.numbered{padding-left:0}
+pre.listing.numbered .l::before{counter-increment:ln;content:counter(ln);display:inline-block;box-sizing:content-box;width:2.25em;
+  padding:0 var(--s3) 0 0;margin-right:var(--s3);text-align:right;color:var(--code-ln);border-right:var(--hair) solid var(--rule);
+  background:var(--code-bg);position:sticky;left:0;font-variant-numeric:tabular-nums;-webkit-user-select:none;user-select:none}
+.code-box.is-clipped::after{content:"";position:absolute;top:0;right:0;bottom:0;width:2.5rem;border-radius:0 var(--radius) var(--radius) 0;
+  background:linear-gradient(to right,transparent,var(--code-bg));pointer-events:none}
+pre.listing.hl .tok-kw,[data-code-hl="on"] pre.listing .tok-kw{color:var(--hl-kw);font-weight:600}
+pre.listing.hl .tok-str,[data-code-hl="on"] pre.listing .tok-str{color:var(--hl-str)}
+pre.listing.hl .tok-com,[data-code-hl="on"] pre.listing .tok-com{color:var(--hl-com);font-style:italic}
+pre.listing.hl .tok-num,[data-code-hl="on"] pre.listing .tok-num{color:var(--hl-num)}
+pre.listing.hl .tok-fn,[data-code-hl="on"] pre.listing .tok-fn{color:var(--hl-fn)}
+pre.listing.hl .tok-type,[data-code-hl="on"] pre.listing .tok-type{color:var(--hl-type)}
+pre.listing.hl .tok-builtin,[data-code-hl="on"] pre.listing .tok-builtin{color:var(--hl-builtin)}
+pre.listing.hl .tok-dec,[data-code-hl="on"] pre.listing .tok-dec{color:var(--hl-dec)}
+[data-code-hl="off"] pre.listing [class^="tok-"]{color:inherit;font-weight:inherit;font-style:inherit}
+@media (max-width:599.98px){.code-tools .btn{height:44px}.code-head{align-items:center}}
+
+/* ---------- Algorithms rebuilt as text ---------- */
+.algo{border-top:var(--heavy) solid var(--ink);border-bottom:var(--heavy) solid var(--ink);padding:var(--s3) 0;
+  font-family:var(--serif);font-size:.9375rem;line-height:1.6;overflow-x:auto;scrollbar-width:thin;text-align:left}
+.algo .ln{display:grid;grid-template-columns:2rem minmax(0,1fr)}
+.algo .ln>i{font-style:normal;font-family:var(--sans);font-size:.75rem;color:var(--ink-3);font-variant-numeric:tabular-nums;padding-top:.2em}
+.algo .st{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:var(--s5);min-width:0}
+.algo .st>span:first-child{white-space:nowrap}
+.algo .ln.req .st>span:first-child{white-space:normal}
+.algo .cmt{margin-left:auto;text-align:right;color:var(--ink-2)}
+.algo .in1{padding-left:1.25rem}.algo .in2{padding-left:2.5rem}.algo .in3{padding-left:3.75rem}
+.algo strong{font-weight:600}
+
 /* ---------- Tables: booktabs ---------- */
 .tbl-wrap{overflow-x:auto;max-width:100%;
   background:
@@ -281,6 +325,8 @@ article>*{grid-column:text;min-width:0}
   @page{margin:18mm 16mm 20mm}
   body{font-size:10.5pt;line-height:1.45;background:#fff}
   .topbar,#progress,nav.toc,.return,#lightbox,.au-more,.code-tools,dialog{display:none!important}
+  pre.listing{white-space:pre-wrap;overflow:visible;font-size:8.5pt}
+  .algo{overflow:visible}
   .layout,[data-toc="hidden"] .layout{display:block;padding:0}
   .layout>article{display:block;max-width:none}
   .author[hidden]{display:block}
@@ -293,3 +339,4 @@ article>*{grid-column:text;min-width:0}
   .plate img{mix-blend-mode:normal!important}
   a{text-decoration:none}
 }
+@media print and (monochrome){pre.listing [class^="tok-"]{color:inherit!important}}

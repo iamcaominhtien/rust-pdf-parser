@@ -74,7 +74,19 @@ pub(crate) fn heading_tag(level: u8) -> &'static str {
 pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &FlowCtx) -> String {
     let mut out = String::new();
     let mut group = Group::None;
-    for (block_idx, block) in blocks.iter().enumerate() {
+    let mut block_idx = 0;
+    while block_idx < blocks.len() {
+        let block = blocks[block_idx];
+        if ctx.offprint
+            && let Some(end) = code_run(blocks, block_idx)
+        {
+            close_group(group, &mut out);
+            group = Group::None;
+            let run = &blocks[block_idx..end];
+            out.push_str(&code::listing_html(&code::listing_lines(run), "", &id_attr(run[0])));
+            block_idx = end;
+            continue;
+        }
         let want = group_of(block, group);
         if want != group {
             close_group(group, &mut out);
@@ -82,9 +94,22 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
             group = want;
         }
         block_html(block, images, ctx, &mut out);
+        block_idx += 1;
     }
     close_group(group, &mut out);
     out
+}
+
+/// The end of the run of code paragraphs starting at `blocks[start]`, when
+/// the run has at least two lines (one monospaced line stays inline code).
+fn code_run(blocks: &[&Block], start: usize) -> Option<usize> {
+    let end = start
+        + blocks[start..]
+            .iter()
+            .take_while(|block| code::is_code_paragraph(block))
+            .count();
+    let lines: usize = blocks[start..end].iter().map(|block| block.lines.len()).sum();
+    (lines >= 2).then_some(end)
 }
 
 /// Author groups as cards.
@@ -265,10 +290,22 @@ fn figure_html(
     ctx: &FlowCtx,
 ) -> String {
     let cls = float_class(kind);
+    // A float whose text is all code is a listing.
+    if ctx.offprint
+        && kind == FloatKind::Algorithm
+        && block.table.is_none()
+        && let Some(lines) = code::float_listing_lines(block)
+    {
+        return code::listing_html(&lines, &caption_html_bare(&block.spans), id);
+    }
     let alt = esc(&figure_alt(block, label));
+    // An algorithm whose text reads as pseudocode is rebuilt as text.
+    let algo = (ctx.offprint && kind == FloatKind::Algorithm && block.table.is_none())
+        .then(|| code::algorithm_html(block))
+        .flatten();
     let img = image
         .as_ref()
-        .filter(|_| block.table.is_none())
+        .filter(|_| block.table.is_none() && algo.is_none())
         .map(|spec| (images.region(spec, cls), spec))
         .map(|(src, spec)| {
             format!(
@@ -282,10 +319,11 @@ fn figure_html(
         })
         .unwrap_or_default();
     // A reconstructed table replaces the picture of the table.
-    let img = match &block.table {
-        Some(table) if ctx.offprint => format!("<div class=\"tbl-wrap\">{}</div>", table_html_numeric(table)),
-        Some(table) => format!("<div class=\"tbl-wrap\">{}</div>", table_html(table)),
-        None => img,
+    let img = match (&block.table, algo) {
+        (_, Some(algo)) => algo,
+        (Some(table), _) if ctx.offprint => format!("<div class=\"tbl-wrap\">{}</div>", table_html_numeric(table)),
+        (Some(table), _) => format!("<div class=\"tbl-wrap\">{}</div>", table_html(table)),
+        (None, None) => img,
     };
     let cap = if block.spans.is_empty() {
         String::new()
@@ -296,6 +334,7 @@ fn figure_html(
     };
     // Keep the caption on the side it had in the paper.
     let caption_first = match (image, block.lines.first()) {
+        _ if img.starts_with("<div class=\"algo\"") => true,
         (Some(spec), Some(line)) => line.bbox.cy() < spec.rect.cy(),
         _ => false,
     };

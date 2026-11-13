@@ -33,15 +33,22 @@ BT /F1 10 Tf 170 397 Td (3.5) Tj ET
 BT /F1 10 Tf 240 397 Td (40) Tj ET
 0.8 w 72 390 m 300 390 l S
 ";
+    build_pdf(content)
+}
+
+/// A one-page PDF drawing `content`, with the fonts F1 (Helvetica), F2
+/// (Helvetica-Bold) and F3 (Courier).
+fn build_pdf(content: &str) -> Vec<u8> {
     let objects = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
-         /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>"
+         /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 7 0 R >> >> >>"
             .to_string(),
         format!("<< /Length {} >>\nstream\n{}endstream", content.len(), content),
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>".to_string(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>".to_string(),
     ];
     let mut pdf = String::from("%PDF-1.4\n");
     let mut offsets = Vec::new();
@@ -370,4 +377,59 @@ fn layout_config_reaches_the_stages() {
         ..Default::default()
     };
     assert_eq!(tables(strict), 0);
+}
+
+/// A paper with a short Python listing set in Courier, indented by
+/// position, between two paragraphs.
+fn code_pdf() -> Vec<u8> {
+    let content = "\
+BT /F2 20 Tf 190 700 Td (A Paper With Code) Tj ET
+BT /F1 10 Tf 250 670 Td (Ada Lovelace) Tj ET
+BT /F2 12 Tf 72 620 Td (1 Method) Tj ET
+BT /F1 10 Tf 72 600 Td (The method is the following short program, written in Python for clarity of exposition.) Tj ET
+BT /F1 10 Tf 72 588 Td (It computes a softmax in a numerically stable way.) Tj ET
+BT /F3 9 Tf 72 562 Td (import numpy as np) Tj ET
+BT /F3 9 Tf 72 551 Td (def softmax\\(x\\):) Tj ET
+BT /F3 9 Tf 93.6 540 Td (# subtract the max for stability) Tj ET
+BT /F3 9 Tf 93.6 529 Td (e = np.exp\\(x - np.max\\(x\\)\\)) Tj ET
+BT /F3 9 Tf 93.6 518 Td (return e / e.sum\\(\\)) Tj ET
+BT /F1 10 Tf 72 490 Td (The program ends here and the text goes on in a normal paragraph of prose.) Tj ET
+";
+    build_pdf(content)
+}
+
+#[test]
+fn code_becomes_a_coloured_listing() {
+    let paper = Paper::from_bytes(code_pdf()).expect("valid pdf");
+    let analysis = paper.analyze();
+    let html = paper.to_html(&analysis, &HtmlOptions::default()).html;
+    let start = html
+        .find("<pre class=\"listing numbered hl\"")
+        .expect("a numbered, coloured listing");
+    let pre = &html[start..start + html[start..].find("</pre>").unwrap()];
+    assert!(pre.contains("data-lang=\"python\""), "{pre}");
+    assert!(pre.contains("<span class=\"tok-kw\">def</span>"), "{pre}");
+    assert!(
+        pre.contains("<span class=\"tok-com\"># subtract the max for stability</span>"),
+        "{pre}"
+    );
+    // The text of the lines, as the Copy button joins them.
+    let tags = regex::Regex::new(r"<[^>]+>").unwrap();
+    let lines: Vec<String> = pre
+        .split("<span class=\"l\">")
+        .skip(1)
+        .map(|line| tags.replace_all(line, "").into_owned())
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            "import numpy as np",
+            "def softmax(x):",
+            "    # subtract the max for stability",
+            "    e = np.exp(x - np.max(x))",
+            "    return e / e.sum()",
+        ]
+    );
+    assert!(html.contains("font-family:\"IBM Plex Mono\""), "code font embedded");
+    assert!(!paper.to_html(&analysis, &HtmlOptions::default()).html.is_empty());
 }

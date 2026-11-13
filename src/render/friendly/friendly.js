@@ -144,6 +144,35 @@
   function clipped(){doc.querySelectorAll('.eq-body').forEach(function(b){b.classList.toggle('is-clipped',b.scrollWidth>b.clientWidth+1);});}
   addEventListener('resize',clipped);addEventListener('load',clipped);clipped();
 
+  // Code: copy the lines (numbers are CSS, never copied) and switch colour.
+  function say(text){if(live){live.textContent=text;setTimeout(function(){if(live.textContent===text)live.textContent='';},2000);}}
+  doc.querySelectorAll('figure.code').forEach(function(fig){
+    var pre=fig.querySelector('pre.listing'),copy=fig.querySelector('.code-copy');
+    if(copy)copy.addEventListener('click',function(){
+      var text=[].map.call(pre.querySelectorAll('.l'),function(l){return l.textContent;}).join('\n');
+      var done=function(){copy.setAttribute('data-state','copied');say('Copied');setTimeout(function(){copy.removeAttribute('data-state');},2000);};
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fallback);else fallback();
+      function fallback(){var r=doc.createRange();r.selectNodeContents(pre);var s=getSelection();s.removeAllRanges();s.addRange(r);
+        try{doc.execCommand('copy');done();}catch(e){}s.removeAllRanges();}
+    });
+  });
+  function codeColour(){
+    var pref=root.getAttribute('data-code-hl');
+    doc.querySelectorAll('figure.code').forEach(function(fig){
+      var pre=fig.querySelector('pre.listing'),b=fig.querySelector('.code-hl');
+      var on=pref?pref==='on':pre.classList.contains('hl');if(b)b.setAttribute('aria-pressed',on?'true':'false');
+    });
+  }
+  var hlPref=stored('p2h-code-hl');if(hlPref==='on'||hlPref==='off')root.setAttribute('data-code-hl',hlPref);
+  doc.querySelectorAll('.code-hl').forEach(function(b){b.addEventListener('click',function(){
+    var next=b.getAttribute('aria-pressed')==='true'?'off':'on';root.setAttribute('data-code-hl',next);store('p2h-code-hl',next);codeColour();
+  });});
+  codeColour();
+  function boxes(){doc.querySelectorAll('.code-box').forEach(function(box){var pre=box.firstElementChild;
+    box.classList.toggle('is-clipped',pre.scrollWidth>pre.clientWidth+1&&pre.scrollLeft+pre.clientWidth<pre.scrollWidth-1);});}
+  doc.querySelectorAll('pre.listing').forEach(function(pre){pre.addEventListener('scroll',boxes,{passive:true});});
+  addEventListener('resize',boxes);boxes();
+
   // All authors.
   var more=doc.querySelector('.au-more');
   if(more)more.addEventListener('click',function(){doc.querySelectorAll('.author[hidden]').forEach(function(a){a.hidden=false;});more.remove();});

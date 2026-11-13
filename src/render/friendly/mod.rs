@@ -24,6 +24,12 @@ const LITERATA_ROMAN: &[u8] = include_bytes!("fonts/literata-roman.woff2");
 const LITERATA_ITALIC: &[u8] = include_bytes!("fonts/literata-italic.woff2");
 /// IBM Plex Sans, variable weight, for captions, tables and the interface.
 const PLEX_SANS: &[u8] = include_bytes!("fonts/plex-sans.woff2");
+/// IBM Plex Mono regular, for code (embedded only when the paper has code).
+const PLEX_MONO_400: &[u8] = include_bytes!("fonts/plex-mono-400.woff2");
+/// IBM Plex Mono semibold (keywords of coloured code).
+const PLEX_MONO_600: &[u8] = include_bytes!("fonts/plex-mono-600.woff2");
+/// IBM Plex Mono italic (comments of coloured code).
+const PLEX_MONO_ITALIC: &[u8] = include_bytes!("fonts/plex-mono-400-italic.woff2");
 
 /// Deepest heading level listed in the table of contents: deeper levels
 /// would make it too long to scan.
@@ -36,22 +42,34 @@ const TOC_REPEAT_LIMIT: usize = 3;
 /// Author groups shown before the "show all" button.
 const AUTHORS_SHOWN: usize = 12;
 
-/// The `@font-face` rules of the embedded fonts, built once.
+/// The `@font-face` rules of the embedded text fonts, built once.
 static FONT_FACES: LazyLock<String> = LazyLock::new(|| {
-    let face = |family: &str, style: &str, weight: &str, data: &[u8]| {
-        format!(
-            "@font-face{{font-family:\"{family}\";font-style:{style};font-weight:{weight};font-display:swap;\
-src:url(data:font/woff2;base64,{}) format(\"woff2\")}}\n",
-            base64::engine::general_purpose::STANDARD.encode(data)
-        )
-    };
     [
-        face("Literata", "normal", "380 700", LITERATA_ROMAN),
-        face("Literata", "italic", "380 700", LITERATA_ITALIC),
-        face("IBM Plex Sans", "normal", "400 600", PLEX_SANS),
+        font_face("Literata", "normal", "380 700", LITERATA_ROMAN),
+        font_face("Literata", "italic", "380 700", LITERATA_ITALIC),
+        font_face("IBM Plex Sans", "normal", "400 600", PLEX_SANS),
     ]
     .concat()
 });
+
+/// The `@font-face` rules of the code font, built once.
+static MONO_FACES: LazyLock<String> = LazyLock::new(|| {
+    [
+        font_face("IBM Plex Mono", "normal", "400", PLEX_MONO_400),
+        font_face("IBM Plex Mono", "normal", "600", PLEX_MONO_600),
+        font_face("IBM Plex Mono", "italic", "400", PLEX_MONO_ITALIC),
+    ]
+    .concat()
+});
+
+/// One `@font-face` rule with the font embedded as a base64 data URI.
+fn font_face(family: &str, style: &str, weight: &str, data: &[u8]) -> String {
+    format!(
+        "@font-face{{font-family:\"{family}\";font-style:{style};font-weight:{weight};font-display:swap;\
+src:url(data:font/woff2;base64,{}) format(\"woff2\")}}\n",
+        base64::engine::general_purpose::STANDARD.encode(data)
+    )
+}
 
 /// The `friendly` mode: single-column responsive article.
 pub(crate) struct Friendly;
@@ -93,10 +111,10 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let mut content = render_flow(&front_rest, images, &ctx);
     content.push_str(&render_flow(body, images, &ctx));
 
-    let fonts = if images.opts.embed_fonts {
-        FONT_FACES.as_str()
-    } else {
-        ""
+    let fonts = match (images.opts.embed_fonts, content.contains("<pre class=\"listing")) {
+        (false, _) => String::new(),
+        (true, false) => FONT_FACES.clone(),
+        (true, true) => format!("{}{}", *FONT_FACES, *MONO_FACES),
     };
     let page = Page {
         title: &title,
@@ -104,7 +122,7 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
         toc: &toc_html(body),
         head: &head,
         content: &content,
-        fonts,
+        fonts: &fonts,
     };
     page.html()
 }
@@ -131,7 +149,7 @@ impl Page<'_> {
         let colophon = if self.fonts.is_empty() {
             "Converted from PDF by paper2html · friendly mode"
         } else {
-            "Converted from PDF by paper2html · friendly mode · Literata and IBM Plex Sans, SIL Open Font License 1.1"
+            "Converted from PDF by paper2html · friendly mode · Literata and IBM Plex, SIL Open Font License 1.1"
         };
         format!(
             r#"<!DOCTYPE html>

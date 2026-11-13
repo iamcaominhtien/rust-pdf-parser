@@ -465,6 +465,23 @@ fn mislabelled_math_glyphs_are_read_by_shape() {
     assert!(!text.contains("erg=s"), "a slash read as an equals sign");
 }
 
+/// The algorithms of the Adam paper are rebuilt as text in the friendly
+/// mode: numbered statements, indentation and right-aligned comments.
+#[test]
+fn adam_algorithms_are_text() {
+    let Some(paper) = load("1412.6980v9") else { return };
+    let html = paper.to_html(&paper.analyze(), &HtmlOptions::default()).html;
+    assert_eq!(
+        html.matches("<div class=\"algo\">").count(),
+        2,
+        "both algorithms rebuilt"
+    );
+    assert!(html.contains("<span class=\"cmt\">(Update parameters)</span>"));
+    assert!(html.contains("<div class=\"ln req\"><i></i><div class=\"st in0\"><span><strong>Require: </strong>"));
+    assert!(html.contains("<div class=\"st in1\"><span><em>t </em>← <em>t </em>+ 1</span>"));
+    assert!(!html.contains("alt=\"Algorithm 1"), "no picture of the algorithm");
+}
+
 /// The output does not depend on the number of threads (on a real paper).
 #[test]
 fn threads_do_not_change_real_output() {

@@ -90,11 +90,49 @@ struct OpenRun {
     end: f32,
 }
 
+/// The reading order of a line's glyphs: left to right, except that a
+/// superscript and a subscript set one above the other ("410^{+160}_{-180}")
+/// are read one after the other, not interleaved digit by digit.
+fn stacked_script_order(glyphs: &[LineGlyph]) -> Vec<usize> {
+    let mut order: Vec<usize> = Vec::with_capacity(glyphs.len());
+    let mut i = 0;
+    while i < glyphs.len() {
+        if glyphs[i].script == 0 {
+            order.push(i);
+            i += 1;
+            continue;
+        }
+        // A run of script glyphs: superscripts first when both kinds overlap.
+        let start = i;
+        while i < glyphs.len() && glyphs[i].script != 0 {
+            i += 1;
+        }
+        let run = start..i;
+        let span = |sign: i8| {
+            run.clone()
+                .filter(|&k| glyphs[k].script == sign)
+                .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), k| {
+                    (lo.min(glyphs[k].x0), hi.max(glyphs[k].x1))
+                })
+        };
+        let (up, down) = (span(1), span(-1));
+        let stacked = up.0 < down.1 && down.0 < up.1;
+        if stacked {
+            order.extend(run.clone().filter(|&k| glyphs[k].script > 0));
+            order.extend(run.filter(|&k| glyphs[k].script < 0));
+        } else {
+            order.extend(run);
+        }
+    }
+    order
+}
+
 impl TextBuilder<'_> {
     /// Styled text of a single line, exactly as it appears.
     pub(crate) fn line_spans(&self, line: &Line) -> Vec<Span> {
         let mut spans: Vec<Span> = Vec::new();
-        for (glyph_idx, glyph) in line.glyphs.iter().enumerate() {
+        for (glyph_idx, &index) in stacked_script_order(&line.glyphs).iter().enumerate() {
+            let glyph = &line.glyphs[index];
             let style = line.style_of(glyph, self.fonts);
             let space = glyph.space_before && glyph_idx > 0;
             if let Some(span) = spans.last_mut() {

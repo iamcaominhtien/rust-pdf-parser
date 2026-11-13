@@ -112,10 +112,9 @@
   });
 
   // Footnotes in the margin column on very wide screens, next to their mark.
-  function blockOf(el){while(el&&el.parentElement!==article)el=el.parentElement;return el;}
   function hasMark(el,text){var sups=el.querySelectorAll('sup');for(var j=0;j<sups.length;j++)if(sups[j].textContent.trim()===text)return true;return false;}
   function markFor(note){
-    if(note.id){var link=article.querySelector('a[href="#'+CSS.escape(note.id)+'"]');if(link)return blockOf(link);}
+    if(note.id){var link=article.querySelector('a[href="#'+CSS.escape(note.id)+'"]');if(link)return link;}
     var m=note.querySelector('.fn-mark'),text=m&&m.textContent.trim();
     if(text){
       var back=note.previousElementSibling,fwd=note.nextElementSibling;
@@ -126,17 +125,31 @@
     }
     var p=note.previousElementSibling;while(p&&p.classList.contains('footnote'))p=p.previousElementSibling;return p;
   }
+  // Each note sits beside the line of its mark (lower when the note above
+  // it is in the way). All notes leave the text first, so that the marks
+  // are measured where they will be.
   function placeSidenotes(){
-    var notes=article.querySelectorAll('aside.footnote'),side=matchMedia('(min-width:1440px)').matches&&!book(),bottom=0;
-    notes.forEach(function(n){n.classList.remove('side');n.style.top='';});
-    if(!side)return;
+    var notes=[].slice.call(article.querySelectorAll('aside.footnote')),side=matchMedia('(min-width:1440px)').matches&&!book(),bottom=0;
     var placed=[];
-    notes.forEach(function(n){var target=markFor(n);if(target)placed.push([target.offsetTop,n]);});
+    notes.forEach(function(n){
+      var target=side&&markFor(n);n.style.top='';
+      if(target){n.classList.add('side');placed.push([target,n]);}else n.classList.remove('side');
+    });
+    placed=placed.map(function(item){
+      var box=(item[1].offsetParent||article).getBoundingClientRect();
+      return [item[0].getBoundingClientRect().top-box.top,item[1]];
+    });
     placed.sort(function(a,b){return a[0]-b[0];});
     placed.forEach(function(item){
-      var n=item[1];n.classList.add('side');var top=Math.max(item[0],bottom);n.style.top=top+'px';bottom=top+n.offsetHeight+12;
+      var n=item[1],top=Math.max(item[0],bottom);n.style.top=top+'px';bottom=top+n.offsetHeight+12;
     });
   }
+  // Lazy images load after the page and push the text down; so can other
+  // late changes (fonts, a translator): place the notes again.
+  var sideTimer=0;
+  function placeSoon(){clearTimeout(sideTimer);sideTimer=setTimeout(placeSidenotes,100);}
+  article.addEventListener('load',function(e){if(e.target.tagName==='IMG')placeSoon();},true);
+  if(window.ResizeObserver)new ResizeObserver(placeSoon).observe(article);
   addEventListener('resize',placeSidenotes);
   addEventListener('load',placeSidenotes);
   if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(placeSidenotes);

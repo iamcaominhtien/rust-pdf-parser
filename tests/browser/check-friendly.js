@@ -8,6 +8,7 @@
 //    chosen theme survives a reload and wins over the system;
 //  - the contents column can be hidden (remembered) and opens as a drawer
 //    on phones;
+//  - footnotes in the margin are never above the line of their mark;
 //  - book view: pages are laid out, the buttons and keys turn them, a page
 //    turn takes its time and ends, the page count covers the text once all
 //    images have loaded, the article returns to the scroll view,
@@ -88,6 +89,30 @@ async function contents(browser, file) {
   return { before, after, kept, drawer, closed, errors: desk.errors.concat(phone.errors) };
 }
 
+// On a wide screen footnotes sit in the margin: never above the line of
+// their mark, even after the lazy images above it have loaded.
+async function sidenotes(browser, file) {
+  const { context, page, errors } = await open(browser, file, { viewport: { width: 1600, height: 900 } });
+  await page.evaluate(async () => {
+    for (let y = 0; y < document.body.scrollHeight; y += 600) {
+      scrollTo(0, y);
+      await new Promise((r) => setTimeout(r, 30));
+    }
+  });
+  await page.waitForTimeout(800);
+  const above = await page.evaluate(() =>
+    [...document.querySelectorAll('aside.footnote.side')]
+      .map((note) => {
+        const mark = note.id && document.querySelector(`a[href="#${CSS.escape(note.id)}"]`);
+        return mark ? [note.id, note.getBoundingClientRect().top - mark.getBoundingClientRect().top] : null;
+      })
+      .filter((item) => item && item[1] < -4)
+      .map(([id, dy]) => `${id} ${Math.round(dy)}px`)
+  );
+  await context.close();
+  return { above, errors };
+}
+
 async function book(browser, file) {
   const { context, page, errors } = await open(browser, file, { viewport: { width: 1440, height: 900 } }, { 'p2h-sound': 'off' });
   await page.evaluate(() => document.querySelector('[data-view-pick="book"]').click());
@@ -145,13 +170,15 @@ async function book(browser, file) {
     const phone = await overflow(browser, file, 390);
     const theme = await themes(browser, file);
     const toc = await contents(browser, file);
+    const side = await sidenotes(browser, file);
     const bk = await book(browser, file);
     console.log(
       `${file}: overflow 320px ${narrow}px, 390px ${phone}px; theme ${theme.chosen[0]}; ` +
         `contents ${toc.before}px -> ${toc.after[0]}px; book ${bk.state.pages} pages, ${bk.first} -> ${bk.second} -> ${bk.third}, ` +
         `after translation ${bk.translated.pages} pages`
     );
-    const errors = theme.errors.concat(toc.errors, bk.errors);
+    const errors = theme.errors.concat(toc.errors, side.errors, bk.errors);
+    if (side.above.length) fail(file, `footnotes above their mark: ${side.above.join(', ')}`);
     if (errors.length) fail(file, 'page errors: ' + errors.join('; '));
     if (narrow > 0 || phone > 0) fail(file, `horizontal page scroll (${narrow}px at 320, ${phone}px at 390)`);
     if (theme.darkInk !== 'rgb(22, 22, 20)') fail(file, `system dark mode not followed (${theme.darkInk})`);

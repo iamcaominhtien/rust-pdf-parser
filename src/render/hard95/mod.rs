@@ -18,12 +18,6 @@
 //! A small script matches line widths to the PDF and, when the text changes
 //! (for example after a translation), lets the affected block reflow inside
 //! its box.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::assets::origin_key;
 use super::*;

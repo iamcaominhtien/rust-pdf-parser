@@ -2,12 +2,6 @@
 //!
 //! Glyphs are clustered by baseline, split at large horizontal gaps, and
 //! sub/superscripts are attached to the line they belong to.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::backend::{Dir, FontInfo, Glyph, RawPage};
 use crate::common::geom::{Rect, median, weighted_mode};
@@ -364,10 +358,9 @@ impl RotatedRuns {
 /// an inline root or fraction) into a single line.
 ///
 /// Fragments clearly smaller than the main (longest) fragment and raised or
-/// lowered relative to it become super- or subscripts. Uses the default
-/// [`LinesConfig`]. Panics if `lines` is empty.
-pub fn merge_row(page: usize, lines: Vec<Line>) -> Line {
-    let cfg = &DEFAULT_CONFIG;
+/// lowered relative to it become super- or subscripts. Panics if `lines` is
+/// empty.
+pub fn merge_row(page: usize, lines: Vec<Line>, cfg: &LinesConfig) -> Line {
     if lines.len() == 1 {
         return lines.into_iter().next().unwrap();
     }
@@ -395,10 +388,8 @@ pub fn merge_row(page: usize, lines: Vec<Line>) -> Line {
 /// inside tables, where neighbouring cells can be closer together than the
 /// distance at which lines are normally broken.
 ///
-/// Returns a copy of the line when there is no such gap. Uses the default
-/// [`LinesConfig`] for the new lines.
-pub fn split_at_gaps(line: &Line, min_gap: f32) -> Vec<Line> {
-    let cfg = &DEFAULT_CONFIG;
+/// Returns a copy of the line when there is no such gap.
+pub fn split_at_gaps(line: &Line, min_gap: f32, cfg: &LinesConfig) -> Vec<Line> {
     let mut groups: Vec<Vec<LineGlyph>> = Vec::new();
     let mut right = f32::NEG_INFINITY;
     for glyph in &line.glyphs {

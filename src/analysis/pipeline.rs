@@ -4,12 +4,6 @@
 //! document statistics, furniture removal, float detection, reading order
 //! and blocks per page, then the document-wide structuring stages of
 //! [`semantics`](super::semantics) and the assembly of the [`Document`].
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::semantics::*;
 use crate::analysis::blocks::{RawBlock, build_blocks};
@@ -59,7 +53,7 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
     // --- per-page layout ---
     let mut nodes: Vec<Node> = Vec::new();
     for page in pages.iter_mut() {
-        join_caption_labels(page, &layout.floats);
+        join_caption_labels(page, &layout.floats, &layout.lines);
     }
     let table_caption_above = table_caption_convention(&pages, fonts, &layout.floats);
     for page in pages.iter_mut() {
@@ -111,7 +105,7 @@ fn layout_page(
 
     let leaves = order_page(&page.lines, &floats, stats, &layout.order);
     let leaf_bounds: Vec<(f32, f32)> = leaves.iter().map(|leaf| (leaf.bbox.x0, leaf.bbox.x1)).collect();
-    for raw_block in build_blocks(page, &leaves, stats, fonts, &layout.blocks) {
+    for raw_block in build_blocks(page, &leaves, stats, fonts, &layout.blocks, &layout.lines) {
         nodes.push(new_node(raw_block, &floats, &leaf_bounds));
     }
 }

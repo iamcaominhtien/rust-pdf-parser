@@ -330,3 +330,32 @@ fn page_pictures_load_lazily() {
         assert!(tag.contains("width=\"") && tag.contains("height=\""), "{mode:?}");
     }
 }
+
+#[test]
+fn layout_config_reaches_the_stages() {
+    use paper2html::LayoutConfig;
+    use paper2html::analysis::tables::TablesConfig;
+    let paper = Paper::from_bytes(tiny_pdf()).expect("valid pdf");
+    let tables = |opts: AnalyzeOptions| {
+        paper
+            .analyze_with(opts)
+            .doc
+            .blocks
+            .iter()
+            .filter(|b| b.table.is_some())
+            .count()
+    };
+    assert_eq!(tables(AnalyzeOptions::default()), 1);
+    // A threshold no table can meet: the change must reach the table stage.
+    let strict = AnalyzeOptions {
+        layout: LayoutConfig {
+            tables: TablesConfig {
+                min_pieces_count: 1000,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    assert_eq!(tables(strict), 0);
+}

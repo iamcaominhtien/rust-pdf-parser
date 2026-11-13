@@ -1,12 +1,6 @@
 //! Runs the PDF interpreter over a page and records everything the layout
 //! analysis needs: positioned glyphs with their fonts, image placements and
 //! the bounding boxes of vector drawing operations.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::fonts::{FontRegistry, UNKNOWN_FONT};
 use crate::common::geom::Rect;

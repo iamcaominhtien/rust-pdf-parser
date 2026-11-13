@@ -4,12 +4,6 @@
 //! unique anchor where it can be referenced (headings, references,
 //! footnotes, equations, floats). Once all blocks exist, cross-references
 //! and footnote marks in the running text are linked to those anchors.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::links::*;
 use super::patterns::*;
@@ -419,7 +413,9 @@ impl Assembler<'_> {
                 let pieces: Vec<Line> = float
                     .inner_lines
                     .iter()
-                    .flat_map(|line| split_at_gaps(line, self.cfg.table_cell_gap_em * line.size))
+                    .flat_map(|line| {
+                        split_at_gaps(line, self.cfg.table_cell_gap_em * line.size, &self.opts.layout.lines)
+                    })
                     .collect();
                 extract_grid(region, &pieces, &float.hrules, &float.vrules, &self.opts.layout.tables)
                     .map(|grid| self.text.table(grid))

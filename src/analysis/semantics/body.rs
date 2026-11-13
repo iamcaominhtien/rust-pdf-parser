@@ -11,12 +11,6 @@
 //! 2. **Running text.** The remaining text blocks become abstract
 //!    paragraphs, references (after a "References" heading), list items or
 //!    plain paragraphs, depending on the last heading seen.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::patterns::*;
 use super::*;

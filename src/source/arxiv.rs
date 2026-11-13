@@ -1,11 +1,5 @@
 //! Fetching papers from arXiv: recognising arXiv identifiers and URLs, and
 //! downloading PDFs through an on-disk cache.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use anyhow::{Context, Result, anyhow};
 use regex::Regex;

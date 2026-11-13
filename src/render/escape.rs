@@ -1,10 +1,4 @@
 //! HTML for text: escaping, styled spans, captions and small attributes.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::model::*;
 use regex::Regex;

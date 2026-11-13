@@ -3,12 +3,6 @@
 //! [`TextBuilder`] turns the glyph lines of a block into the styled
 //! [`Span`]s of the output model. Line-end hyphens are removed when the
 //! document's own vocabulary (see [`build_vocab`]) says they are soft.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::analysis::tables::Grid;
 use crate::backend::FontInfo;

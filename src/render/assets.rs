@@ -1,11 +1,5 @@
 //! Pictures used by the HTML (page backgrounds, figures, equations), drawn
 //! after the HTML is written, on several threads.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::*;
 use crate::backend::PageRenderer;

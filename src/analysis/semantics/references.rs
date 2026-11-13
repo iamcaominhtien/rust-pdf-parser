@@ -3,12 +3,6 @@
 //! The block analysis often groups several bibliography entries into one
 //! block (their lines are equally spaced). Each entry starts with a label
 //! (`[12]`, "12.") at the left edge of the first entry.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::patterns::*;
 use super::*;

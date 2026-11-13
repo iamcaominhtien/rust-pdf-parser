@@ -1,11 +1,5 @@
 //! A line of text as found on the page, with the position of every glyph.
 //! Built by the analysis; the position-preserving renderers draw from it.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::common::geom::Rect;
 

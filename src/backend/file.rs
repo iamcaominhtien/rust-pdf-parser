@@ -1,11 +1,5 @@
 //! An opened PDF file: the entry point of the backend, and the only type the
 //! rest of the program uses to reach the PDF library.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::extract::{RawPage, extract_page};
 use super::fonts::{FontInfo, FontRegistry, UNKNOWN_FONT};

@@ -5,12 +5,6 @@
 //! and reuses it for all the items it takes. Items are handed out one at a
 //! time, so a few slow pages do not hold up the others, and results come
 //! back in item order.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 

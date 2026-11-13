@@ -7,12 +7,6 @@
 //! the block of running text). Removed lines are not thrown away: they are
 //! returned per page so that the position-preserving renderers can still
 //! draw them.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::page::PageData;
 use crate::model::Line;

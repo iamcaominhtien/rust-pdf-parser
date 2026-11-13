@@ -3,12 +3,6 @@
 //! Runs on the finished spans of every block: a reference becomes a link
 //! when the anchor it points to exists in the document (see the anchors set
 //! by [`build_document`](super::build_document)); URLs always do.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::model::*;
 use regex::{Captures, Match, Regex};

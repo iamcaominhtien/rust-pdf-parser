@@ -1,11 +1,5 @@
 //! Small geometry helpers. All coordinates are in PDF points with the origin
 //! at the top-left corner of the page (y grows downwards).
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

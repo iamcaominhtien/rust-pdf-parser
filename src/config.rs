@@ -1,10 +1,4 @@
 //! Options and tuning parameters of the analysis.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::analysis::blocks::BlocksConfig;
 use crate::analysis::floats::FloatsConfig;

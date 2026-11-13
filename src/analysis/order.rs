@@ -4,12 +4,6 @@
 //! split at its gutters into columns, which are ordered recursively. The
 //! result is a list of leaves (column fragments) in reading order, each made
 //! of rows of items.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::floats::Float;
 use super::page::DocStats;

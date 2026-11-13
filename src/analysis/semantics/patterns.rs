@@ -2,12 +2,6 @@
 //!
 //! Section numbers are captured as `num` and the title after them as
 //! `rest`, so that the stages can read the level from the number.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use regex::Regex;
 use std::sync::LazyLock;

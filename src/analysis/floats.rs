@@ -4,13 +4,8 @@
 //! found by their label ("Figure 3:"), and each caption claims the nearest
 //! component. Everything inside a claimed region is rendered as an image
 //! later, so the text inside it is removed from the text flow.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
+use super::lines::LinesConfig;
 use super::page::{DocStats, PageData};
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
@@ -676,7 +671,7 @@ impl PageContext<'_> {
 /// The nearest line to the right on the same baseline and of the same size
 /// is merged into the label line; lines that are not bare labels, or have no
 /// such neighbour, are left alone.
-pub fn join_caption_labels(page: &mut PageData, cfg: &FloatsConfig) {
+pub fn join_caption_labels(page: &mut PageData, cfg: &FloatsConfig, lines_cfg: &LinesConfig) {
     let mut i = 0;
     while i < page.lines.len() {
         let text = page.lines[i].text();
@@ -708,7 +703,7 @@ pub fn join_caption_labels(page: &mut PageData, cfg: &FloatsConfig) {
         let other = page.lines.remove(j);
         let label_idx = if j < i { i - 1 } else { i };
         let label = page.lines[label_idx].clone();
-        page.lines[label_idx] = super::lines::merge_row(page.index, vec![label, other]);
+        page.lines[label_idx] = super::lines::merge_row(page.index, vec![label, other], lines_cfg);
         i = label_idx + 1;
     }
 }

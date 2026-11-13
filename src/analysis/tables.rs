@@ -9,12 +9,6 @@
 //! The reconstruction is deliberately conservative: when the content does not
 //! look like a regular grid it returns `None` and the caller falls back to
 //! other means of presenting the table.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::common::geom::{Rect, median};
 use crate::model::Align;

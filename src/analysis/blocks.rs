@@ -5,14 +5,8 @@
 //! neighbours), each row is classified as text, equation or float by a
 //! sequence of rules, the footnote area at the bottom is found, and the text
 //! rows are grouped into paragraphs.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
-use super::lines::merge_row;
+use super::lines::{LinesConfig, merge_row};
 use super::order::{ItemRef, Leaf};
 use super::page::{DocStats, PageData};
 use crate::backend::FontInfo;
@@ -420,6 +414,8 @@ struct BlockContext<'a> {
     fonts: &'a [FontInfo],
     /// The thresholds.
     cfg: &'a BlocksConfig,
+    /// Thresholds of line building, for rows merged into one line.
+    lines_cfg: &'a LinesConfig,
 }
 
 /// Turns the rows of every leaf of a page into blocks, in reading order:
@@ -431,12 +427,14 @@ pub fn build_blocks(
     stats: &DocStats,
     fonts: &[FontInfo],
     cfg: &BlocksConfig,
+    lines_cfg: &LinesConfig,
 ) -> Vec<RawBlock> {
     let ctx = BlockContext {
         page,
         stats,
         fonts,
         cfg,
+        lines_cfg,
     };
     let mut out = Vec::new();
     for (leaf_idx, leaf) in leaves.iter().enumerate() {
@@ -774,7 +772,7 @@ fn classify_text_row(
         (row, None)
     } else {
         let weak = weak_eq.then_some((lines.clone(), ink));
-        (Row::Text(merge_row(ctx.page.index, lines)), weak)
+        (Row::Text(merge_row(ctx.page.index, lines, ctx.lines_cfg)), weak)
     }
 }
 

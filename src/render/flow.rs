@@ -1,10 +1,4 @@
 //! Flowing HTML for a sequence of blocks, shared by the medium and friendly modes.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::*;
 use crate::model::*;

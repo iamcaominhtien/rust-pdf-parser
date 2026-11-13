@@ -1,12 +1,6 @@
 //! Medium mode: the page and column structure of the paper is kept, but the
 //! text is real, reflowed HTML and paragraphs are never cut at column or page
 //! boundaries.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::*;
 use crate::common::geom::median;

@@ -6,12 +6,6 @@
 //! piece of running prose. The author block is re-ordered as a grid of
 //! "cards" (one per author or affiliation group), and an abstract without a
 //! heading is recognised when prose ends the author block.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::patterns::*;
 use super::*;

@@ -5,12 +5,6 @@
 //! analysis builds it, every renderer reads it, and it is what the JSON
 //! output serialises. Fields marked `#[serde(skip)]` carry page geometry
 //! that only the position-preserving renderers need.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 pub mod line;
 pub mod style;

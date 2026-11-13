@@ -1,10 +1,4 @@
 //! Rasterisation of pages and page regions, and SVG export of whole pages.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use crate::common::geom::Rect;
 use base64::Engine;

@@ -7,12 +7,6 @@
 //! `classify_front_matter`, `classify_body`, `split_references`,
 //! `merge_paragraphs` and finally `build_document`. Their thresholds are
 //! collected in [`SemanticsConfig`].
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 pub(crate) mod assemble;
 pub(crate) mod body;

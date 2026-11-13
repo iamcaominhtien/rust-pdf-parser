@@ -3,12 +3,6 @@
 //! The flags are bits of a `u8` rather than an enum set so that a span's
 //! style is cheap to copy, compare and serialise (it appears as a plain
 //! number in the JSON output).
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 /// Bold weight (from the font name, weight or descriptor flags).
 pub const BOLD: u8 = 1;

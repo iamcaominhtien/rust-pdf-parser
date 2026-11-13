@@ -2,12 +2,6 @@
 //! original (vector SVG or PNG) and overlaid with an invisible, selectable
 //! text layer whose DOM is organised by logical block, so that the text of a
 //! paragraph is contiguous even though it is positioned line by line.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::*;
 use crate::model::Line;

@@ -4,12 +4,6 @@
 //! stages pass along; [`DocStats`] holds the few document-wide measurements
 //! (body font size, body font, line pitch) that most later thresholds are
 //! expressed relative to.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use super::lines::{LinesConfig, build_lines};
 use crate::backend::{ImageBox, PathBox, RawPage};

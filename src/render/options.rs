@@ -1,10 +1,4 @@
 //! Options of the HTML output and its result.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 /// Fidelity mode of the HTML output: how closely it follows the look of the
 /// PDF versus how readable and reflowable it is.

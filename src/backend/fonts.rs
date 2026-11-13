@@ -5,12 +5,6 @@
 //! it), so we load every font dictionary reachable from a page ourselves and
 //! match glyphs back to fonts through the glyph identifier, which is a hash of
 //! the font program's contents and the glyph id.
-#![warn(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)]
 
 use hayro_font::{Font, FontCache, FontGlyph, GlyphId};
 use hayro_interpret::InterpreterSettings;

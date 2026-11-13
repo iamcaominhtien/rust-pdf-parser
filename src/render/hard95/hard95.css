@@ -29,13 +29,19 @@ body.fit .page{width:min(100%,calc(var(--pw)*var(--zoom)*1px))}
 .pl,.g,.rt{position:absolute;white-space:pre}
 .rt{transform-origin:0 .84em}
 .ph{display:inline-block}
+/* Stacked glyphs in a line (inline fractions), each at its place in the PDF. */
+.sg{display:inline-block;position:relative;white-space:pre}
 .g{transform-origin:0 0}
 /* Flowing blocks: one line of the PDF per line, until the text changes. */
 .fb{position:absolute;clip-path:inset(-20cqw -50cqw 0 -50cqw)}
 .fb.one{clip-path:none}
 .fb.cont{clip-path:inset(0 -50cqw)}
 .fb.cont.tail{clip-path:inset(0 -50cqw -200cqw -50cqw)}
-.fb .ln{white-space:pre}
+.fb .ln{white-space:pre;position:relative}
+/* Only the text font sets the height of a line: fallback fonts (math, sans,
+   mono) have other ascents and descents and would push lines off the place
+   they have in the PDF. */
+.fb .ln,.fb .ln *,.pl *,.rt *,.g *,.tb th *,.tb td *{line-height:0}
 .fb .ln::after{content:"\A";white-space:pre}
 .fb .ln.hy::after{content:"-\A"}
 .fb .ln.end::after{content:none}
@@ -43,7 +49,7 @@ body.fit .page{width:min(100%,calc(var(--pw)*var(--zoom)*1px))}
 .fb.rf .in{text-indent:var(--ti,0);padding-left:var(--pl,0);hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word}
 .fb.rf[data-align="justify"] .in{text-align:justify}
 .fb.rf[data-align="center"] .in{text-align:center}
-.fb.rf .ln{white-space:normal;margin-left:0!important;word-spacing:normal!important;letter-spacing:normal!important}
+.fb.rf .ln{white-space:normal;margin-left:0!important;top:0!important;word-spacing:normal!important;letter-spacing:normal!important}
 .fb.rf .ln::after{content:none!important}
 /* Tables on their original grid. */
 .tb{position:absolute;background:#fff}

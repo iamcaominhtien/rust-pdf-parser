@@ -19,6 +19,8 @@
 //! (for example after a translation), lets the affected block reflow inside
 //! its box.
 
+mod stacked;
+
 use super::assets::origin_key;
 use super::*;
 use crate::common::geom::median;
@@ -73,6 +75,10 @@ const JUSTIFY_MIN_LINES: usize = 3;
 /// A block is justified when at least this many tenths of its lines (not
 /// counting the last one) are full lines.
 const JUSTIFY_FULL_TENTHS: usize = 6;
+/// A line of a flowing block is moved off the evenly spaced lines of its box
+/// only when its baseline in the PDF is at least this far (in points) from
+/// its place there; smaller differences are rounding.
+const MIN_LINE_SHIFT_PT: f32 = 0.1;
 
 /// Converts PDF points to CSS lengths relative to one page.
 struct Units {
@@ -131,6 +137,19 @@ struct BoxStyle {
     centred: bool,
     /// Text alignment when the block reflows: `center`, `justify` or `left`.
     align: &'static str,
+}
+
+/// Where the lines of a flowing block go in its boxes. The boxes space their
+/// lines evenly (one line pitch apart, so the text can reflow); lines of the
+/// PDF that are further apart or closer (a line with an inline fraction,
+/// for example) are moved to their own baseline.
+struct LinePlacement {
+    /// For each line of the block, how far (in points, downwards) it is moved
+    /// from its evenly spaced place.
+    shifts: Vec<f32>,
+    /// For each fragment, the height (in points) added below its evenly
+    /// spaced lines so that its lowest line still fits in its box.
+    extra: Vec<f32>,
 }
 
 /// The text layer of one page being written, with the glyphs it draws.
@@ -448,7 +467,7 @@ fn spans_h95(spans: &[Span], gaps: &[f32]) -> (String, bool) {
 /// A line placed on its own: `left`/`top` position, font size, and the width
 /// it must have. Returns an empty string when the line has no text.
 fn placed_line(units: &Units, line: &Line, spans: &[Span]) -> String {
-    let (html, _) = spans_h95(spans, &gaps_of(line));
+    let (html, _) = stacked::line_html(line, spans, units);
     if html.is_empty() {
         return String::new();
     }
@@ -507,9 +526,10 @@ fn flow_block(doc: &Document, block: &Block, page_idx: usize, units: &Units) -> 
     );
     let lead = line_pitch(doc, block, &frags, size);
     let width = frags.iter().map(|frag| frag.x1 - frag.x0).fold(0.0, f32::max);
-    let inner = flow_lines(block, &frags, size, units);
+    let placement = line_placement(block, &frags, lead);
+    let inner = flow_lines(block, &frags, size, &placement.shifts, units);
     let style = box_style(block, &frags, size, lead, width);
-    fragment_boxes(block, &frags, page_idx, &style, &inner, units)
+    fragment_boxes(block, &frags, page_idx, &style, &placement.extra, &inner, units)
 }
 
 /// Line pitch of a block of font size `size`: the median distance between
@@ -528,17 +548,52 @@ fn line_pitch(doc: &Document, block: &Block, frags: &[Fragment], size: f32) -> f
     median(&pitches, doc.leading * size / doc.body_size).max(MIN_LEAD_EM * size)
 }
 
+/// How far each line of a block is moved from the evenly spaced lines of its
+/// box (pitch `lead`) to sit on its baseline in the PDF, and how much taller
+/// each fragment box is made for it.
+///
+/// Within a fragment, a line is placed relative to the first line of the
+/// fragment. The height added to a fragment box is carried over to the lines
+/// of the following fragments, so that in every box (which shows the whole
+/// block, clipped) the lines of the other fragments stay outside the box.
+fn line_placement(block: &Block, frags: &[Fragment], lead: f32) -> LinePlacement {
+    let mut shifts = Vec::with_capacity(block.lines.len());
+    let mut extra = Vec::with_capacity(frags.len());
+    let mut carried = 0.0;
+    for frag in frags {
+        let first = block.lines[frag.start].baseline;
+        let mut lowest = 0.0f32;
+        for (line_no, line) in block.lines[frag.start..frag.end].iter().enumerate() {
+            let below_first = line.baseline - first;
+            lowest = lowest.max(below_first);
+            shifts.push(below_first - line_no as f32 * lead + carried);
+        }
+        let mut added = lowest - (frag.end - frag.start - 1) as f32 * lead;
+        if added < MIN_LINE_SHIFT_PT {
+            added = 0.0;
+        }
+        extra.push(added);
+        carried += added;
+    }
+    LinePlacement { shifts, extra }
+}
+
 /// The lines of a flowing block, each kept on a line of its own, with their
-/// indent within the fragment and the width they must have.
-fn flow_lines(block: &Block, frags: &[Fragment], size: f32, units: &Units) -> String {
+/// indent within the fragment, the width they must have and how far they
+/// are moved down (`shifts`, see [`line_placement`]).
+fn flow_lines(block: &Block, frags: &[Fragment], size: f32, shifts: &[f32], units: &Units) -> String {
     let mut inner = String::new();
     for (frag_idx, frag) in frags.iter().enumerate() {
-        for i in frag.start..frag.end {
-            let (line, hline) = (&block.lines[i], &block.hlines[i]);
-            let (html, trailing) = spans_h95(&hline.spans, &gaps_of(line));
+        let range = frag.start..frag.end;
+        let lines = block.lines[range.clone()].iter().zip(&block.hlines[range.clone()]);
+        for (i, ((line, hline), &shift)) in range.clone().zip(lines.zip(&shifts[range])) {
+            let (html, trailing) = stacked::line_html(line, &hline.spans, units);
             let mut style = format!("margin-left:{}", units.len((line.bbox.x0 - frag.x0).max(0.0)));
             if (line.size - size).abs() > FONT_SIZE_TOLERANCE_PT {
                 style.push_str(&format!(";font-size:{}", units.len(line.size)));
+            }
+            if shift.abs() >= MIN_LINE_SHIFT_PT {
+                style.push_str(&format!(";top:{}", units.len(shift)));
             }
             let last = frag_idx + 1 == frags.len() && i + 1 == frag.end;
             inner.push_str(&format!(
@@ -604,12 +659,14 @@ fn box_style(block: &Block, frags: &[Fragment], size: f32, lead: f32, width: f32
 /// The boxes of the fragments of a block that are on page `page_idx`, each
 /// showing `inner` (the lines of the whole block). The first fragment holds
 /// the text; the others are clipped copies shifted up by the lines shown
-/// before them, hidden from assistive technology and translation.
+/// before them, hidden from assistive technology and translation. `extra`
+/// is the height added to each fragment box (see [`line_placement`]).
 fn fragment_boxes(
     block: &Block,
     frags: &[Fragment],
     page_idx: usize,
     style: &BoxStyle,
+    extra: &[f32],
     inner: &str,
     units: &Units,
 ) -> String {
@@ -623,6 +680,7 @@ fn fragment_boxes(
     } = *style;
     let mut out = String::new();
     let mut lines_before = 0usize;
+    let mut extra_before = 0.0;
     for (frag_idx, frag) in frags.iter().enumerate() {
         let n = frag.end - frag.start;
         if frag.page == page_idx {
@@ -632,7 +690,7 @@ fn fragment_boxes(
                 units.x(frag.x0),
                 units.y(top),
                 units.x(width),
-                units.len(n as f32 * lead),
+                units.len(n as f32 * lead + extra[frag_idx]),
                 units.len(size),
                 units.len(lead),
                 units.len(if centred { 0.0 } else { indent }),
@@ -652,11 +710,12 @@ fn fragment_boxes(
                     "<div class=\"fb cont{}\" data-of=\"{}\" data-skip=\"{lines_before}\" data-align=\"{align}\" translate=\"no\" aria-hidden=\"true\" style=\"{geometry}\"><div class=\"in\" style=\"margin-top:-{}\">{inner}</div></div>\n",
                     if frag_idx + 1 == frags.len() { " tail" } else { "" },
                     block.id,
-                    units.len(lines_before as f32 * lead),
+                    units.len(lines_before as f32 * lead + extra_before),
                 ));
             }
         }
         lines_before += n;
+        extra_before += extra[frag_idx];
     }
     out
 }

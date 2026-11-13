@@ -21,6 +21,14 @@
     for(i=0;i<data.length;i++)apply(data[i][0],data[i][1],pageW,data[i][2]);
   }
 
+  // Distance of the baseline of an element from the top of the viewport,
+  // measured with an empty inline box (exact whatever the fonts).
+  function baselineOf(el){
+    var probe=doc.createElement('span');
+    probe.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';
+    el.appendChild(probe);var y=probe.getBoundingClientRect().bottom;el.removeChild(probe);return y;
+  }
+
   // Glyphs that do not sit on the baseline in the usual way (big operators,
   // tall delimiters, radicals) are stretched onto the box their ink has in
   // the PDF.
@@ -29,9 +37,8 @@
     cv.font=cs.fontStyle+' '+cs.fontWeight+' '+fs+'px '+cs.fontFamily;
     var m=cv.measureText(el.textContent),iw=m.actualBoundingBoxLeft+m.actualBoundingBoxRight,ih=m.actualBoundingBoxAscent+m.actualBoundingBoxDescent;
     if(!(iw>0.01&&ih>0.01))return;
-    var asc=m.fontBoundingBoxAscent!=null?m.fontBoundingBoxAscent:fs*0.89,desc=m.fontBoundingBoxDescent!=null?m.fontBoundingBoxDescent:fs*0.22;
     el.style.transform='';
-    var er=el.getBoundingClientRect(),base=(er.height-(asc+desc))/2+asc;
+    var er=el.getBoundingClientRect(),base=baselineOf(el)-er.top;
     var tx=pr.left+ink[0]/100*pr.width,ty=pr.top+ink[1]/100*pr.height,tw=(ink[2]-ink[0])/100*pr.width,th=(ink[3]-ink[1])/100*pr.height;
     var sx=clamp(tw/iw,0.15,10),sy=clamp(th/ih,0.15,10);
     var dx=(tx-er.left)+m.actualBoundingBoxLeft*sx,dy=(ty-er.top)-(base-m.actualBoundingBoxAscent)*sy;

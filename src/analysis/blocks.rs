@@ -1309,7 +1309,22 @@ fn split_paragraphs(
 /// Rule: the line starts with a bullet, or (in footnotes) with a footnote
 /// mark.
 fn starts_with_marker(candidate: &ParagraphBreak, _cfg: &BlocksConfig) -> bool {
-    (candidate.footnote && footnote_marked(candidate.line)) || BULLET.is_match(candidate.text)
+    (candidate.footnote && footnote_marked(candidate.line))
+        || (BULLET.is_match(candidate.text) && !dash_goes_on(candidate))
+}
+
+/// Whether a line starting with a dash goes on with the sentence of the
+/// line before ("... the model\n– and then beat it"): a dash and a
+/// lower-case word after a line that ended without punctuation.
+fn dash_goes_on(candidate: &ParagraphBreak) -> bool {
+    let prev = candidate.para.last().map(|(line, _)| line.text()).unwrap_or_default();
+    let mut words = candidate.text.split_whitespace();
+    let dash = words.next().is_some_and(|word| matches!(word, "–" | "—" | "-"));
+    let lower = words
+        .next()
+        .and_then(|word| word.chars().next())
+        .is_some_and(char::is_lowercase);
+    dash && lower && !prev.trim_end().ends_with(['.', ':', ';', '!', '?'])
 }
 
 /// Rule: the line starts with an enumeration label, aligned with a

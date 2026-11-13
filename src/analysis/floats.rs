@@ -452,7 +452,7 @@ impl Default for FloatsConfig {
             title_min_width_pt: 40.0,
             title_min_indent_pt: 15.0,
             title_edge_tol_pt: 4.0,
-            label_max_passes_count: 3,
+            label_max_passes_count: 6,
             heading_size_tol_pt: 0.5,
             heading_min_chars: 4,
             heading_bold_ratio: 0.6,
@@ -1794,8 +1794,13 @@ fn absorb_side_labels(
             if ctx.is_caption_line[i] || absorbed[i].is_some() || line.char_count() >= cfg.body_min_chars {
                 continue;
             }
+            // A label the grown drawing now encloses (a tick label left of
+            // the axis, once the legend above widened the drawing).
+            let inside = before
+                .inflate(cfg.absorb_inside_tol_pt, cfg.absorb_inside_tol_pt)
+                .contains(&line.bbox);
             let stacked = stacked_label(&before, line, cfg);
-            if !(stacked || beside_label(&before, line, cfg)) {
+            if !(inside || stacked || beside_label(&before, line, cfg)) {
                 continue;
             }
             if heading_like(ctx, &before, line, stacked, text_left) {
@@ -1877,6 +1882,9 @@ fn attached_to_paragraph(ctx: &PageContext, absorbed: &[Option<usize>], idx: usi
             && (other.baseline - line.baseline).abs() < cfg.attached_max_dy_em * line.size
             && other.bbox.x_overlap(&line.bbox) > 0.0
             && other.char_count() >= cfg.attached_min_chars
+            // The rest of a paragraph is running text; the other entries
+            // of a legend are short labels themselves.
+            && body_like(other, ctx.stats, cfg)
     })
 }
 

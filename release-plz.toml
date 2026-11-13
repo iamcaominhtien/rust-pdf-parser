@@ -1,0 +1,67 @@
+# Release automation (https://release-plz.dev), run by .github/workflows/release.yml.
+#
+# Flow: every push to `main` opens or updates a release PR that bumps the version in
+# Cargo.toml and adds the new section to CHANGELOG.md. Merging that PR creates the
+# `vX.Y.Z` tag and the GitHub release; the workflow then attaches prebuilt binaries.
+
+[workspace]
+# Not published to crates.io: versions come from the git tags (`vX.Y.Z`).
+git_only = true
+# Release only when the release PR is merged, not on every push.
+release_always = false
+changelog_update = true
+git_release_enable = true
+# The public API is not checked against a registry (nothing is published there).
+semver_check = false
+# In 0.x, `feat:` bumps the minor version (0.1.0 -> 0.2.0), `fix:` the patch version.
+features_always_increment_minor = true
+pr_name = "chore: release v{{ version }}"
+pr_labels = ["release"]
+
+[changelog]
+header = """# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+"""
+
+# One section per release. Only the first line of each commit message is shown
+# (older commits are not conventional and carry long bodies).
+body = """
+## [{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}*({{ commit.scope }})* {% endif %}{% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message | split(pat="\n") | first | trim | upper_first }}
+{%- endfor %}
+{% endfor %}
+"""
+
+sort_commits = "oldest"
+protect_breaking_commits = true
+
+# Groups, in the order they appear. Conventional Commits (`feat: ...`) are the
+# convention from now on (see CONTRIBUTING.md); the imperative subjects of the
+# older history ("Add ...", "Fix ...") are grouped the same way.
+commit_parsers = [
+    { message = "^chore: release", skip = true },
+    { message = "^Merge ", skip = true },
+    { message = "^feat", group = "<!-- 0 -->Added" },
+    { message = "^(Add|Support|Rebuild|Enable) ", group = "<!-- 0 -->Added" },
+    { message = "^fix", group = "<!-- 1 -->Fixed" },
+    { message = "^(Fix|Avoid|Correct) ", group = "<!-- 1 -->Fixed" },
+    { message = "^perf", group = "<!-- 2 -->Performance" },
+    { message = "^(Process|Load|Speed) ", group = "<!-- 2 -->Performance" },
+    { message = "^refactor", group = "<!-- 3 -->Changed" },
+    { message = "^(Split|Clean up|Move|Refine|Rename|Format) ", group = "<!-- 3 -->Changed" },
+    { message = "^docs", group = "<!-- 4 -->Documentation" },
+    { message = "^(Document|Note) ", group = "<!-- 4 -->Documentation" },
+    { message = "^test", group = "<!-- 5 -->Tests" },
+    { message = "^(ci|build)", group = "<!-- 6 -->Build and CI" },
+    { message = "^chore", group = "<!-- 7 -->Other" },
+    { message = ".*", group = "<!-- 7 -->Other" },
+]

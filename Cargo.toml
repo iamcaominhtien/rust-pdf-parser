@@ -2,7 +2,11 @@
 name = "paper2html"
 version = "0.1.0"
 edition = "2024"
-description = "Convert scientific-paper PDFs (arXiv) into clean, readable HTML in three fidelity modes"
+description = "Convert scientific-paper PDFs (arXiv) into clean, readable HTML in four fidelity modes"
+repository = "https://github.com/iamcaominhtien/rust-pdf-parser"
+readme = "README.md"
+keywords = ["pdf", "html", "arxiv", "converter", "papers"]
+categories = ["command-line-utilities", "text-processing"]
 license = "MIT"
 
 [lib]

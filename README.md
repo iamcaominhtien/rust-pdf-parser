@@ -292,6 +292,11 @@ trong bộ nhớ đệm riêng của repo trên GitHub, nên chỉ lần đầu 
 `cargo run --example dump_tables -- paper.pdf` in các bảng dựng được của một PDF, tiện để soi lỗi
 dựng bảng.
 
+## Phát hành và đóng góp
+
+Phiên bản, `CHANGELOG.md` và GitHub Release (kèm file chạy cho Linux, macOS, Windows) được tạo tự
+động từ commit theo chuẩn Conventional Commits. Xem [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Giấy phép
 
 MIT. Các thư viện phụ thuộc chính (hayro, vello) dùng giấy phép Apache-2.0 hoặc MIT.

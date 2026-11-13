@@ -85,3 +85,20 @@ committing.
   `needless_bool`). Check the CI log if the "fmt + clippy" job fails.
 - **Commits:** Conventional Commits (`fix(tables): ...`, `feat: ...`), in English, imperative
   mood.
+
+## Pull requests
+
+- Title and description in English.
+- **Assignee:** always `iamcaominhtien`.
+- **Labels:** add them yourself from what the PR contains, one or more. Use the repository's
+  existing labels:
+
+  | PR content | Label |
+  | --- | --- |
+  | New feature or an improvement to the output (`feat`, `perf`) | `enhancement` |
+  | Bug fix (`fix`) | `bug` |
+  | Documentation (`docs`, README, ARCHITECTURE, CLAUDE.md) | `documentation` |
+
+  A PR that mixes kinds gets every label that applies. If a PR fits none of these (for example
+  CI only, or refactoring only), create a short, lowercase label that names it (`ci`,
+  `refactor`, `tests`) rather than leaving the PR unlabelled.

@@ -41,6 +41,10 @@ pub struct AssembleConfig {
     /// A superscript after a word of fewer letters than this is an exponent
     /// (x², c²), not a footnote mark.
     pub mark_min_word_letters_count: usize,
+    /// A footnote mark links to a note at most this many pages before it ...
+    pub note_max_pages_before: usize,
+    /// ... or this many pages after it.
+    pub note_max_pages_after: usize,
     /// A repeated label (the second "[1]", "Section 1", ...) starts a new set
     /// of numbering, as in a report followed by a system card, only when at
     /// least this many anchors of that kind repeat; fewer are stray duplicates.
@@ -54,6 +58,8 @@ impl Default for AssembleConfig {
             equation_margin_pt: 2.5,
             table_cell_gap_em: 0.55,
             mark_min_word_letters_count: 2,
+            note_max_pages_before: 1,
+            note_max_pages_after: 2,
             min_target_set_count: 2,
         }
     }
@@ -569,7 +575,14 @@ fn link_blocks(blocks: &mut [Block], cfg: &AssembleConfig) {
             let note_for = |mark: &str| {
                 notes
                     .iter()
-                    .filter(|(marker, ..)| marker == mark)
+                    // A note sits near its mark (a list of contributors
+                    // may run on for two pages before its note); an
+                    // affiliation number many pages away is not its mark.
+                    .filter(|(marker, note_page, ..)| {
+                        marker == mark
+                            && *note_page + cfg.note_max_pages_before >= page
+                            && *note_page <= page + cfg.note_max_pages_after
+                    })
                     .min_by_key(|(_, note_page, note_idx, _)| {
                         (*note_page < page, note_page.abs_diff(page), note_idx.abs_diff(index))
                     })

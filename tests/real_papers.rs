@@ -494,10 +494,21 @@ fn adam_fraction_bars_are_not_tables() {
         .doc
         .blocks
         .iter()
-        .filter(|block| matches!(block.kind, BlockKind::Figure { kind: FloatKind::Graphic, .. }))
+        .filter(|block| {
+            matches!(
+                block.kind,
+                BlockKind::Figure {
+                    kind: FloatKind::Graphic,
+                    ..
+                }
+            )
+        })
         .map(|block| block.page + 1)
         .collect();
-    assert!(graphics.is_empty(), "graphics cut out of equations on pages {graphics:?}");
+    assert!(
+        graphics.is_empty(),
+        "graphics cut out of equations on pages {graphics:?}"
+    );
     let corollary = analysis
         .doc
         .blocks

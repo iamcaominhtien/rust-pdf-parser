@@ -41,7 +41,7 @@ pub struct FurnitureConfig {
     /// A line whose top edge is below this fraction of the page height is
     /// in the foot band, where running feet and page numbers are looked for.
     pub foot_band_ratio: f32,
-    /// Shortest normalised text (in bytes, see [`normalize_furniture`]) of
+    /// Shortest normalised text (in bytes, after digits and whitespace are folded) of
     /// a line that is counted as a possible running head. Shorter texts
     /// (a lone page number, "#") repeat by chance.
     pub repeat_min_text_bytes: usize,

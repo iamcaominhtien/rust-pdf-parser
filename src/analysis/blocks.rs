@@ -19,6 +19,12 @@ use std::sync::LazyLock;
 /// A footnote numbered on the baseline ("1. Since the publication ..."),
 /// as in IEEE journals.
 static NUMBERED_NOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d{1,2}\.\s+\S").unwrap());
+/// A note without a mark that conferences print at the foot of the first
+/// page ("36th Conference on Neural Information Processing Systems
+/// (NeurIPS 2022).").
+static VENUE_NOTE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\d{1,2}(?:st|nd|rd|th)\s+(?:[A-Z][\w-]*\s+){0,3}(?:Conference|Workshop|Symposium)\b").unwrap()
+});
 /// An equation number at the right margin: "(3)", "(A.2)", "(4.1b)".
 static EQNO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\((?:[A-Z]\.?)?\d+(?:\.\d+)*[a-z]?\)$").unwrap());
 /// A bullet at the start of a line.
@@ -72,6 +78,11 @@ pub struct BlocksConfig {
     pub right_percentile_min_rows: usize,
     /// The percentile of row ends taken as the right edge of the leaf.
     pub right_edge_percentile_ratio: f32,
+    /// A row ends at the right edge of the leaf if within this (points) ...
+    pub justified_edge_tol_pt: f32,
+    /// ... and the text of the leaf is justified when at least this share
+    /// (0-1) of its rows do.
+    pub justified_min_ratio: f32,
 
     // --- equation rows ---
     /// A row is isolated (white space around it, as around a displayed
@@ -156,10 +167,20 @@ pub struct BlocksConfig {
     pub footnote_rule_max_width_ratio: f32,
     /// ... (with the leaf counted as at least this wide) ...
     pub footnote_rule_min_leaf_pt: f32,
-    /// ... and starts within this of the leaf's left edge.
+    /// ... and starts within this of the leaf's left edge (or is centred in
+    /// the leaf within this).
     pub footnote_rule_align_pt: f32,
     /// Text rows starting less than this above the rule count as below it.
     pub footnote_rule_tol_pt: f32,
+    /// A footnote rule may lie this far (points) above the leaf: the layout
+    /// can put footnotes that run across the page, below a rule in a
+    /// column, into a leaf of their own.
+    pub footnote_rule_above_leaf_pt: f32,
+    /// Below a footnote rule, text may be as large as the body text (ACM
+    /// and IEEE styles set footnotes in the body size) if the first row
+    /// starts with a footnote mark; it may exceed the body size by at most
+    /// this much.
+    pub footnote_same_size_max_excess_pt: f32,
     /// Without a rule, the footnote area is a trailing run of lines at
     /// least this much smaller than the body size ...
     pub footnote_run_size_drop_pt: f32,
@@ -180,6 +201,10 @@ pub struct BlocksConfig {
     /// A line ends short (ending its paragraph) when the next word plus a
     /// space would have fit before the group's right edge minus this.
     pub para_short_line_slack_pt: f32,
+    /// The right edge of a paragraph is at most this far (points) beyond the
+    /// right edge of the column's text, so that one line with a wide inline
+    /// formula does not make every full line before it look short.
+    pub para_right_overshoot_pt: f32,
     /// A numbered line starts a new item when it starts within this many
     /// sizes of the paragraph's first line.
     pub para_label_align_em: f32,
@@ -218,6 +243,8 @@ impl Default for BlocksConfig {
             orphan_max_width_em: 3.5,
             right_percentile_min_rows: 8,
             right_edge_percentile_ratio: 0.92,
+            justified_edge_tol_pt: 1.5,
+            justified_min_ratio: 0.4,
             isolation_gap_em: 0.55,
             eqno_margin_em: 2.5,
             centered_tol_ratio: 0.03,
@@ -252,12 +279,15 @@ impl Default for BlocksConfig {
             footnote_rule_min_leaf_pt: 120.0,
             footnote_rule_align_pt: 8.0,
             footnote_rule_tol_pt: 2.0,
+            footnote_rule_above_leaf_pt: 20.0,
+            footnote_same_size_max_excess_pt: 0.3,
             footnote_run_size_drop_pt: 0.9,
             footnote_gap_leading: 1.25,
             centered_group_tol_pt: 2.5,
             centered_group_min_offset_pt: 3.0,
             para_word_space_em: 0.25,
             para_short_line_slack_pt: 1.0,
+            para_right_overshoot_pt: 3.0,
             para_label_align_em: 0.6,
             para_indent_change_em: 0.6,
             block_gap_leading: 1.25,
@@ -379,6 +409,8 @@ struct LeafExtent {
     right: f32,
     /// `right - left`, at least 1.
     width: f32,
+    /// The text is justified: many rows end at `right`.
+    justified: bool,
     /// Centre between `left` and `right`.
     center_x: f32,
 }
@@ -445,6 +477,10 @@ struct BlockContext<'a> {
     cfg: &'a BlocksConfig,
     /// Thresholds of line building, for rows merged into one line.
     lines_cfg: &'a LinesConfig,
+    /// Right edge of the text of the leaf being built if it is justified
+    /// (infinite otherwise or before it is measured): a line that sticks out past it (a wide inline formula)
+    /// does not move the right edge of its paragraph.
+    leaf_right: f32,
 }
 
 /// Turns the rows of every leaf of a page into blocks, in reading order:
@@ -464,6 +500,7 @@ pub fn build_blocks(
         fonts,
         cfg,
         lines_cfg,
+        leaf_right: f32::INFINITY,
     };
     let mut out = Vec::new();
     for (leaf_idx, leaf) in leaves.iter().enumerate() {
@@ -477,8 +514,13 @@ pub fn build_blocks(
         let mut drafts = gather_rows(page, leaf);
         join_orphan_rows(&mut drafts, stats, cfg);
         let extent = LeafExtent::measure(&drafts, leaf, cfg);
+        let ctx = BlockContext {
+            leaf_right: if extent.justified { extent.right } else { f32::INFINITY },
+            ..ctx
+        };
         let (mut rows, mut weak) = classify_rows(ctx, drafts, &extent);
         promote_weak_equations(&mut rows, &mut weak, stats, cfg);
+        attach_stray_numbers(&mut rows, &extent, stats, cfg);
         let rows = merge_equation_rows(rows, stats, cfg);
         let fn_start = footnote_start(ctx, leaf, &rows, &extent);
         emit_blocks(ctx, rows, fn_start, loc, &mut out);
@@ -500,14 +542,21 @@ impl LeafExtent {
             .filter(|draft| draft.float.is_none())
             .map(|draft| draft.bbox.x0)
             .fold(f32::INFINITY, f32::min);
-        let right = if text_x1.len() >= cfg.right_percentile_min_rows {
-            percentile(text_x1, cfg.right_edge_percentile_ratio, leaf.bbox.x1)
+        let enough_rows = text_x1.len() >= cfg.right_percentile_min_rows;
+        let right = if enough_rows {
+            percentile(text_x1.clone(), cfg.right_edge_percentile_ratio, leaf.bbox.x1)
         } else {
             text_x1.iter().copied().fold(f32::NEG_INFINITY, f32::max)
         };
+        let flush_rows = text_x1
+            .iter()
+            .filter(|x1| (**x1 - right).abs() <= cfg.justified_edge_tol_pt)
+            .count();
+        let justified = enough_rows && flush_rows as f32 >= cfg.justified_min_ratio * text_x1.len() as f32;
         Self {
             left,
             right,
+            justified,
             width: (right - left).max(1.0),
             center_x: (left + right) * 0.5,
         }
@@ -978,6 +1027,54 @@ fn promote_weak_equations(rows: &mut [Row], weak: &mut [Option<WeakEquation>], s
     }
 }
 
+/// Gives an equation number that stands in a row of its own ("(4)" between
+/// the two lines of a split equation, "(20)" under the line it belongs to)
+/// to the unnumbered equation row next to it (above first, else below), and
+/// takes the row out. The number must be at the right margin and close to
+/// the equation.
+fn attach_stray_numbers(rows: &mut Vec<Row>, extent: &LeafExtent, stats: &DocStats, cfg: &BlocksConfig) {
+    let mut i = 0;
+    while i < rows.len() {
+        let Row::Text(line) = &rows[i] else {
+            i += 1;
+            continue;
+        };
+        let text: String = line.text().chars().filter(|ch| !ch.is_whitespace()).collect();
+        let at_margin = line.bbox.x1 >= extent.right - cfg.eqno_margin_em * stats.body_size;
+        if !(EQNO.is_match(&text) && at_margin) {
+            i += 1;
+            continue;
+        }
+        let max_gap = cfg.merge_max_gap_leading * stats.leading;
+        let ink = line.ink;
+        let takes = |row: Option<&Row>| match row {
+            Some(Row::Equation { number: None, bbox, .. }) => (ink.y0 - bbox.y1).max(bbox.y0 - ink.y1) < max_gap,
+            _ => false,
+        };
+        let target = if i > 0 && takes(rows.get(i - 1)) {
+            i - 1
+        } else if takes(rows.get(i + 1)) {
+            i + 1
+        } else {
+            i += 1;
+            continue;
+        };
+        let Row::Text(number_line) = rows.remove(i) else {
+            unreachable!()
+        };
+        let target = if target > i { target - 1 } else { target };
+        if let Row::Equation {
+            number,
+            number_line: slot,
+            ..
+        } = &mut rows[target]
+        {
+            *number = Some(text);
+            *slot = Some(number_line);
+        }
+    }
+}
+
 /// Merges vertically adjacent equation rows (multi-line equations,
 /// numerators and denominators) unless both carry a number. The merged
 /// equation keeps the first number; the line of a second number stays
@@ -1067,17 +1164,27 @@ fn ruled_footnote_start(ctx: BlockContext, leaf: &Leaf, rows: &[Row], extent: &L
         {
             continue;
         }
-        if (path.bbox.x0 - extent.left).abs() > cfg.footnote_rule_align_pt {
+        let left_aligned = (path.bbox.x0 - extent.left).abs() <= cfg.footnote_rule_align_pt;
+        let centred = (path.bbox.cx() - extent.center_x).abs() <= cfg.footnote_rule_align_pt;
+        if !(left_aligned || centred) {
             continue;
         }
-        if path.bbox.y0 < leaf.bbox.y0 || path.bbox.y0 > leaf.bbox.y1 {
+        if path.bbox.y0 < leaf.bbox.y0 - cfg.footnote_rule_above_leaf_pt || path.bbox.y0 > leaf.bbox.y1 {
             continue;
         }
         let below: Vec<&(usize, &Line)> = text_rows
             .iter()
             .filter(|(_, line)| line.bbox.y0 > path.bbox.y0 - cfg.footnote_rule_tol_pt)
             .collect();
-        if below.is_empty() || !below.iter().all(|(_, line)| small(line)) {
+        if below.is_empty() {
+            continue;
+        }
+        // Small text, or body-sized text introduced by a footnote mark.
+        let marked_first = footnote_marked(below[0].1) || NUMBERED_NOTE.is_match(&below[0].1.text());
+        let fits = |line: &Line| {
+            small(line) || (marked_first && line.size <= stats.body_size + cfg.footnote_same_size_max_excess_pt)
+        };
+        if !below.iter().all(|(_, line)| fits(line)) {
             continue;
         }
         // Nothing but small text rows may follow.
@@ -1108,7 +1215,8 @@ fn marked_footnote_start(rows: &[Row], stats: &DocStats, cfg: &BlocksConfig) -> 
         let Row::Text(line) = &rows[k] else { break };
         // In the trailing run of small lines, a note may also be numbered
         // on the baseline.
-        let marked = footnote_marked(line) || NUMBERED_NOTE.is_match(&line.text());
+        let text = line.text();
+        let marked = footnote_marked(line) || NUMBERED_NOTE.is_match(&text) || VENUE_NOTE.is_match(&text);
         let gap_ok = k == 0
             || match &rows[k - 1] {
                 Row::Text(prev) => {
@@ -1240,7 +1348,8 @@ fn flush_group(ctx: BlockContext, group: &mut Vec<(Line, f32)>, loc: Loc, out: &
     let right = lines
         .iter()
         .map(|line| line.0.bbox.x1)
-        .fold(f32::NEG_INFINITY, f32::max);
+        .fold(f32::NEG_INFINITY, f32::max)
+        .min(ctx.leaf_right + cfg.para_right_overshoot_pt);
     let centers: Vec<f32> = lines.iter().map(|line| line.0.bbox.cx()).collect();
     let median_center = crate::common::geom::median(&centers, 0.0);
     let centered = lines.len() >= 2

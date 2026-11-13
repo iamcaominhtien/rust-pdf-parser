@@ -294,8 +294,9 @@ impl Assembler<'_> {
     }
 
     /// The block of a footnote. Its mark (leading superscript glyphs, a
-    /// leading footnote symbol, or a number followed by a period) is taken out of the text into the block
-    /// kind and gives the anchor.
+    /// leading footnote symbol, or a number followed by a period) is taken
+    /// out of the text into the block kind and gives the anchor. A leading
+    /// bullet is dropped.
     fn footnote_block(&mut self, id: usize, loc: Loc, text_block: TextBlock) -> Block {
         let bbox = lines_bbox(&text_block.lines);
         let first = &text_block.lines[0];
@@ -325,6 +326,16 @@ impl Assembler<'_> {
                 skip = digits;
                 dropped = 1;
             }
+        }
+        // A bullet ("• S. Ren is with ...", affiliations set as footnotes) is
+        // no mark: it is dropped and the note has none.
+        if skip == 0
+            && first
+                .glyphs
+                .first()
+                .is_some_and(|glyph| matches!(glyph.text.as_str(), "•" | "▪"))
+        {
+            dropped = 1;
         }
         let marker: String = first.glyphs[..skip].iter().map(|glyph| glyph.text.as_str()).collect();
         let built = self.text.build(&text_block.lines, skip + dropped, 0);

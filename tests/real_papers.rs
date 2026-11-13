@@ -646,6 +646,60 @@ fn adam_fraction_bars_are_not_tables() {
     assert!(corollary.trim_end().ends_with("T ≥ 1."), "{corollary}");
 }
 
+/// The affiliations at the foot of the first page of Faster R-CNN are set as
+/// bulleted footnotes below a rule that is centred in the column, not flush
+/// with its left edge, and in a smaller size. They are footnotes without a
+/// mark (the bullet is dropped), not a bulleted list in the middle of the
+/// introduction.
+#[test]
+fn faster_rcnn_affiliations_are_footnotes() {
+    let Some(paper) = load("1506.01497v3") else { return };
+    let analysis = paper.analyze();
+    let blocks = &analysis.doc.blocks;
+    for start in ["S. Ren is with", "K. He and J. Sun are with", "R. Girshick is with"] {
+        let block = blocks
+            .iter()
+            .find(|block| {
+                plain(&block.spans)
+                    .trim_start_matches(['\u{2022}', ' '])
+                    .starts_with(start)
+            })
+            .unwrap_or_else(|| panic!("no block starting {start:?}"));
+        assert!(
+            matches!(&block.kind, BlockKind::Footnote { marker } if marker.is_empty()),
+            "{start:?} is {:?}",
+            block.kind
+        );
+        assert!(!plain(&block.spans).starts_with('\u{2022}'), "bullet left in {start:?}");
+    }
+    assert!(
+        !blocks
+            .iter()
+            .any(|block| matches!(block.kind, BlockKind::ListItem { .. }) && block.page == 0),
+        "a list left on the first page"
+    );
+}
+
+/// Equation (2) of Faster R-CNN is two lines with its number between them
+/// ("(2)" is a row of its own at the right margin): one numbered equation,
+/// not two pictures with a paragraph "(2)" between them.
+#[test]
+fn faster_rcnn_equation_number_is_attached() {
+    let Some(paper) = load("1506.01497v3") else { return };
+    let analysis = paper.analyze();
+    let blocks = &analysis.doc.blocks;
+    assert!(
+        blocks
+            .iter()
+            .any(|block| matches!(&block.kind, BlockKind::Equation { number: Some(n), .. } if n == "(2)")),
+        "equation (2) has no number"
+    );
+    assert!(
+        !blocks.iter().any(|block| plain(&block.spans) == "(2)"),
+        "the number of equation (2) is a paragraph of its own"
+    );
+}
+
 /// Faster R-CNN numbers its footnotes on the baseline ("1. Since ..."):
 /// they are footnotes, not list items, and the paragraph that runs past
 /// one into the next column stays whole. The caption of Table 4 ends in
@@ -660,7 +714,7 @@ fn faster_rcnn_footnotes_and_tables() {
     let markers: Vec<&str> = blocks
         .iter()
         .filter_map(|block| match &block.kind {
-            BlockKind::Footnote { marker } => Some(marker.as_str()),
+            BlockKind::Footnote { marker } if !marker.is_empty() => Some(marker.as_str()),
             _ => None,
         })
         .collect();

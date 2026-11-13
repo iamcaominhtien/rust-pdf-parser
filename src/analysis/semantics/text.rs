@@ -457,6 +457,10 @@ pub(crate) fn url_continues(text: &str, next: &str) -> bool {
         return false;
     };
     let last = last.trim_start_matches(['(', '[', '<', '"', '\u{201c}']);
+    // "http:" / "//arxiv.org/...": the scheme alone ends the line.
+    if matches!(last, "http:" | "https:") && next.starts_with("//") {
+        return true;
+    }
     if !(last.contains("://") || last.starts_with("www.")) {
         return false;
     }
@@ -468,7 +472,12 @@ pub(crate) fn url_continues(text: &str, next: &str) -> bool {
     }
     match last.chars().last() {
         Some('_' | '-' | '/' | '?' | '=' | '&' | '#' | '~' | '%' | ':') => true,
-        Some('.') => first.is_lowercase() || first.is_ascii_digit(),
+        // After a dot the URL goes on with a host or path part ("org/abs"),
+        // not with a word of the text ("arXiv preprint").
+        Some('.') => {
+            let token = next.split_whitespace().next().unwrap_or("");
+            (first.is_lowercase() || first.is_ascii_digit()) && !token.chars().any(char::is_uppercase)
+        }
         _ => false,
     }
 }
@@ -511,6 +520,11 @@ pub(crate) fn remove_hyphen(left: &str, right: &str, vocab: &HashSet<String>, cf
         .collect();
     let leading: String = right.chars().take_while(|ch| ch.is_alphabetic()).collect();
     if trailing.is_empty() || leading.is_empty() {
+        return false;
+    }
+    // "end-\nto-end": the right part goes on with a hyphen of its own, so
+    // the broken one belongs to the compound too.
+    if right.chars().nth(leading.chars().count()) == Some('-') {
         return false;
     }
     if !leading.chars().next().unwrap().is_lowercase() {
@@ -632,6 +646,11 @@ mod tests {
             "https://github.com/rbgirshick/py-faster-",
             "rcnn",
             &vocab
+        ));
+        assert!(url_continues("see http:", "//arxiv.org/abs/1804.08838"));
+        assert!(!url_continues(
+            "URL http://arxiv.org/abs/2104.08691.",
+            "arXiv: 2104.08691."
         ));
     }
 

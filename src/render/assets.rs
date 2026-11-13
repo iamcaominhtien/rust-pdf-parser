@@ -6,7 +6,7 @@ use crate::backend::PageRenderer;
 use crate::backend::PdfFile;
 use crate::model::*;
 use base64::Engine;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Marks a placeholder; a control character never written to the HTML.
 pub(crate) const MARK: char = '\u{1}';
@@ -18,6 +18,15 @@ const ORIGIN_STEPS_PER_PT: f32 = 4.0;
 /// Highest pixels-per-point scale of a PNG page background: whole pages at
 /// a higher scale make very large files for little visible gain.
 const MAX_PAGE_PNG_SCALE: f32 = 2.5;
+
+/// Prefix of an SVG line that draws a raster picture.
+const SVG_IMAGE_PREFIX: &str = "<image ";
+/// Start of the `src` of a PNG picture in an SVG, up to the payload.
+const PNG_PIXEL_MARK: &str = "data:image/png;base64,";
+/// The stretched-pixel pictures that [`pixels_to_rects`] replaces have a
+/// payload shorter than this (in base64 characters): a 1 by 1 PNG is about
+/// 100 characters long.
+const PIXEL_PAYLOAD_MAX_LEN: usize = 400;
 
 /// A picture the HTML needs: a page region, or a whole page.
 pub(crate) enum ImageJob {
@@ -111,7 +120,7 @@ impl ImageStore<'_> {
                     let (qx, qy) = origin_key(x, y);
                     (-1..=1).any(|dx| (-1..=1).any(|dy| drawn.contains(&(qx + dx, qy + dy))))
                 };
-                let svg = renderer.page_svg_without_text(*page, &remove)?;
+                let svg = pixels_to_rects(renderer.page_svg_without_text(*page, &remove)?);
                 Some((svg.into_bytes(), "image/svg+xml", "svg", page_hint(*page)))
             }
         }
@@ -164,6 +173,67 @@ impl ImageStore<'_> {
             files.push((name, data));
         }
     }
+}
+
+/// Replaces the pictures of a single pixel stretched over an area, which
+/// some typesetters use for table rules, by filled rectangles of the same
+/// colour. A browser draws a pixelated picture thinner than a pixel as
+/// nothing at all, so the rules of such tables would disappear from the page
+/// picture; a rectangle that thin is drawn as a faint line, like the PDF.
+///
+/// Relies on hayro's SVG layout: one `<image transform="..."
+/// xlink:href="data:image/png;base64,..." width="1" height="1" .../>` per
+/// line. Other pictures and other lines are left alone.
+fn pixels_to_rects(svg: String) -> String {
+    if !svg.contains(PNG_PIXEL_MARK) {
+        return svg;
+    }
+    let mut colors: HashMap<&str, Option<String>> = HashMap::new();
+    let mut out = String::with_capacity(svg.len());
+    for line in svg.lines() {
+        let rect = line
+            .strip_prefix(SVG_IMAGE_PREFIX)
+            .filter(|rest| rest.contains("width=\"1\" height=\"1\""))
+            .and_then(|rest| {
+                let transform = attribute(rest, "transform")?;
+                let payload = rest[rest.find(PNG_PIXEL_MARK)? + PNG_PIXEL_MARK.len()..]
+                    .split('"')
+                    .next()?;
+                let fill = colors.entry(payload).or_insert_with(|| pixel_fill(payload)).as_ref()?;
+                Some(format!(
+                    "<rect transform=\"{transform}\" width=\"1\" height=\"1\" {fill}/>"
+                ))
+            });
+        out.push_str(rect.as_deref().unwrap_or(line));
+        out.push('\n');
+    }
+    out
+}
+
+/// The value of the attribute `name` in the text of an SVG element.
+fn attribute<'a>(element: &'a str, name: &str) -> Option<&'a str> {
+    let start = element.find(&format!("{name}=\""))? + name.len() + 2;
+    element[start..].split('"').next()
+}
+
+/// The `fill` attributes that colour a rectangle like the 1 by 1 PNG
+/// `payload` (base64), or `None` when it is no such picture.
+fn pixel_fill(payload: &str) -> Option<String> {
+    if payload.len() > PIXEL_PAYLOAD_MAX_LEN {
+        return None;
+    }
+    let png = base64::engine::general_purpose::STANDARD.decode(payload).ok()?;
+    let img = image::load_from_memory_with_format(&png, image::ImageFormat::Png).ok()?;
+    if (img.width(), img.height()) != (1, 1) {
+        return None;
+    }
+    let [red, green, blue, alpha] = img.to_rgba8().get_pixel(0, 0).0;
+    let opacity = if alpha == u8::MAX {
+        String::new()
+    } else {
+        format!(" fill-opacity=\"{:.3}\"", f32::from(alpha) / 255.0)
+    };
+    Some(format!("fill=\"rgb({red},{green},{blue})\"{opacity}"))
 }
 
 /// The key of a glyph origin (`x`, `y` in PDF points) in the sets of glyphs

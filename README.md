@@ -44,13 +44,20 @@ sơ đồ, ảnh, đường kẻ, gạch phân số). Chữ được đặt lạ
   dựng được lưới thì chữ từng ô vẫn là chữ thật đặt đúng vị trí.
 - **Công thức hiển thị**: chữ thật, đặt theo từng cụm ký hiệu (tử số, mẫu số, chỉ số, cận tổng).
   Ký hiệu lớn (∑, ngoặc cao, dấu căn) được co giãn cho khớp kích thước gốc.
-- **Chữ trong hình, chữ xoay (nhãn trục), số trang, header**: chữ thật đặt đúng vị trí và góc.
+- **Chữ trong hình** (kể cả nhãn trục xoay): vẫn nằm trong ảnh nền của trang, đúng thứ tự vẽ của hình
+  (khung chú giải có thể che nhãn), kèm một bản sao HTML trong suốt để chọn, tìm và copy. Bảng mà
+  lưới dựng lại không khớp bảng in (hàng thấp hơn một dòng chữ) cũng xử lý như vậy.
+- **Chữ xoay ngoài hình, số trang, header**: chữ thật đặt đúng vị trí và góc.
+
+Cỡ chữ và độ rộng dòng được chỉnh cho khớp PDF mà không nén chữ: dòng rộng hơn PDF được thu nhỏ
+chữ chút ít (tối đa 12%), dòng hẹp hơn được giãn nhẹ giữa các chữ; chỉ dòng căn đều hai bên mới giãn
+khoảng trắng giữa các từ.
 
 Khi nội dung một khối bị thay đổi (ví dụ sau khi dịch), khối đó bỏ ngắt dòng gốc và tự dàn lại
 trong khung của nó, thu nhỏ cỡ chữ nếu bản dịch dài hơn. Phần này cần JavaScript; không có
 JavaScript trang vẫn hiển thị đúng, chỉ là độ rộng dòng không được căn khít.
 
-Thứ duy nhất không thành chữ: ký tự mà PDF không cho biết mã Unicode (giữ nguyên dạng hình).
+Ngoài chữ trong hình, thứ duy nhất không thành chữ hiển thị: ký tự mà PDF không cho biết mã Unicode (giữ nguyên dạng hình).
 
 ## Cài đặt
 

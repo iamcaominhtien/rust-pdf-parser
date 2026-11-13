@@ -30,7 +30,7 @@ body.fit .page{width:min(100%,calc(var(--pw)*var(--zoom)*1px))}
 /* Targets of cross references; the margin keeps them clear of the top bar. */
 .anc{position:absolute;width:0;height:0;scroll-margin-top:64px}
 /* Text inside figures is drawn by the page picture; this copy is for selecting. */
-.b[data-kind="figure-text"]{color:transparent}
+.b[data-kind="figure-text"],.b[data-kind="figure-text"] *{color:transparent!important}
 .rt{transform-origin:0 .84em}
 .ph{display:inline-block}
 /* Stacked glyphs in a line (inline fractions), each at its place in the PDF. */

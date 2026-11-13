@@ -65,6 +65,15 @@ const SLASH_MIN_ASPECT: f64 = 1.5;
 /// are ignored (invisible placeholder images, masks of single pixels).
 const MIN_IMAGE_SIDE_PT: f32 = 0.5;
 
+/// A picture of a single pixel stretched into a thin bar is a rule drawn
+/// the way some typesetters draw table rules (ATLAS): it is recorded in
+/// [`RawPage::pixel_rules`] as a filled path. This is the colour assumed for
+/// it (black: the pixel is not read).
+const PIXEL_RULE_COLOR: [u8; 4] = [0, 0, 0, 255];
+/// A single-pixel picture is a rule when its thin side is at most this
+/// (in points).
+const PIXEL_RULE_MAX_THICKNESS_PT: f32 = 2.0;
+
 /// Text direction of a glyph, quantised to quarter turns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dir {
@@ -189,6 +198,11 @@ pub struct RawPage {
     pub images: Vec<ImageBox>,
     /// Vector paths in drawing order.
     pub paths: Vec<PathBox>,
+    /// Bars drawn as a stretched picture of one pixel (see
+    /// [`PIXEL_RULE_MAX_THICKNESS_PT`]). They are kept apart from `paths`:
+    /// only table rules are read from them, the detection of figures and
+    /// captions does not see them.
+    pub pixel_rules: Vec<PathBox>,
 }
 
 /// The interpreter's output device: receives drawing operations and
@@ -396,6 +410,21 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
         let (px_width, px_height) = (image.width(), image.height());
         let rect = kurbo::Rect::new(0.0, 0.0, px_width as f64, px_height as f64);
         let bbox = props.transform.transform_rect_bbox(rect);
+        if (px_width, px_height) == (1, 1)
+            && let Some(bar) = self.visible(bbox)
+            && bar.width().min(bar.height()) <= PIXEL_RULE_MAX_THICKNESS_PT
+            && bar.width().max(bar.height()) > MIN_IMAGE_SIDE_PT
+        {
+            self.page.pixel_rules.push(PathBox {
+                bbox: bar,
+                stroked: false,
+                filled: true,
+                color: PIXEL_RULE_COLOR,
+                line_width: 0.0,
+                elements: 5,
+            });
+            return;
+        }
         if let Some(bbox) = self.visible(bbox)
             && bbox.width() > MIN_IMAGE_SIDE_PT
             && bbox.height() > MIN_IMAGE_SIDE_PT

@@ -84,6 +84,9 @@ pub struct PageData {
     pub images: Vec<ImageBox>,
     /// Bounding boxes of vector paths (rules, figure strokes, table borders).
     pub paths: Vec<PathBox>,
+    /// Rules drawn as stretched pictures of one pixel (table rules of some
+    /// typesetters); see [`RawPage::pixel_rules`].
+    pub pixel_rules: Vec<PathBox>,
 }
 
 impl PageData {
@@ -99,6 +102,7 @@ impl PageData {
             rotated,
             images: raw.images,
             paths: raw.paths,
+            pixel_rules: raw.pixel_rules,
         }
     }
 

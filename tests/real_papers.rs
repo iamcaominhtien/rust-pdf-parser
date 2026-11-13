@@ -826,7 +826,42 @@ fn vit_captions_and_figure_text() {
         )
         .html;
     assert!(html.contains("data-kind=\"figure-text\""));
-    assert!(html.contains(".b[data-kind=\"figure-text\"]{color:transparent}"));
+    assert!(
+        html.contains(".b[data-kind=\"figure-text\"],.b[data-kind=\"figure-text\"] *{color:transparent!important}")
+    );
+    // The rotated axis titles of Figs. 3 to 5 are part of the page picture
+    // with a transparent copy, not drawn a second time as visible text.
+    let rotated = html
+        .split("data-kind=\"rotated-text\"")
+        .skip(1)
+        .map(|part| part.split("</div>").next().unwrap_or_default())
+        .collect::<String>();
+    assert!(!rotated.contains("Transfer accuracy"), "axis title drawn twice");
+    assert!(
+        html.contains("Transfer accuracy [%]"),
+        "axis title is still there to select"
+    );
+}
+
+/// A word space that a tightly set line shrank below a space (the PDF has
+/// no space character there, only a gap) is still a space: "LIGO and
+/// construction" in the acknowledgements of the LIGO paper.
+#[test]
+fn ligo_tight_word_spaces() {
+    let Some(paper) = load("1602.03837v1") else { return };
+    let analysis = paper.analyze();
+    let text: String = analysis
+        .doc
+        .blocks
+        .iter()
+        .map(|block| plain(&block.spans))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        text.contains("LIGO and construction and operation of the GEO"),
+        "{text}"
+    );
+    assert!(!text.contains("andconstruction"));
 }
 
 /// The rule under the running head of the LIGO paper does not join the

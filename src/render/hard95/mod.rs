@@ -23,7 +23,7 @@ mod stacked;
 
 use super::assets::origin_key;
 use super::*;
-use crate::common::geom::median;
+use crate::common::geom::{Rect, median};
 use crate::model::Line;
 use std::collections::HashSet;
 
@@ -79,6 +79,20 @@ const JUSTIFY_FULL_TENTHS: usize = 6;
 /// only when its baseline in the PDF is at least this far (in points) from
 /// its place there; smaller differences are rounding.
 const MIN_LINE_SHIFT_PT: f32 = 0.1;
+
+/// A line of a table needs about this much height (in em of the table font
+/// size); a row band thinner than this makes the browser grow the row.
+const TABLE_MIN_ROW_EM: f32 = 0.95;
+/// A table whose rows would have to grow by more than this fraction of the
+/// height of its region to hold their text is not rebuilt: its grid is not
+/// the grid of the printed table, and the rebuilt table would run over the
+/// text below it.
+const TABLE_MAX_GROWTH_RATIO: f32 = 0.10;
+
+/// A rotated run belongs to a figure when its middle lies within the picture
+/// region of the figure grown by this much (in points): axis titles sit at
+/// the very edge of the region.
+const FIGURE_REGION_MARGIN_PT: f32 = 2.0;
 
 /// Converts PDF points to CSS lengths relative to one page.
 struct Units {
@@ -236,7 +250,7 @@ impl PageLayer<'_> {
         if !block.inner_lines.first().is_some_and(|line| line.page == self.page_idx) {
             return;
         }
-        match &block.table {
+        match block.table.as_ref().filter(|table| table_fits(table)) {
             Some(table) => {
                 self.html.push_str(&table_box(table, self.units));
                 block
@@ -244,7 +258,8 @@ impl PageLayer<'_> {
                     .iter()
                     .for_each(|line| add_origins(&mut self.drawn, line));
             }
-            // The text inside a figure stays in the page picture, where it
+            // The text inside a figure (or of a table whose grid could not be
+            // rebuilt faithfully) stays in the page picture, where it
             // is drawn in the figure's own order: a legend box may cover
             // tick labels, which HTML laid on top would show. The HTML copy
             // is transparent, for selecting, searching and copying.
@@ -275,35 +290,81 @@ impl PageLayer<'_> {
         }
     }
 
-    /// Adds rotated text, turned around the start of its baseline.
-    fn rotated(&mut self, rotated: &[RotatedRun]) {
-        let units = self.units;
-        let mut html = String::new();
+    /// Adds rotated text, turned around the start of its baseline. Text that
+    /// lies inside a figure (axis titles) stays in the page picture, like the
+    /// other text of the figure, and gets a transparent copy; the rest is
+    /// drawn as visible text.
+    fn rotated(&mut self, doc: &Document, rotated: &[RotatedRun]) {
+        let figures = figure_regions(doc, self.page_idx);
+        let mut visible = String::new();
+        let mut in_figure = String::new();
         for run in rotated {
-            let span = Span {
-                text: run.text.clone(),
-                style: run.style,
-                href: None,
-                color: run.color,
-            };
-            html.push_str(&format!(
-                "<span class=\"rt\" style=\"left:{};top:{};font-size:{};transform:rotate({:.2}deg)\" data-w=\"{}\">{}</span>",
-                units.x(run.x),
-                units.y(run.y - BASELINE * run.size),
-                units.len(run.size),
-                run.angle,
-                units.width_attr(run.length),
-                span_html(&span, &run.text, &mut [].iter()),
-            ));
-            for &(x, y) in &run.origins {
-                self.drawn.insert(origin_key(x, y));
+            let html = rotated_run_html(run, self.units);
+            if figures.iter().any(|rect| run_in_region(run, rect)) {
+                in_figure.push_str(&html);
+            } else {
+                visible.push_str(&html);
+                for &(x, y) in &run.origins {
+                    self.drawn.insert(origin_key(x, y));
+                }
             }
         }
-        if !html.is_empty() {
-            self.html
-                .push_str(&format!("<div class=\"b\" data-kind=\"rotated-text\">{html}</div>\n"));
+        if !visible.is_empty() {
+            self.html.push_str(&format!(
+                "<div class=\"b\" data-kind=\"rotated-text\">{visible}</div>\n"
+            ));
+        }
+        if !in_figure.is_empty() {
+            self.html.push_str(&format!(
+                "<div class=\"b\" data-kind=\"figure-text\">{in_figure}</div>\n"
+            ));
         }
     }
+}
+
+/// The picture regions of the figures on page `page_idx` (tables are not
+/// included: their text is drawn as HTML).
+fn figure_regions(doc: &Document, page_idx: usize) -> Vec<Rect> {
+    doc.blocks
+        .iter()
+        .filter(|block| block.table.is_none())
+        .filter_map(|block| match &block.kind {
+            BlockKind::Figure { image: Some(image), .. } if image.page == page_idx => Some(image.rect),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether the middle of a rotated run lies inside `rect` (grown by
+/// [`FIGURE_REGION_MARGIN_PT`]).
+fn run_in_region(run: &RotatedRun, rect: &Rect) -> bool {
+    let (sin, cos) = run.angle.to_radians().sin_cos();
+    let half = run.length * 0.5;
+    // The middle of the baseline, moved up by about the height of the
+    // letters to the middle of the text.
+    let mid_x = run.x + cos * half + sin * run.size * 0.3;
+    let mid_y = run.y + sin * half - cos * run.size * 0.3;
+    rect.inflate(FIGURE_REGION_MARGIN_PT, FIGURE_REGION_MARGIN_PT)
+        .contains_point(mid_x, mid_y)
+}
+
+/// One rotated run as an HTML element turned around its origin.
+fn rotated_run_html(run: &RotatedRun, units: &Units) -> String {
+    let span = Span {
+        text: run.text.clone(),
+        style: run.style,
+        href: None,
+        color: run.color,
+    };
+    format!(
+        "<span class=\"rt\" style=\"left:{};top:{};font-size:{};transform:rotate({:.2}deg)\" data-w=\"{}\">{}</span>",
+        units.x(run.x),
+        units.y(run.y - BASELINE * run.size),
+        units.len(run.size),
+        run.angle,
+        units.width_attr(run.length),
+        span_html(&span, &run.text, &mut [].iter()),
+    )
 }
 
 /// The `hard-95` mode: facsimile pages whose text is real, visible HTML.
@@ -377,7 +438,7 @@ fn page_html(analysis: &Analysis, page_idx: usize, page: &PageInfo, images: &mut
         layer.furniture(loose);
     }
     if let Some(rotated) = analysis.rotated.get(page_idx) {
-        layer.rotated(rotated);
+        layer.rotated(doc, rotated);
     }
     let PageLayer { html: layer, drawn, .. } = layer;
 
@@ -542,8 +603,8 @@ fn flow_block(doc: &Document, block: &Block, page_idx: usize, units: &Units) -> 
     let lead = line_pitch(doc, block, &frags, size);
     let width = frags.iter().map(|frag| frag.x1 - frag.x0).fold(0.0, f32::max);
     let placement = line_placement(block, &frags, lead);
-    let inner = flow_lines(block, &frags, size, &placement.shifts, units);
     let style = box_style(block, &frags, size, lead, width);
+    let inner = flow_lines(block, &frags, size, &placement.shifts, style.align == "justify", units);
     fragment_boxes(block, &frags, page_idx, &style, &placement.extra, &inner, units)
 }
 
@@ -595,8 +656,10 @@ fn line_placement(block: &Block, frags: &[Fragment], lead: f32) -> LinePlacement
 
 /// The lines of a flowing block, each kept on a line of its own, with their
 /// indent within the fragment, the width they must have and how far they
-/// are moved down (`shifts`, see [`line_placement`]).
-fn flow_lines(block: &Block, frags: &[Fragment], size: f32, shifts: &[f32], units: &Units) -> String {
+/// are moved down (`shifts`, see [`line_placement`]). When the block is
+/// `justified`, its full lines are marked `data-j`: only those may be
+/// fitted to their width by stretching the word spaces.
+fn flow_lines(block: &Block, frags: &[Fragment], size: f32, shifts: &[f32], justified: bool, units: &Units) -> String {
     let mut inner = String::new();
     for (frag_idx, frag) in frags.iter().enumerate() {
         let range = frag.start..frag.end;
@@ -611,11 +674,13 @@ fn flow_lines(block: &Block, frags: &[Fragment], size: f32, shifts: &[f32], unit
                 style.push_str(&format!(";top:{}", units.len(shift)));
             }
             let last = frag_idx + 1 == frags.len() && i + 1 == frag.end;
+            let full = justified && (frag.x1 - line.bbox.x1).abs() < FULL_LINE_TOLERANCE_PT;
             inner.push_str(&format!(
-                "<span class=\"ln{}{}\" style=\"{style}\" data-w=\"{}\">{html}</span>{}",
+                "<span class=\"ln{}{}\" style=\"{style}\" data-w=\"{}\"{}>{html}</span>{}",
                 if hline.soft_hyphen { " hy" } else { "" },
                 if last { " end" } else { "" },
                 units.width_attr(line.bbox.width()),
+                if full { " data-j=\"1\"" } else { "" },
                 if trailing { " " } else { "" },
             ));
         }
@@ -733,6 +798,22 @@ fn fragment_boxes(
         extra_before += extra[frag_idx];
     }
     out
+}
+
+/// Whether the rebuilt `table` can be laid out inside its region: the rows
+/// of a table are as tall as the bands found in the PDF, and a band thinner
+/// than a line of text would grow and push the table over what lies below.
+/// That happens when cells of different columns that are centred on each
+/// other were read as rows of their own.
+fn table_fits(table: &Table) -> bool {
+    let geom = &table.geom;
+    let needed = TABLE_MIN_ROW_EM * geom.size;
+    let growth: f32 = geom
+        .row_bounds
+        .windows(2)
+        .map(|rows| (needed - (rows[1] - rows[0])).max(0.0))
+        .sum();
+    growth <= TABLE_MAX_GROWTH_RATIO * geom.bbox.height().max(1.0)
 }
 
 /// A reconstructed table laid out on its original grid.

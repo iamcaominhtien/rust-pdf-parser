@@ -18,6 +18,12 @@ const MAX_SLUG_CHARS: usize = 48;
 /// glyphs still produce a positioned box.
 const MIN_RUN_WIDTH_PT: f32 = 0.1;
 
+/// Vertical bars of formulas (absolute value, norm, "such that"). TeX builds
+/// the tall ones from pieces of an extension font; each piece is drawn on its
+/// own, fitted to the box its ink has in the PDF, because a bar of a text
+/// font is as tall as the font says, whatever the piece it stands for.
+const BAR_GLYPHS: [&str; 4] = ["|", "\u{2223}", "\u{2225}", "\u{2016}"];
+
 /// Tuning parameters of text building. Part of [`SemanticsConfig`](super::SemanticsConfig).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TextConfig {
@@ -295,12 +301,14 @@ impl TextBuilder<'_> {
     }
 
     /// Whether a formula glyph is drawn on its own: much taller than the
-    /// font size, centred far from the math axis, or a radical sign.
+    /// font size, centred far from the math axis, a radical sign or a
+    /// vertical bar ([`BAR_GLYPHS`]).
     fn stands_alone(&self, glyph: &LineGlyph) -> bool {
         let axis = glyph.oy - self.cfg.math_axis_height_em * glyph.size;
         glyph.ink.height() > self.cfg.tall_glyph_min_height_em * glyph.size
             || (glyph.ink.cy() - axis).abs() > self.cfg.off_axis_min_offset_em * glyph.size
             || glyph.text == "\u{221A}"
+            || BAR_GLYPHS.contains(&glyph.text.as_str())
     }
 
     /// Whether `glyph` continues the open run: same font, size, baseline and

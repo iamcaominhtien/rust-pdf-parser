@@ -60,6 +60,9 @@ const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     subscript_min_drop_em: 0.07,
     row_script_max_size_ratio: 0.9,
     space_gap_em: 0.14,
+    tight_space_gap_em: 0.085,
+    tight_space_min_count: 3,
+    tight_space_ratio: 3.0,
     space_lookback_count: 3,
     line_box_ascent_em: 0.75,
     line_box_descent_em: 0.25,
@@ -205,6 +208,19 @@ pub struct LinesConfig {
     /// A gap between glyphs wider than this (in font sizes) is a word space.
     /// About half the width of a typical interword space.
     pub space_gap_em: f32,
+    /// A tightly set justified line shrinks its word spaces below
+    /// [`space_gap_em`](Self::space_gap_em); a gap wider than this (in font
+    /// sizes) still is a word space if it is also wider than
+    /// [`tight_space_ratio`](Self::tight_space_ratio) times the usual gap
+    /// between neighbouring glyphs of the line (letter-spaced text has
+    /// wider gaps everywhere and is left alone).
+    pub tight_space_gap_em: f32,
+    /// Fewest tight word gaps a line needs before they count as spaces (see
+    /// [`tight_space_gap_em`](Self::tight_space_gap_em)).
+    pub tight_space_min_count: usize,
+    /// How many times wider than the median gap between neighbouring glyphs
+    /// of its line a gap must be to count as a tight word space.
+    pub tight_space_ratio: f32,
     /// How many preceding glyphs are considered for the right edge from which
     /// a gap is measured (overlapping accents and stacked scripts).
     pub space_lookback_count: usize,
@@ -773,8 +789,19 @@ fn finalize(page: usize, mut segment: Segment, cfg: &LinesConfig) -> Line {
 /// Sets `space_before` on every glyph (sorted left to right) that follows a
 /// gap wider than a word space. Between two scripts the gap is measured
 /// against the larger script size, otherwise against the line size `size`.
+///
+/// A line set tightly (justified text with shrunk spaces) has word gaps
+/// between [`LinesConfig::tight_space_gap_em`] and
+/// [`LinesConfig::space_gap_em`]. They count as spaces when the line has at
+/// least [`LinesConfig::tight_space_min_count`] of them and each is well
+/// above the usual gap between the letters of the line; a single such gap
+/// in a line of normal spaces is kerning (math italics, "WH").
 fn mark_spaces(glyphs: &mut [LineGlyph], size: f32, cfg: &LinesConfig) {
     let n = glyphs.len();
+    let usual_gap = median_glyph_gap(glyphs).max(0.0);
+    // The gap before each glyph (index 0 has none) and the font size it is
+    // measured against.
+    let mut gaps: Vec<(f32, f32)> = vec![(f32::NEG_INFINITY, size); n];
     for i in 1..n {
         let (prev, cur) = (&glyphs[i - 1], &glyphs[i]);
         let reference = if prev.script != 0 && cur.script != 0 {
@@ -790,13 +817,43 @@ fn mark_spaces(glyphs: &mut [LineGlyph], size: f32, cfg: &LinesConfig) {
             .take(cfg.space_lookback_count)
             .map(|glyph| glyph.x1)
             .fold(f32::NEG_INFINITY, f32::max);
-        let gap = cur.x0 - right.max(prev.x1);
-        let space = gap > cfg.space_gap_em * reference;
-        glyphs[i].space_before = space;
+        gaps[i] = (cur.x0 - right.max(prev.x1), reference);
+    }
+    let is_tight = |&(gap, reference): &(f32, f32)| {
+        gap > cfg.tight_space_gap_em * reference
+            && gap <= cfg.space_gap_em * reference
+            && gap > cfg.tight_space_ratio * usual_gap
+    };
+    // A tight word space lies between two letters of the same script, and
+    // its neighbours are no gaps: runs of gaps are letter-spaced text or
+    // monospaced code.
+    let tight: Vec<bool> = (0..n)
+        .map(|i| {
+            i > 0
+                && is_tight(&gaps[i])
+                && glyphs[i].script == 0
+                && glyphs[i - 1].script == 0
+                && !(i > 1 && is_tight(&gaps[i - 1]))
+                && !(i + 1 < n && is_tight(&gaps[i + 1]))
+        })
+        .collect();
+    let tight_spaces = tight.iter().filter(|&&is_space| is_space).count() >= cfg.tight_space_min_count;
+    for (i, glyph) in glyphs.iter_mut().enumerate() {
+        glyph.space_before = gaps[i].0 > cfg.space_gap_em * gaps[i].1 || (tight_spaces && tight[i]);
     }
     if let Some(glyph) = glyphs.first_mut() {
         glyph.space_before = false;
     }
+}
+
+/// The median gap between neighbouring glyphs of a line (in points; negative
+/// when they overlap), the usual spacing of its letters. Gaps are measured
+/// between the boxes of consecutive glyphs in the order given. 0 for a line
+/// of fewer than two glyphs.
+fn median_glyph_gap(glyphs: &[LineGlyph]) -> f32 {
+    let mut gaps: Vec<f32> = glyphs.windows(2).map(|pair| pair[1].x0 - pair[0].x1).collect();
+    gaps.sort_by(f32::total_cmp);
+    gaps.get(gaps.len() / 2).copied().unwrap_or(0.0)
 }
 
 /// Merges segments that share a baseline and are separated by less than

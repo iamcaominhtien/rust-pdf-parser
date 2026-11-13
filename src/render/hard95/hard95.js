@@ -3,22 +3,100 @@
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
   function deepest(el){var e=el;while(e.firstElementChild)e=e.firstElementChild;return e;}
 
-  // Give a line of text exactly the width it has in the PDF by adjusting
-  // the space between words (and, if needed, between letters).
+  // Give a line of text the width it has in the PDF. The fonts of the page
+  // are rarely the fonts of the PDF, so the natural width of a line differs
+  // from its target by a few percent (more for Computer Modern or sans
+  // fonts), and the difference is shared out like this:
+  //  - a line wider than its target is set in a slightly smaller type (down
+  //    to FIT_MIN_SCALE), so that letters never run into each other and the
+  //    word spaces stay open;
+  //  - a line narrower than its target gets a little letter spacing (the
+  //    font is narrower all through), and only the lines the PDF justifies
+  //    (data-j) stretch their word spaces for the rest. Centred and ragged
+  //    lines have the word spaces of the font, never huge gaps.
+  // Letter spacing is added after every letter, the last one included.
   // Rotated text is measured along its own baseline.
-  function measure(el){el.style.wordSpacing='';el.style.letterSpacing='';return el.classList.contains('rt')?el.offsetWidth:el.getBoundingClientRect().width;}
-  function apply(el,natural,pageW,fs){
-    var target=parseFloat(el.dataset.w)/100*pageW;
-    if(!(target>0)||!(natural>0)||!(fs>0))return;
-    var d=target-natural,txt=el.textContent,gaps=(txt.match(/ /g)||[]).length,ws=0;
-    if(gaps>0){ws=clamp(d/gaps,-0.14*fs,0.7*fs);el.style.wordSpacing=(ws/fs).toFixed(4)+'em';d-=ws*gaps;}
-    var n=Array.from(txt).length;
-    if(Math.abs(d)>0.3&&n>1){var ls=clamp(d/(n-1),-0.12*fs,0.25*fs);el.style.letterSpacing=(ls/fs).toFixed(4)+'em';}
+  // Combining marks (a tilde over a letter) take no spacing of their own and
+  // are not counted as letters.
+  var FIT_MIN_SCALE=0.88,   // smallest type scale used to narrow a line
+      FIT_SHRINK_FROM=0.985,// lines at most this much too wide still keep their size
+      WS_MIN=-0.06,         // word spacing range of a justified line, in em
+      WS_MAX=0.7,
+      WS_RAGGED_MAX=0.3,    // largest extra word space of a line that is not justified
+      LS_MIN=-0.02,         // letter spacing range, in em
+      LS_MAX=0.15,
+      LS_JUSTIFIED_MAX=0.06;// letter spacing for a font that is narrower all through, in justified lines
+  function width(el){return el.classList.contains('rt')?el.offsetWidth:el.getBoundingClientRect().width;}
+  function measure(el){el.style.wordSpacing='';el.style.letterSpacing='';return width(el);}
+  // Sets the type of a line to `k` times the size it has in the page.
+  function scaleType(el,k){
+    if(el.dataset.fs0===undefined)el.dataset.fs0=el.style.fontSize;
+    var orig=el.dataset.fs0;
+    if(k>=1)el.style.fontSize=orig;
+    else el.style.fontSize=orig?'calc('+orig+' * '+k.toFixed(4)+')':(k*100).toFixed(2)+'%';
   }
   function fitAll(els,pageW){
-    var data=[],i;
-    for(i=0;i<els.length;i++)data.push([els[i],measure(els[i]),parseFloat(getComputedStyle(els[i]).fontSize)]);
-    for(i=0;i<data.length;i++)apply(data[i][0],data[i][1],pageW,data[i][2]);
+    var items=[],i;
+    for(i=0;i<els.length;i++){
+      var el=els[i],target=parseFloat(el.dataset.w)/100*pageW;
+      if(!(target>0))continue;
+      scaleType(el,1);
+      var nat=measure(el);
+      if(nat>0)items.push({el:el,target:target,nat:nat,just:el.dataset.j==='1'});
+    }
+    // The ratio target/natural of the tightest justified lines of the group
+    // is the difference of the fonts; the other lines only stretch from it.
+    var rs=items.filter(function(it){return it.just;}).map(function(it){return it.target/it.nat;}).sort(function(a,b){return a-b;});
+    var base=rs.length>=3?rs[Math.floor(rs.length*0.15)]:null;
+    items.forEach(function(it){apply(it,base);});
+  }
+  function apply(it,base){
+    var el=it.el,fs=parseFloat(getComputedStyle(el).fontSize),target=it.target,nat=it.nat;
+    var ratio=it.just&&base!==null?base:target/nat;
+    if(ratio<FIT_SHRINK_FROM){
+      var k=Math.max(ratio,FIT_MIN_SCALE);
+      scaleType(el,k);
+      nat=measure(el);fs=parseFloat(getComputedStyle(el).fontSize);
+    }
+    var d=target-nat,txt=el.textContent,gaps=(txt.match(/ /g)||[]).length,n=Array.from(txt.replace(/[\u0300-\u036f\u20d0-\u20ff\ufe00-\ufe0f]/g,'')).length,ws=0,ls=0;
+    if(it.just){
+      if(base!==null&&base>1&&n>1){ls=clamp((base-1)*nat/n,0,LS_JUSTIFIED_MAX*fs);d-=ls*n;}
+      if(gaps>0){ws=clamp(d/gaps,WS_MIN*fs,WS_MAX*fs);d-=ws*gaps;}
+      if(Math.abs(d)>0.3&&n>1){ls+=clamp(d/n,LS_MIN*fs,LS_MAX*fs);}
+    }else{
+      if(Math.abs(d)>0.3&&n>1){ls=clamp(d/n,LS_MIN*fs,LS_MAX*fs);d-=ls*n;}
+      if(gaps>0&&Math.abs(d)>0.3){ws=clamp(d/gaps,WS_MIN*fs,WS_RAGGED_MAX*fs);}
+    }
+    function set(){
+      if(ws)el.style.wordSpacing=(ws/fs).toFixed(4)+'em';
+      if(ls)el.style.letterSpacing=(ls/fs).toFixed(4)+'em';
+    }
+    set();
+    // One correction from the width really obtained: letters that are
+    // spaced as a cluster and glyphs of other fonts do not add up exactly.
+    var rest=target-width(el);
+    if(Math.abs(rest)>0.3){
+      if(it.just&&gaps>0)ws=clamp(ws+rest/gaps,WS_MIN*fs,WS_MAX*fs);
+      else if(n>1)ls=clamp(ls+rest/n,LS_MIN*fs,LS_MAX*fs);
+      set();
+    }
+  }
+
+  // A rebuilt table whose rows turned out taller than its region (fonts with
+  // taller lines than the PDF's) is scaled down to fit the region, so that it
+  // never runs over the text below it.
+  var TABLE_OVERFLOW=1.03;
+  function fitTable(tb){
+    var t=tb.firstElementChild;
+    if(!t)return;
+    t.style.transform='';t.style.width='';
+    var box=tb.getBoundingClientRect().height,h=t.getBoundingClientRect().height;
+    if(box>0&&h>box*TABLE_OVERFLOW){
+      var k=box/h;
+      t.style.width=(100/k).toFixed(3)+'%';
+      t.style.transformOrigin='0 0';
+      t.style.transform='scale('+k.toFixed(4)+')';
+    }
   }
 
   // Distance of the baseline of an element from the top of the viewport,
@@ -54,7 +132,7 @@
     fitAll(lines,w);
     clonesOf(fb).forEach(function(c){
       var cl=c.querySelectorAll('.ln');
-      for(var i=0;i<cl.length&&i<lines.length;i++){cl[i].style.wordSpacing=lines[i].style.wordSpacing;cl[i].style.letterSpacing=lines[i].style.letterSpacing;}
+      for(var i=0;i<cl.length&&i<lines.length;i++){cl[i].style.wordSpacing=lines[i].style.wordSpacing;cl[i].style.letterSpacing=lines[i].style.letterSpacing;cl[i].style.fontSize=lines[i].style.fontSize;}
     });
     original.set(fb,fb.textContent);
   }
@@ -66,6 +144,7 @@
       else fitBlock(fb);
     });
     fitAll(page.querySelectorAll('.pl, .rt, .g:not([data-ink])'),pr.width);
+    page.querySelectorAll('.tb').forEach(fitTable);
     page.querySelectorAll('.g[data-ink]').forEach(function(g){fitInk(g,pr);});
   }
 
@@ -75,6 +154,7 @@
     busy=true;
     var inner=fb.firstElementChild,boxes=[fb].concat([].slice.call(clonesOf(fb))),total=0;
     boxes.forEach(function(b){b.classList.add('rf');total+=b.getBoundingClientRect().height;});
+    fb.querySelectorAll('.ln[data-fs0]').forEach(function(l){l.style.fontSize=l.dataset.fs0;});
     var lh=parseFloat(getComputedStyle(fb).lineHeight)||0,scale=1;
     inner.style.fontSize='';
     while(scale>0.62&&inner.scrollHeight>total+lh*0.3){scale-=0.03;inner.style.fontSize=Math.round(scale*100)+'%';}
@@ -88,7 +168,7 @@
       var n=r.target.nodeType===1?r.target:r.target.parentElement;if(!n||!n.closest)return;
       var fb=n.closest('.fb');if(fb&&!fb.classList.contains('cont'))changed.add(fb);
       var tb=n.closest('.tb');if(tb)tb.classList.add('rf');
-      var pl=n.closest('.pl');if(pl){pl.style.wordSpacing='';pl.style.letterSpacing='';}
+      var pl=n.closest('.pl');if(pl){pl.style.wordSpacing='';pl.style.letterSpacing='';if(pl.dataset.fs0!==undefined)pl.style.fontSize=pl.dataset.fs0;}
     });
     changed.forEach(function(fb){if(original.has(fb)&&fb.textContent!==original.get(fb))reflow(fb);});
   });

@@ -2122,7 +2122,12 @@ fn inner_rules(page: &PageData, region: &Rect, cfg: &FloatsConfig) -> (Vec<(Rect
     let inside = |rect: &Rect| region.contains_point(rect.cx(), rect.cy());
     let mut complex = page.images.iter().any(|image| region.intersects(&image.bbox));
     let mut other = 0;
-    for path in page.paths.iter().filter(|path| inside(&path.bbox)) {
+    for path in page
+        .paths
+        .iter()
+        .chain(&page.pixel_rules)
+        .filter(|path| inside(&path.bbox))
+    {
         let white_fill = path.filled && !path.stroked && path.is_white();
         if path.is_hrule() && path.bbox.width() >= cfg.inner_rule_min_pt && !white_fill {
             hrules.push((path.bbox, path.line_width.max(path.bbox.height())));

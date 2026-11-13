@@ -9,7 +9,8 @@
 //  - the contents column can be hidden (remembered) and opens as a drawer
 //    on phones;
 //  - book view: pages are laid out, the buttons and keys turn them, a page
-//    turn takes its time and ends, the article returns to the scroll view,
+//    turn takes its time and ends, the page count covers the text once all
+//    images have loaded, the article returns to the scroll view,
 //    and a translated (longer) text is paginated again.
 //
 // usage: node tests/browser/check-friendly.js file.friendly.html [...]
@@ -91,6 +92,19 @@ async function book(browser, file) {
   const { context, page, errors } = await open(browser, file, { viewport: { width: 1440, height: 900 } }, { 'p2h-sound': 'off' });
   await page.evaluate(() => document.querySelector('[data-view-pick="book"]').click());
   await page.waitForTimeout(300);
+  // Every image loads (none waits for its page) and the page count then
+  // covers the whole text: the last column is on the last page.
+  await page
+    .waitForFunction(() => [...document.querySelectorAll('.bk-window img')].every((img) => img.complete), null, { timeout: 10000 })
+    .catch(() => {});
+  await page.waitForTimeout(500);
+  const unloaded = await page.evaluate(() => [...document.querySelectorAll('.bk-window img')].filter((img) => !img.complete).length);
+  const fit = await page.evaluate(() => {
+    const art = document.querySelector('.bk-window > article');
+    const cs = getComputedStyle(art);
+    const step = parseFloat(cs.columnWidth) + parseFloat(cs.columnGap);
+    return [Math.round((art.scrollWidth + parseFloat(cs.columnGap)) / step), window.p2hBook.state().pages];
+  });
   const state = await page.evaluate(() => window.p2hBook.state());
   const first = await page.textContent('.bk-count');
   await page.evaluate(() => document.querySelector('.bk-row .bk-nav.next').click());
@@ -116,7 +130,7 @@ async function book(browser, file) {
     document.querySelector('.layout > article') !== null,
   ]);
   await context.close();
-  return { state, first, midTurn, second, third, translated, back, errors };
+  return { state, fit, unloaded, first, midTurn, second, third, translated, back, errors };
 }
 
 (async () => {
@@ -147,6 +161,8 @@ async function book(browser, file) {
       fail(file, `contents toggle: ${JSON.stringify(toc)}`);
     if (!toc.drawer || !toc.closed) fail(file, 'contents drawer did not open and close on a phone');
     if (!bk.state.active || bk.state.pages < 2) fail(file, `book view not laid out: ${JSON.stringify(bk.state)}`);
+    if (bk.unloaded) fail(file, `${bk.unloaded} images not loaded in book view`);
+    if (bk.fit[0] !== bk.fit[1]) fail(file, `book page count ${bk.fit[1]} does not match the text (${bk.fit[0]} columns)`);
     if (!bk.midTurn) fail(file, 'the page turn is not animated');
     if (bk.first === bk.second || bk.second === bk.third) fail(file, `pages do not turn: ${bk.first}, ${bk.second}, ${bk.third}`);
     if (!(bk.translated.pages > bk.state.pages)) fail(file, 'longer text was not paginated again');

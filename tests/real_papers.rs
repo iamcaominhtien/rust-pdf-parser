@@ -22,7 +22,7 @@
 //! diff then shows which papers and modes changed. For papers whose licence
 //! allows it the full JSON is kept too, so `git diff` shows what changed.
 
-use paper2html::model::{BlockKind, Span};
+use paper2html::model::{BlockKind, FloatKind, Span};
 use paper2html::{AnalyzeOptions, HtmlOptions, Mode, Paper};
 use regex::Regex;
 use sha2::{Digest, Sha256};
@@ -480,6 +480,32 @@ fn adam_algorithms_are_text() {
     assert!(html.contains("<div class=\"ln req\"><i></i><div class=\"st in0\"><span><strong>Require: </strong>"));
     assert!(html.contains("<div class=\"st in1\"><span><em>t </em>← <em>t </em>+ 1</span>"));
     assert!(!html.contains("alt=\"Algorithm 1"), "no picture of the algorithm");
+}
+
+/// The appendix of the Adam paper stacks fractions of the same width in
+/// several equations: their bars are not the rules of a table, so no
+/// picture is cut out of the text. A wrapped "T ≥ 1." stays in its
+/// paragraph instead of joining the display below it.
+#[test]
+fn adam_fraction_bars_are_not_tables() {
+    let Some(paper) = load("1412.6980v9") else { return };
+    let analysis = paper.analyze();
+    let graphics: Vec<usize> = analysis
+        .doc
+        .blocks
+        .iter()
+        .filter(|block| matches!(block.kind, BlockKind::Figure { kind: FloatKind::Graphic, .. }))
+        .map(|block| block.page + 1)
+        .collect();
+    assert!(graphics.is_empty(), "graphics cut out of equations on pages {graphics:?}");
+    let corollary = analysis
+        .doc
+        .blocks
+        .iter()
+        .map(|block| plain(&block.spans))
+        .find(|text| text.starts_with("Corollary 4.2."))
+        .expect("Corollary 4.2");
+    assert!(corollary.trim_end().ends_with("T ≥ 1."), "{corollary}");
 }
 
 /// The output does not depend on the number of threads (on a real paper).

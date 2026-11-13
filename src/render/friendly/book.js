@@ -362,8 +362,18 @@
     (window.requestIdleCallback||function(f){return setTimeout(f,200);})(function(){if(active&&!busy)ensureReplicas();});
     if(P.syncToggle)P.syncToggle();
     syncButtons();view.focus({preventScroll:true});
-    if(!observer){observer=new MutationObserver(function(){stale=true;clearTimeout(observer.t);observer.t=setTimeout(function(){if(active&&!busy)repaginate();},300);});}
+    if(!observer){
+      observer=new MutationObserver(function(){repaginateSoon(300);});
+      // Images have no height until they load, and lazy ones load only near the
+      // viewport: load them all now and lay the pages out again as they arrive.
+      article.addEventListener('load',function(e){if(e.target.tagName==='IMG')repaginateSoon(150);},true);
+    }
+    [].forEach.call(article.querySelectorAll('img[loading="lazy"]'),function(img){img.loading='eager';});
     observer.observe(article,{subtree:true,childList:true,characterData:true});
+  }
+  function repaginateSoon(ms){
+    stale=true;clearTimeout(repaginateSoon.t);
+    repaginateSoon.t=setTimeout(function(){if(!active)return;if(busy)repaginateSoon(ms);else repaginate();},ms);
   }
   function leave(){
     if(!active)return;

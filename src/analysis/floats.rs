@@ -242,6 +242,11 @@ pub struct FloatsConfig {
     pub graphic_min_rules_count: usize,
     /// Uncaptioned graphics within this distance of each other are merged.
     pub graphic_merge_pt: f32,
+    /// A horizontal rule whose middle lies within a text line, at least this
+    /// fraction of the line's height away from its top and bottom, and with
+    /// text of that line beside it, is part of the text (a fraction bar, an
+    /// overline): not a table rule or a drawing.
+    pub inline_rule_band_ratio: f32,
 
     // --- tables without graphics ---
     /// A line with at least this many characters ...
@@ -407,6 +412,7 @@ impl Default for FloatsConfig {
             graphic_min_height_pt: 40.0,
             graphic_min_rules_count: 3,
             graphic_merge_pt: 8.0,
+            inline_rule_band_ratio: 0.2,
             fallback_prose_min_chars: 50,
             fallback_prose_width_ratio: 0.8,
             fallback_prose_min_width_pt: 150.0,
@@ -1073,6 +1079,9 @@ fn graphic_elements(page: &PageData, cfg: &FloatsConfig) -> Vec<GraphicElement> 
         if path.color[3] < cfg.min_path_alpha {
             continue;
         }
+        if path.is_hrule() && inline_rule(page, &path.bbox, cfg) {
+            continue;
+        }
         elements.push(GraphicElement {
             bbox: path.bbox,
             image: false,
@@ -1080,6 +1089,35 @@ fn graphic_elements(page: &PageData, cfg: &FloatsConfig) -> Vec<GraphicElement> 
         });
     }
     elements
+}
+
+/// Whether a horizontal rule is a fraction bar in an equation
+/// ("R(T) ≤ D²/2α …"): its middle is inside a line of text that goes on to
+/// its left or right, and a numerator and a denominator sit right above and
+/// below it, within its width. Table rules sit between rows with nothing
+/// running through them; chart gridlines have labels beside them but no
+/// text stacked on them.
+fn inline_rule(page: &PageData, rule: &Rect, cfg: &FloatsConfig) -> bool {
+    let cy = rule.cy();
+    let through = page.lines.iter().any(|line| {
+        let b = &line.bbox;
+        let band = cfg.inline_rule_band_ratio * b.height();
+        let beside = b.x0 < rule.x0 - line.size || b.x1 > rule.x1 + line.size;
+        let near = b.x0 <= rule.x1 + line.size && b.x1 >= rule.x0 - line.size;
+        cy > b.y0 + band && cy < b.y1 - band && beside && near
+    });
+    // Glyphs, not lines: numerators of several fractions on one baseline
+    // make one wide line.
+    let stacked = |above: bool| {
+        page.lines.iter().any(|line| {
+            line.glyphs.iter().any(|glyph| {
+                let ink = &glyph.ink;
+                let gap = if above { cy - ink.y1 } else { ink.y0 - cy };
+                !ink.is_unset() && ink.cx() > rule.x0 && ink.cx() < rule.x1 && gap > 0.0 && gap < line.size
+            })
+        })
+    };
+    through && stacked(true) && stacked(false)
 }
 
 /// Groups of horizontal rules with the same extent: tables set with booktabs
@@ -1094,6 +1132,7 @@ fn rule_tables(page: &PageData, captions: &[Caption], cfg: &FloatsConfig) -> Vec
             path.is_hrule()
                 && path.bbox.width() >= cfg.booktabs_min_rule_width_pt
                 && !(path.filled && !path.stroked && path.is_white())
+                && !inline_rule(page, &path.bbox, cfg)
         })
         .map(|path| path.bbox)
         .collect();

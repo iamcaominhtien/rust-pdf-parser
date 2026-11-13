@@ -116,6 +116,13 @@ pub struct BlocksConfig {
     pub weak_max_chars: usize,
     /// ... and at most this fraction of prose.
     pub weak_max_prose_ratio: f32,
+    /// An indented row of at most this many characters and no prose (a
+    /// numerator such as "1", a limit) is a weak candidate too.
+    pub weak_tiny_max_chars: usize,
+    /// A weak candidate indented by less than this many sizes, right below
+    /// a prose row, is the wrapped end of that paragraph: it is not
+    /// promoted.
+    pub weak_flush_max_indent_em: f32,
     /// Without a relation sign, a weak candidate has at least this fraction
     /// of math characters ...
     pub weak_min_math_ratio: f32,
@@ -216,6 +223,8 @@ impl Default for BlocksConfig {
             weak_min_margin_em: 1.2,
             weak_max_chars: 110,
             weak_max_prose_ratio: 0.85,
+            weak_tiny_max_chars: 3,
+            weak_flush_max_indent_em: 0.5,
             weak_min_math_ratio: 0.2,
             weak_math_max_prose_ratio: 0.3,
             promote_max_gap_leading: 0.9,
@@ -340,7 +349,9 @@ struct RowDraft {
 /// A text row that is not an equation on its own but looks like part of
 /// one: its lines and ink extent. It is promoted when it sits next to an
 /// equation row.
-type WeakEquation = (Vec<Line>, Rect);
+/// A weak equation candidate: its lines, its ink, and whether it is flush
+/// with the left edge of the leaf.
+type WeakEquation = (Vec<Line>, Rect, bool);
 
 /// The horizontal extent of the text of a leaf.
 struct LeafExtent {
@@ -747,7 +758,7 @@ fn classify_text_row(
 ) -> (Row, Option<WeakEquation>) {
     lines.sort_by(|a, b| a.bbox.x0.total_cmp(&b.bbox.x0));
     let number = equation_number(&lines, extent, ctx.stats, ctx.cfg);
-    let (is_eq, weak_eq, ink) = {
+    let (is_eq, weak_eq, ink, flush) = {
         let content: Vec<&Line> = if number.is_some() {
             lines[..lines.len() - 1].iter().collect()
         } else {
@@ -758,8 +769,9 @@ fn classify_text_row(
         // A formula-like line that did not qualify on its own; it is
         // promoted later if it sits right next to an equation row.
         let weak_eq = !is_eq && weak_equation(&features, ctx.cfg);
+        let flush = features.left_indent < ctx.cfg.weak_flush_max_indent_em * features.em;
         let ink = content.iter().fold(Rect::EMPTY, |acc, line| acc.union(&line.ink));
-        (is_eq, weak_eq, ink)
+        (is_eq, weak_eq, ink, flush)
     };
     if is_eq {
         let number_line = if number.is_some() { lines.pop() } else { None };
@@ -771,7 +783,7 @@ fn classify_text_row(
         };
         (row, None)
     } else {
-        let weak = weak_eq.then_some((lines.clone(), ink));
+        let weak = weak_eq.then_some((lines.clone(), ink, flush));
         (Row::Text(merge_row(ctx.page.index, lines, ctx.lines_cfg)), weak)
     }
 }
@@ -872,7 +884,8 @@ fn stacked_formula(row: &RowFeatures, cfg: &BlocksConfig) -> bool {
 
 /// Whether a row that is not an equation on its own looks like one line of
 /// a multi-line display: an indented short row with a relation sign, or a
-/// row with a fair amount of math and little prose.
+/// row with a fair amount of math and little prose, or a tiny indented row
+/// without prose (the numerator of a fraction).
 fn weak_equation(row: &RowFeatures, cfg: &BlocksConfig) -> bool {
     (row.has_relation
         && row.left_indent >= cfg.weak_min_margin_em * row.em
@@ -880,6 +893,10 @@ fn weak_equation(row: &RowFeatures, cfg: &BlocksConfig) -> bool {
         && row.n_chars <= cfg.weak_max_chars
         && row.prose_frac <= cfg.weak_max_prose_ratio)
         || (row.math_frac >= cfg.weak_min_math_ratio && row.prose_frac <= cfg.weak_math_max_prose_ratio)
+        || (row.n_chars <= cfg.weak_tiny_max_chars
+            && row.prose_frac == 0.0
+            && row.left_indent >= cfg.weak_min_margin_em * row.em
+            && row.right_slack >= cfg.weak_min_margin_em * row.em)
 }
 
 /// Promotes weak candidates adjacent to an equation (lines of a multi-line
@@ -889,7 +906,12 @@ fn promote_weak_equations(rows: &mut [Row], weak: &mut [Option<WeakEquation>], s
     loop {
         let mut changed = false;
         for i in 0..rows.len() {
-            let Some((_, ink)) = &weak[i] else { continue };
+            let Some((_, ink, flush)) = &weak[i] else { continue };
+            // A flush-left row right below prose is the wrapped end of that
+            // paragraph ("… for all / T ≥ 1."), not a line of the display.
+            if *flush && i > 0 && matches!(rows[i - 1], Row::Text(_)) && weak[i - 1].is_none() {
+                continue;
+            }
             let near = |j: usize| match &rows[j] {
                 Row::Equation { bbox, .. } => {
                     let gap = if bbox.cy() < ink.cy() {
@@ -902,7 +924,7 @@ fn promote_weak_equations(rows: &mut [Row], weak: &mut [Option<WeakEquation>], s
                 _ => false,
             };
             if (i > 0 && near(i - 1)) || (i + 1 < rows.len() && near(i + 1)) {
-                let (lines, bbox) = weak[i].take().unwrap();
+                let (lines, bbox, _) = weak[i].take().unwrap();
                 rows[i] = Row::Equation {
                     lines,
                     bbox,

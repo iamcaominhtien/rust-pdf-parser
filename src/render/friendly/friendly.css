@@ -366,6 +366,8 @@ article>*{grid-column:text;min-width:0}
 .bk-window pre.listing{max-height:calc(var(--th) - 5rem);overflow:auto}
 .bk-window aside.footnote.side{position:relative;grid-column:auto;width:auto;top:auto!important}
 .bk-window .colophon{margin-top:var(--s6)}
+/* The page edge clips: the hover bleed of reference entries stays inside the text block. */
+.bk-window ol.refs li{margin:0;padding-left:2.6em;padding-right:0}
 .bk-turn{position:absolute;inset:0;pointer-events:none;z-index:3}
 .bk-turn[hidden]{display:none}
 .bk-turn>*{position:absolute;inset:0}

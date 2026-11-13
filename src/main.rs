@@ -1,12 +1,39 @@
+//! The `paper2html` command line: parses the arguments and calls the
+//! library. `convert` turns a PDF into HTML (and JSON), `fetch` downloads an
+//! arXiv PDF and `inspect` prints the detected structure for debugging.
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
+
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand, ValueEnum};
-use paper2html::model::BlockKind;
+use paper2html::analysis::pipeline::Analysis;
+use paper2html::model::{Block, BlockKind, Loc};
 use paper2html::source::arxiv;
 use paper2html::{AnalyzeOptions, HtmlOptions, Mode, PageImage, Paper};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+/// `--scale` must be larger than this (pixels per PDF point): smaller images
+/// are unreadable.
+const MIN_SCALE: f32 = 0.2;
+/// Largest accepted `--scale` (pixels per PDF point): larger images only
+/// waste space.
+const MAX_SCALE: f32 = 8.0;
+/// `inspect` shortens block texts longer than this many characters.
+const INSPECT_MAX_CHARS: usize = 150;
+/// Characters kept from the start of a shortened block text.
+const INSPECT_HEAD_CHARS: usize = 95;
+/// Characters kept from the end of a shortened block text.
+const INSPECT_TAIL_CHARS: usize = 45;
+/// Bytes per megabyte, for the size report.
+const BYTES_PER_MB: f64 = 1e6;
+
+/// Command-line arguments.
 #[derive(Parser)]
 #[command(
     name = "paper2html",
@@ -14,10 +41,13 @@ use std::time::Instant;
     about = "Convert scientific-paper PDFs (arXiv) into clean, readable HTML"
 )]
 struct Cli {
+    /// The subcommand to run.
     #[command(subcommand)]
     command: Command,
 }
 
+/// The subcommands. The doc comments of the variants and their fields are
+/// the help texts.
 #[derive(Subcommand)]
 enum Command {
     /// Convert a PDF (local file, arXiv id or arXiv URL) to HTML.
@@ -37,6 +67,7 @@ enum Command {
     },
 }
 
+/// Values of `--mode`; the doc comments are the help texts.
 #[derive(Clone, Copy, ValueEnum)]
 enum ModeArg {
     /// Facsimile of every page with a selectable text layer
@@ -51,8 +82,8 @@ enum ModeArg {
 }
 
 impl From<ModeArg> for Mode {
-    fn from(m: ModeArg) -> Self {
-        match m {
+    fn from(arg: ModeArg) -> Self {
+        match arg {
             ModeArg::Hard => Mode::Hard,
             ModeArg::Hard95 => Mode::Hard95,
             ModeArg::Medium => Mode::Medium,
@@ -61,6 +92,7 @@ impl From<ModeArg> for Mode {
     }
 }
 
+/// Values of `--images`; the doc comments are the help texts.
 #[derive(Clone, Copy, ValueEnum, PartialEq)]
 enum ImagesArg {
     /// Embed images in the HTML file (one self-contained file)
@@ -69,6 +101,7 @@ enum ImagesArg {
     Files,
 }
 
+/// Values of `--tables`; the doc comments are the help texts.
 #[derive(Clone, Copy, ValueEnum, PartialEq)]
 enum TablesArg {
     /// Rebuild tables as real HTML tables where their structure is clear
@@ -77,12 +110,21 @@ enum TablesArg {
     Image,
 }
 
+/// Values of `--page-image`.
 #[derive(Clone, Copy, ValueEnum)]
+#[allow(
+    clippy::missing_docs_in_private_items,
+    reason = "a doc comment on a variant becomes its help text and would change --help"
+)]
 enum PageImageArg {
+    // Pages as SVG (vector graphics, sharp at any zoom).
     Svg,
+    // Pages as PNG bitmaps.
     Png,
 }
 
+/// Arguments of `convert`; the doc comments of the fields are the help
+/// texts.
 #[derive(clap::Args)]
 struct ConvertArgs {
     /// Local PDF file, arXiv id (1706.03762) or arXiv URL
@@ -116,187 +158,50 @@ struct ConvertArgs {
     jobs: usize,
 }
 
-fn load(input: &str) -> Result<(Paper, String)> {
-    let path = Path::new(input);
-    if path.is_file() {
-        let data = std::fs::read(path).with_context(|| format!("reading {input}"))?;
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("paper").to_string();
-        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or(input).to_string();
-        return Ok((Paper::from_bytes(data)?.with_source(name), stem));
-    }
-    if let Some(id) = arxiv::parse_id(input) {
-        eprintln!("fetching arXiv:{id} ...");
-        let data = arxiv::fetch_pdf(&id)?;
-        let stem = id.replace('/', "_");
-        return Ok((Paper::from_bytes(data)?.with_source(format!("arXiv:{id}")), stem));
-    }
-    bail!("'{input}' is neither an existing file nor an arXiv id/URL")
+/// Where the files of one `convert` run go.
+struct OutputPaths {
+    /// The HTML file named by `--output`, when it names a single file.
+    file: Option<PathBuf>,
+    /// Directory for the generated file names (`<stem>.<mode>.html`, the
+    /// JSON); empty for the current directory.
+    dir: PathBuf,
 }
 
-fn write_file(path: &Path, data: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
-    }
-    std::fs::write(path, data).with_context(|| format!("writing {}", path.display()))
-}
-
-fn convert(args: ConvertArgs) -> Result<()> {
-    if !(args.scale > 0.2 && args.scale <= 8.0) {
-        bail!("--scale must be between 0.2 and 8");
-    }
-    let (paper, stem) = load(&args.input)?;
-    let t = Instant::now();
-    let jobs = paper2html::common::parallel::resolve_jobs(args.jobs);
-    let analysis = paper.analyze_with(AnalyzeOptions {
-        tables: args.tables == TablesArg::Auto,
-        jobs,
-        ..Default::default()
-    });
-    let tables = analysis.doc.blocks.iter().filter(|b| b.table.is_some()).count();
-    eprintln!(
-        "analysed {} pages ({jobs} threads), {} blocks, {tables} tables rebuilt in {:.2}s",
-        paper.page_count(),
-        analysis.doc.blocks.len(),
-        t.elapsed().as_secs_f32()
-    );
-
-    let modes: Vec<Mode> = if args.all {
-        vec![Mode::Hard, Mode::Hard95, Mode::Medium, Mode::Friendly]
-    } else {
-        vec![args.mode.into()]
-    };
-
-    // Resolve where each mode goes.
-    let out_is_dir = args.all
-        || args
-            .output
-            .as_ref()
-            .is_some_and(|o| o.is_dir() || o.extension().is_none());
-    let dir: PathBuf = match (&args.output, out_is_dir) {
-        (Some(o), true) => o.clone(),
-        (Some(o), false) => o.parent().map(Path::to_path_buf).unwrap_or_default(),
-        (None, _) => PathBuf::new(),
-    };
-
-    for mode in modes {
-        let file: PathBuf = match (&args.output, out_is_dir) {
-            (Some(o), false) => o.clone(),
-            _ => dir.join(format!("{stem}.{}.html", mode.name())),
+impl OutputPaths {
+    /// Interprets `--output`: a directory when `--all` is given, when it is
+    /// an existing directory or when it has no extension; a file otherwise
+    /// (then its parent directory takes the JSON). Without `--output`
+    /// everything goes to the current directory.
+    fn new(output: Option<&PathBuf>, all: bool) -> Self {
+        let out_is_dir = all || output.is_some_and(|path| path.is_dir() || path.extension().is_none());
+        let dir: PathBuf = match (output, out_is_dir) {
+            (Some(path), true) => path.clone(),
+            (Some(path), false) => path.parent().map(Path::to_path_buf).unwrap_or_default(),
+            (None, _) => PathBuf::new(),
         };
-        let file_stem = file.file_stem().and_then(|s| s.to_str()).unwrap_or("paper").to_string();
-        let opts = HtmlOptions {
-            mode,
-            inline_images: args.images == ImagesArg::Inline,
-            asset_dir: format!("{file_stem}_assets"),
-            scale: args.scale,
-            page_image: match args.page_image {
-                PageImageArg::Svg => PageImage::Svg,
-                PageImageArg::Png => PageImage::Png,
-            },
-            jobs,
-        };
-        let t = Instant::now();
-        let out = paper.to_html(&analysis, &opts);
-        write_file(&file, out.html.as_bytes())?;
-        let base = file.parent().map(Path::to_path_buf).unwrap_or_default();
-        for (rel, data) in &out.files {
-            write_file(&base.join(rel), data)?;
-        }
-        eprintln!(
-            "{:<8} -> {} ({:.1} MB{}, {:.2}s)",
-            mode.name(),
-            file.display(),
-            out.html.len() as f64 / 1e6,
-            if out.files.is_empty() {
-                String::new()
-            } else {
-                format!(" + {} image files", out.files.len())
-            },
-            t.elapsed().as_secs_f32()
-        );
+        let file = if out_is_dir { None } else { output.cloned() };
+        Self { file, dir }
     }
 
-    if args.json {
-        let file = dir.join(format!("{stem}.json"));
-        let json = serde_json::to_vec_pretty(&analysis.doc)?;
-        write_file(&file, &json)?;
-        eprintln!("json     -> {}", file.display());
-    }
-    Ok(())
-}
-
-fn inspect(input: &str) -> Result<()> {
-    let (paper, _) = load(input)?;
-    let a = paper.analyze();
-    let mut o = std::io::stdout().lock();
-    let _ = writeln!(
-        o,
-        "title: {:?}\narxiv: {:?}\npages: {}  body font: {}pt  leading: {:.1}pt\n",
-        a.doc.meta.title,
-        a.doc.meta.arxiv_id,
-        a.doc.pages.len(),
-        a.doc.body_size,
-        a.doc.leading
-    );
-    for b in &a.doc.blocks {
-        let text = b.text();
-        let n = text.chars().count();
-        let short: String = if n > 150 {
-            let head: String = text.chars().take(95).collect();
-            let tail: String = text.chars().skip(n - 45).collect();
-            format!("{head} … {tail}")
-        } else {
-            text
-        };
-        let kind = match &b.kind {
-            BlockKind::Title => "TITLE".to_string(),
-            BlockKind::Authors => "AUTHOR".to_string(),
-            BlockKind::Note => "NOTE".to_string(),
-            BlockKind::Heading { level } => format!("H{level}"),
-            BlockKind::Paragraph { in_abstract: true } => "ABSTRACT".into(),
-            BlockKind::Paragraph { .. } => "P".into(),
-            BlockKind::ListItem { marker } => format!("LI {}", marker.clone().unwrap_or_default()),
-            BlockKind::Equation { number, image } => format!(
-                "EQ {} [{:.0}x{:.0}]",
-                number.clone().unwrap_or_default(),
-                image.rect.width(),
-                image.rect.height()
-            ),
-            BlockKind::Figure { kind, image, label } => format!(
-                "{:?} {} {}",
-                kind,
-                label.clone().unwrap_or_default(),
-                image
-                    .map(|i| format!(
-                        "[{:.0},{:.0} {:.0}x{:.0}]",
-                        i.rect.x0,
-                        i.rect.y0,
-                        i.rect.width(),
-                        i.rect.height()
-                    ))
-                    .unwrap_or_else(|| "[no image]".into())
-            ),
-            BlockKind::Footnote { marker } => format!("FN {marker}"),
-            BlockKind::Reference { label } => format!("REF {}", label.clone().unwrap_or_default()),
-        };
-        let kind = match &b.table {
-            Some(t) => format!("{kind} <table {}x{} hdr={}>", t.rows.len(), t.n_cols, t.header_rows),
-            None => kind,
-        };
-        let zone = if b.loc.zone_cols > 1 {
-            format!("{}/{}", b.loc.col + 1, b.loc.zone_cols)
-        } else {
-            "-".into()
-        };
-        if writeln!(o, "p{:<3} {:<4} {:<22} {}", b.page + 1, zone, kind, short).is_err() {
-            break;
+    /// The HTML file for `mode`: the file named by `--output`, or
+    /// `<stem>.<mode>.html` in the output directory.
+    fn html_file(&self, stem: &str, mode: Mode) -> PathBuf {
+        match &self.file {
+            Some(file) => file.clone(),
+            None => self.dir.join(format!("{stem}.{}.html", mode.name())),
         }
     }
-    Ok(())
 }
 
+/// Runs the command line and exits with status 1 on error.
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("error: {err:#}");
+        std::process::exit(1);
+    }
+}
+
+/// Parses the arguments and runs the subcommand.
 fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
@@ -312,9 +217,250 @@ fn run() -> Result<()> {
     }
 }
 
-fn main() {
-    if let Err(e) = run() {
-        eprintln!("error: {e:#}");
-        std::process::exit(1);
+/// Loads the PDF named by `input` (an existing file, else an arXiv id or
+/// URL) and returns it with the stem for output file names.
+///
+/// # Errors
+/// When the file cannot be read, the download fails, the data is not a PDF,
+/// or `input` is neither a file nor an arXiv id.
+fn load(input: &str) -> Result<(Paper, String)> {
+    let path = Path::new(input);
+    if path.is_file() {
+        let data = std::fs::read(path).with_context(|| format!("reading {input}"))?;
+        let stem = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("paper")
+            .to_string();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(input)
+            .to_string();
+        return Ok((Paper::from_bytes(data)?.with_source(name), stem));
+    }
+    if let Some(id) = arxiv::parse_id(input) {
+        eprintln!("fetching arXiv:{id} ...");
+        let data = arxiv::fetch_pdf(&id)?;
+        let stem = id.replace('/', "_");
+        return Ok((Paper::from_bytes(data)?.with_source(format!("arXiv:{id}")), stem));
+    }
+    bail!("'{input}' is neither an existing file nor an arXiv id/URL")
+}
+
+/// Writes `data` to `path`, creating the parent directories first.
+///
+/// # Errors
+/// When a directory or the file cannot be written.
+fn write_file(path: &Path, data: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+    }
+    std::fs::write(path, data).with_context(|| format!("writing {}", path.display()))
+}
+
+/// The `convert` subcommand: analyses the paper once, then writes the HTML
+/// of each requested mode and, with `--json`, the document as JSON.
+///
+/// # Errors
+/// When `--scale` is out of range, the input cannot be loaded or an output
+/// file cannot be written.
+fn convert(args: ConvertArgs) -> Result<()> {
+    if !(args.scale > MIN_SCALE && args.scale <= MAX_SCALE) {
+        bail!("--scale must be between 0.2 and 8");
+    }
+    let (paper, stem) = load(&args.input)?;
+    let started = Instant::now();
+    let jobs = paper2html::common::parallel::resolve_jobs(args.jobs);
+    let analysis = paper.analyze_with(AnalyzeOptions {
+        tables: args.tables == TablesArg::Auto,
+        jobs,
+        ..Default::default()
+    });
+    let tables = analysis.doc.blocks.iter().filter(|block| block.table.is_some()).count();
+    eprintln!(
+        "analysed {} pages ({jobs} threads), {} blocks, {tables} tables rebuilt in {:.2}s",
+        paper.page_count(),
+        analysis.doc.blocks.len(),
+        started.elapsed().as_secs_f32()
+    );
+
+    let modes: Vec<Mode> = if args.all {
+        vec![Mode::Hard, Mode::Hard95, Mode::Medium, Mode::Friendly]
+    } else {
+        vec![args.mode.into()]
+    };
+
+    // Resolve where each mode goes.
+    let paths = OutputPaths::new(args.output.as_ref(), args.all);
+    for mode in modes {
+        let file = paths.html_file(&stem, mode);
+        write_mode(&paper, &analysis, &args, jobs, mode, &file)?;
+    }
+
+    if args.json {
+        let file = paths.dir.join(format!("{stem}.json"));
+        let json = serde_json::to_vec_pretty(&analysis.doc)?;
+        write_file(&file, &json)?;
+        eprintln!("json     -> {}", file.display());
+    }
+    Ok(())
+}
+
+/// Renders `analysis` in `mode` and writes the HTML to `file`, with the
+/// image files next to it when images are not inlined, then reports the
+/// result on stderr.
+///
+/// # Errors
+/// When a file cannot be written.
+fn write_mode(
+    paper: &Paper,
+    analysis: &Analysis,
+    args: &ConvertArgs,
+    jobs: usize,
+    mode: Mode,
+    file: &Path,
+) -> Result<()> {
+    let file_stem = file
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("paper")
+        .to_string();
+    let opts = HtmlOptions {
+        mode,
+        inline_images: args.images == ImagesArg::Inline,
+        asset_dir: format!("{file_stem}_assets"),
+        scale: args.scale,
+        page_image: match args.page_image {
+            PageImageArg::Svg => PageImage::Svg,
+            PageImageArg::Png => PageImage::Png,
+        },
+        jobs,
+    };
+    let started = Instant::now();
+    let out = paper.to_html(analysis, &opts);
+    write_file(file, out.html.as_bytes())?;
+    let base = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    for (rel, data) in &out.files {
+        write_file(&base.join(rel), data)?;
+    }
+    eprintln!(
+        "{:<8} -> {} ({:.1} MB{}, {:.2}s)",
+        mode.name(),
+        file.display(),
+        out.html.len() as f64 / BYTES_PER_MB,
+        if out.files.is_empty() {
+            String::new()
+        } else {
+            format!(" + {} image files", out.files.len())
+        },
+        started.elapsed().as_secs_f32()
+    );
+    Ok(())
+}
+
+/// The `inspect` subcommand: prints the document's metadata and one line
+/// per block (page, column, kind, shortened text) to stdout. Stops quietly
+/// when stdout is closed (e.g. piped into `head`).
+///
+/// # Errors
+/// When the input cannot be loaded.
+fn inspect(input: &str) -> Result<()> {
+    let (paper, _) = load(input)?;
+    let analysis = paper.analyze();
+    let doc = &analysis.doc;
+    let mut out = std::io::stdout().lock();
+    let _ = writeln!(
+        out,
+        "title: {:?}\narxiv: {:?}\npages: {}  body font: {}pt  leading: {:.1}pt\n",
+        doc.meta.title,
+        doc.meta.arxiv_id,
+        doc.pages.len(),
+        doc.body_size,
+        doc.leading
+    );
+    for block in &doc.blocks {
+        let short = shorten(block.text());
+        let kind = block_label(block);
+        let zone = zone_label(&block.loc);
+        if writeln!(out, "p{:<3} {:<4} {:<22} {}", block.page + 1, zone, kind, short).is_err() {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// `text` itself, or for texts longer than [`INSPECT_MAX_CHARS`] its start
+/// and end joined by an ellipsis.
+fn shorten(text: String) -> String {
+    let n = text.chars().count();
+    if n > INSPECT_MAX_CHARS {
+        let head: String = text.chars().take(INSPECT_HEAD_CHARS).collect();
+        let tail: String = text.chars().skip(n - INSPECT_TAIL_CHARS).collect();
+        format!("{head} … {tail}")
+    } else {
+        text
+    }
+}
+
+/// Short description of a block's kind for `inspect` ("H2", "EQ (3)
+/// [200x30]", ...), followed by the table's size for rebuilt tables.
+fn block_label(block: &Block) -> String {
+    let kind = kind_label(&block.kind);
+    match &block.table {
+        Some(table) => format!(
+            "{kind} <table {}x{} hdr={}>",
+            table.rows.len(),
+            table.n_cols,
+            table.header_rows
+        ),
+        None => kind,
+    }
+}
+
+/// Short description of a block kind with its main attributes.
+fn kind_label(kind: &BlockKind) -> String {
+    match kind {
+        BlockKind::Title => "TITLE".to_string(),
+        BlockKind::Authors => "AUTHOR".to_string(),
+        BlockKind::Note => "NOTE".to_string(),
+        BlockKind::Heading { level } => format!("H{level}"),
+        BlockKind::Paragraph { in_abstract: true } => "ABSTRACT".into(),
+        BlockKind::Paragraph { .. } => "P".into(),
+        BlockKind::ListItem { marker } => format!("LI {}", marker.clone().unwrap_or_default()),
+        BlockKind::Equation { number, image } => format!(
+            "EQ {} [{:.0}x{:.0}]",
+            number.clone().unwrap_or_default(),
+            image.rect.width(),
+            image.rect.height()
+        ),
+        BlockKind::Figure { kind, image, label } => format!(
+            "{:?} {} {}",
+            kind,
+            label.clone().unwrap_or_default(),
+            image
+                .map(|spec| format!(
+                    "[{:.0},{:.0} {:.0}x{:.0}]",
+                    spec.rect.x0,
+                    spec.rect.y0,
+                    spec.rect.width(),
+                    spec.rect.height()
+                ))
+                .unwrap_or_else(|| "[no image]".into())
+        ),
+        BlockKind::Footnote { marker } => format!("FN {marker}"),
+        BlockKind::Reference { label } => format!("REF {}", label.clone().unwrap_or_default()),
+    }
+}
+
+/// Column of a block in a multi-column zone as "column/columns", or "-"
+/// for single-column zones.
+fn zone_label(loc: &Loc) -> String {
+    if loc.zone_cols > 1 {
+        format!("{}/{}", loc.col + 1, loc.zone_cols)
+    } else {
+        "-".into()
     }
 }

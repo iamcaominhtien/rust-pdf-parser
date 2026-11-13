@@ -249,6 +249,9 @@ pub struct FloatsConfig {
     /// text of that line beside it, is part of the text (a fraction bar, an
     /// overline): not a table rule or a drawing.
     pub inline_rule_band_ratio: f32,
+    /// ... or a piece of the formula is within this many font sizes of
+    /// the bar's end.
+    pub inline_rule_max_gap_em: f32,
 
     // --- tables without graphics ---
     /// A line with at least this many characters ...
@@ -260,6 +263,10 @@ pub struct FloatsConfig {
     pub fallback_prose_min_width_pt: f32,
     /// Table rows overlap the caption widened by this on both sides.
     pub fallback_x_margin_pt: f32,
+    /// A caption whose centre is further than this fraction of the page
+    /// width from the page's centre is in one column; its table's rows are
+    /// looked for within that column only.
+    pub fallback_column_offset_ratio: f32,
     /// Table rows may overlap the caption vertically by this much.
     pub fallback_edge_tol_pt: f32,
     /// A gap between rows larger than this many body sizes ends the table.
@@ -421,10 +428,12 @@ impl Default for FloatsConfig {
             graphic_min_rules_count: 3,
             graphic_merge_pt: 8.0,
             inline_rule_band_ratio: 0.2,
+            inline_rule_max_gap_em: 0.6,
             fallback_prose_min_chars: 50,
             fallback_prose_width_ratio: 0.8,
             fallback_prose_min_width_pt: 150.0,
             fallback_x_margin_pt: 40.0,
+            fallback_column_offset_ratio: 0.15,
             fallback_edge_tol_pt: 2.0,
             fallback_max_row_gap_em: 2.4,
             fallback_min_rows_count: 3,
@@ -1162,13 +1171,25 @@ fn graphic_elements(page: &PageData, cfg: &FloatsConfig) -> Vec<GraphicElement> 
 /// text stacked on them.
 fn inline_rule(page: &PageData, rule: &Rect, cfg: &FloatsConfig) -> bool {
     let cy = rule.cy();
-    let through = page.lines.iter().any(|line| {
-        let b = &line.bbox;
-        let band = cfg.inline_rule_band_ratio * b.height();
-        let beside = b.x0 < rule.x0 - line.size || b.x1 > rule.x1 + line.size;
-        let near = b.x0 <= rule.x1 + line.size && b.x1 >= rule.x0 - line.size;
-        cy > b.y0 + band && cy < b.y1 - band && beside && near
-    });
+    // Lines whose middle band holds the bar and that reach it: the text runs
+    // across the bar (a numerator glyph's line), or a piece of the formula
+    // sits right next to it ("+", the next fraction). The other column's
+    // text beside a table rule is a gutter away.
+    let reaching = |side: Option<bool>| {
+        page.lines.iter().any(|line| {
+            let b = &line.bbox;
+            let band = cfg.inline_rule_band_ratio * b.height();
+            let beside = b.x0 < rule.x0 - line.size || b.x1 > rule.x1 + line.size;
+            let close = cfg.inline_rule_max_gap_em * line.size;
+            let placed = match side {
+                None => b.x0 < rule.x1 && b.x1 > rule.x0,
+                Some(true) => b.x1 <= rule.x0 + line.size && rule.x0 - b.x1 <= close,
+                Some(false) => b.x0 >= rule.x1 - line.size && b.x0 - rule.x1 <= close,
+            };
+            cy > b.y0 + band && cy < b.y1 - band && beside && placed
+        })
+    };
+    let through = reaching(None) || reaching(Some(true)) || reaching(Some(false));
     // Glyphs, not lines: numerators of several fractions on one baseline
     // make one wide line.
     let stacked = |above: bool| {
@@ -1622,6 +1643,9 @@ fn tabular_rows(ctx: &PageContext, caption: &Caption, down: bool) -> Option<Rect
                 >= cfg.fallback_prose_width_ratio * cap_box.width().max(cfg.fallback_prose_min_width_pt)
     };
     let column = cap_box.inflate(cfg.fallback_x_margin_pt, 0.0);
+    // A caption in one half of the page heads a table in its column: the
+    // other column's lines on the same baselines are not rows of it.
+    let in_column = (cap_box.cx() - ctx.page.width / 2.0).abs() > cfg.fallback_column_offset_ratio * ctx.page.width;
     let mut candidates: Vec<&Line> = ctx
         .page
         .lines
@@ -1630,6 +1654,7 @@ fn tabular_rows(ctx: &PageContext, caption: &Caption, down: bool) -> Option<Rect
         .filter(|(i, line)| {
             !ctx.is_caption_line[*i]
                 && line.bbox.x_overlap(&column) > 0.0
+                && (!in_column || (line.bbox.x0 >= column.x0 && line.bbox.x1 <= column.x1))
                 && if down {
                     line.bbox.y0 >= cap_box.y1 - cfg.fallback_edge_tol_pt
                 } else {

@@ -71,6 +71,8 @@ pub(crate) mod references;
 )] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod text;
 
+pub use body::BodyConfig;
+
 pub(crate) use assemble::build_document;
 pub(crate) use body::classify_body;
 pub(crate) use front_matter::classify_front_matter;
@@ -107,6 +109,8 @@ pub struct SemanticsConfig {
     /// Fewest distinct capital sizes for small caps (full capitals plus the
     /// reduced ones).
     pub small_caps_min_sizes_count: usize,
+    /// Classification of headings, paragraphs, list items and references.
+    pub body: BodyConfig,
 }
 
 impl Default for SemanticsConfig {
@@ -116,6 +120,7 @@ impl Default for SemanticsConfig {
             small_caps_min_letters_count: 4,
             small_caps_size_tolerance_pt: 0.2,
             small_caps_min_sizes_count: 2,
+            body: BodyConfig::default(),
         }
     }
 }

@@ -519,6 +519,46 @@ fn adam_fraction_bars_are_not_tables() {
     assert!(corollary.trim_end().ends_with("T ≥ 1."), "{corollary}");
 }
 
+/// Faster R-CNN numbers its footnotes on the baseline ("1. Since ..."):
+/// they are footnotes, not list items, and the paragraph that runs past
+/// one into the next column stays whole. The caption of Table 4 ends in
+/// URLs set small; it still pairs with the table below it, not with
+/// Table 3 above.
+#[test]
+fn faster_rcnn_footnotes_and_tables() {
+    let Some(paper) = load("1506.01497v3") else { return };
+    let analysis = paper.analyze();
+    let blocks = &analysis.doc.blocks;
+    let markers: Vec<&str> = blocks
+        .iter()
+        .filter_map(|block| match &block.kind {
+            BlockKind::Footnote { marker } => Some(marker.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(markers, ["1", "2", "3", "4", "5", "6", "7", "8"]);
+    assert!(
+        blocks
+            .iter()
+            .any(|block| plain(&block.spans).contains("built in commercial systems such as at Pinterests")),
+        "paragraph split by footnote 1"
+    );
+    let tables: Vec<(String, f32)> = blocks
+        .iter()
+        .filter_map(|block| match &block.kind {
+            BlockKind::Figure { label: Some(label), .. } if block.page == 7 => Some((label.clone(), block.bbox.y0)),
+            _ => None,
+        })
+        .collect();
+    let y = |label: &str| tables.iter().find(|(l, _)| l == label).map(|(_, y)| *y);
+    assert!(y("Table 4").unwrap() > y("Table 3").unwrap() + 100.0, "{tables:?}");
+    let graphics = blocks
+        .iter()
+        .filter(|block| block.page == 7 && matches!(block.kind, BlockKind::Figure { label: None, .. }))
+        .count();
+    assert_eq!(graphics, 0, "Table 4 left without its caption");
+}
+
 /// The output does not depend on the number of threads (on a real paper).
 #[test]
 fn threads_do_not_change_real_output() {

@@ -283,8 +283,8 @@ impl Assembler<'_> {
         rows
     }
 
-    /// The block of a footnote. Its mark (leading superscript glyphs, or a
-    /// leading footnote symbol) is taken out of the text into the block
+    /// The block of a footnote. Its mark (leading superscript glyphs, a
+    /// leading footnote symbol, or a number followed by a period) is taken out of the text into the block
     /// kind and gives the anchor.
     fn footnote_block(&mut self, id: usize, loc: Loc, text_block: TextBlock) -> Block {
         let bbox = lines_bbox(&text_block.lines);
@@ -302,8 +302,22 @@ impl Assembler<'_> {
         {
             skip = 1;
         }
+        // A number on the baseline followed by a period ("1. Since ..."):
+        // the number is the mark, the period goes with it.
+        let mut dropped = 0;
+        if skip == 0 {
+            let digits = first
+                .glyphs
+                .iter()
+                .take_while(|glyph| glyph.text.chars().all(|ch| ch.is_ascii_digit()) && !glyph.text.is_empty())
+                .count();
+            if digits > 0 && first.glyphs.get(digits).is_some_and(|glyph| glyph.text == ".") {
+                skip = digits;
+                dropped = 1;
+            }
+        }
         let marker: String = first.glyphs[..skip].iter().map(|glyph| glyph.text.as_str()).collect();
-        let built = self.text.build(&text_block.lines, skip, 0);
+        let built = self.text.build(&text_block.lines, skip + dropped, 0);
         let anchor = (!marker.is_empty()).then(|| self.unique_anchor(format!("fn-{}", slug_marker(&marker))));
         let mut block = block_with_text(id, BlockKind::Footnote { marker }, loc, bbox, built);
         block.anchor = anchor;

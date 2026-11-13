@@ -16,6 +16,9 @@ use crate::model::Loc;
 use regex::Regex;
 use std::sync::LazyLock;
 
+/// A footnote numbered on the baseline ("1. Since the publication ..."),
+/// as in IEEE journals.
+static NUMBERED_NOTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d{1,2}\.\s+\S").unwrap());
 /// An equation number at the right margin: "(3)", "(A.2)", "(4.1b)".
 static EQNO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\((?:[A-Z]\.?)?\d+(?:\.\d+)*[a-z]?\)$").unwrap());
 /// A bullet at the start of a line.
@@ -1068,7 +1071,9 @@ fn marked_footnote_start(rows: &[Row], stats: &DocStats, cfg: &BlocksConfig) -> 
     }
     while k < rows.len() {
         let Row::Text(line) = &rows[k] else { break };
-        let marked = footnote_marked(line);
+        // In the trailing run of small lines, a note may also be numbered
+        // on the baseline.
+        let marked = footnote_marked(line) || NUMBERED_NOTE.is_match(&line.text());
         let gap_ok = k == 0
             || match &rows[k - 1] {
                 Row::Text(prev) => {

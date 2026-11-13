@@ -10,7 +10,7 @@ use super::page::{DocStats, PageData};
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
 use crate::model::FloatKind;
-use crate::model::Line;
+use crate::model::{Line, LineGlyph};
 use regex::Regex;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -967,7 +967,21 @@ fn next_caption_line(
         if used[j] || dy < cfg.caption_step_min_em * head_size {
             continue;
         }
-        if (line.size - head_size).abs() > cfg.caption_size_tol_pt {
+        // Smaller text set inside the caption (URLs in a footnote-sized
+        // font) can make a line's dominant size differ: the line still
+        // continues the caption when some of its glyphs have the caption's
+        // size, or when it goes on with the size the previous line ended in.
+        let near = |a: f32, b: f32| (a - b).abs() <= cfg.caption_size_tol_pt;
+        let visible = |glyph: &&LineGlyph| !glyph.text.trim().is_empty();
+        let prev_tail = prev_line.glyphs.iter().rev().find(visible).map(|glyph| glyph.size);
+        if !near(line.size, head_size)
+            && !line
+                .glyphs
+                .iter()
+                .filter(visible)
+                .any(|glyph| near(glyph.size, head_size))
+            && !prev_tail.is_some_and(|size| near(line.size, size))
+        {
             continue;
         }
         if line.bbox.x_overlap(bbox) <= 0.0 {

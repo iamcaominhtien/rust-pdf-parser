@@ -213,6 +213,9 @@
   }
   function fitFloats(art){
     restoreFloats();clearFloats(art);
+    // A reference too long to move whole to the next page may break across pages.
+    [].forEach.call(art.querySelectorAll('ol.refs li'),function(li){li.classList.remove('bk-long');});
+    [].forEach.call(art.querySelectorAll('ol.refs li'),function(li){if(li.getBoundingClientRect().height>g.th*0.25)li.classList.add('bk-long');});
     [].forEach.call(art.querySelectorAll('figure.float'),function(f){
       var base=baseOf(f);f._bk=base;if(!base.scalable){if(floatH(f,base,null)>g.th)split(f);return;}
       var bar=base.wide?20:0,room=pageRoom(f)-bar,k=solve(f,base,room,base.min,1);

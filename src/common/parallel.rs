@@ -5,6 +5,12 @@
 //! and reuses it for all the items it takes. Items are handed out one at a
 //! time, so a few slow pages do not hold up the others, and results come
 //! back in item order.
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -21,9 +27,17 @@ pub fn resolve_jobs(requested: usize) -> usize {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
 }
 
-/// Computes `f(state, i)` for every `i` in `0..n` on up to `jobs` threads
+/// Computes `func(state, i)` for every `i` in `0..n` on up to `jobs` threads
 /// (0 = one per CPU) and returns the results in order.
-pub fn map<S, R, I, F>(n: usize, jobs: usize, init: I, f: F) -> Vec<R>
+///
+/// `init` builds the per-thread state once per worker. With one job (or at
+/// most one item) everything runs on the calling thread and no thread is
+/// spawned. A panic in a worker is propagated to the caller once all
+/// workers have finished.
+///
+/// # Panics
+/// When a worker thread cannot be started, or when `init` or `func` panics.
+pub fn map<S, R, I, F>(n: usize, jobs: usize, init: I, func: F) -> Vec<R>
 where
     R: Send,
     I: Fn() -> S + Sync,
@@ -32,7 +46,7 @@ where
     let jobs = resolve_jobs(jobs).min(n);
     if jobs <= 1 {
         let mut state = init();
-        return (0..n).map(|i| f(&mut state, i)).collect();
+        return (0..n).map(|i| func(&mut state, i)).collect();
     }
     let next = AtomicUsize::new(0);
     let worker = || {
@@ -43,7 +57,7 @@ where
             if i >= n {
                 break;
             }
-            done.push((i, f(&mut state, i)));
+            done.push((i, func(&mut state, i)));
         }
         done
     };
@@ -57,18 +71,23 @@ where
                     .expect("cannot start a worker thread")
             })
             .collect();
-        for h in handles {
-            match h.join() {
-                Ok(done) => done.into_iter().for_each(|(i, r)| slots[i] = Some(r)),
+        for handle in handles {
+            match handle.join() {
+                Ok(done) => done.into_iter().for_each(|(i, result)| slots[i] = Some(result)),
                 Err(panic) => std::panic::resume_unwind(panic),
             }
         }
     });
-    slots.into_iter().map(|r| r.expect("every item is computed")).collect()
+    slots
+        .into_iter()
+        .map(|slot| slot.expect("every item is computed"))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
+    /// Results come back in item order for any number of jobs, and an empty
+    /// input gives an empty output.
     #[test]
     fn keeps_order() {
         for jobs in [0, 1, 3, 16] {

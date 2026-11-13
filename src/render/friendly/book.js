@@ -3,7 +3,7 @@
 // perpendicular bisector between the corner's rest position and where it is
 // now), shows the next page on the back of the folded part, shades the fold
 // and casts a shadow on the page beneath; the corner can be dragged by hand.
-// A soft paper sound (Web Audio, no file) follows the motion.
+// A recorded page turn (CC0, sounds/README.md) follows the motion.
 (function(){
   var doc=document,root=doc.documentElement,P=window.p2h||{},article=doc.getElementById('article'),layout=doc.querySelector('.layout');
   if(!article||!layout)return;
@@ -298,7 +298,7 @@
       var flick=d.fwd?d.vx<-0.45:d.vx>0.45,complete=(past||flick)&&e.type!=='pointercancel';
       var stop=d.fwd===complete?T.end:T.c,result=complete?d.target:d.from;
       var dist=Math.abs(stop[0]-T.p[0])/(2*g.pw);
-      if(complete)sound(0.25+dist*0.4,0.6);
+      if(complete)soundFall(Math.max(140,DUR*0.8*dist)/1000,0.8);
       animate(T.p,stop,Math.max(140,DUR*0.8*dist),0,function(){show(result,complete);end(complete);});
       return;
     }
@@ -316,42 +316,53 @@
     e.preventDefault();go(dir,true);
   }
 
-  // ---------- Sound: paper rustle synthesised with Web Audio ----------
-  var ac=null,noise=null,live=null;
+  // ---------- Sound: a recorded page turn, shaped by the motion ----------
+  // The leaf lifts during the first half of the recording and lands at
+  // LAND seconds; the second half (from FALL) is the fall alone.
+  var LAND=0.8,FALL=0.5,ac=null,buf=null,live=null;
+  // Decoded once, when the book opens (decoding needs no user gesture).
+  function loadSound(){
+    if(buf||loadSound.busy||!window.p2hPageSound)return;
+    var OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!OAC)return;
+    loadSound.busy=true;
+    try{
+      var bin=atob(window.p2hPageSound),bytes=new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      var p=new OAC(1,1,44100).decodeAudioData(bytes.buffer,function(b){buf=b;},function(){});
+      if(p&&p.catch)p.catch(function(){});
+    }catch(e){}
+  }
   function audio(){
-    if(soundBtn.getAttribute('aria-pressed')!=='true')return null;
-    if(!ac){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;ac=new AC();
-      var len=ac.sampleRate*2,buf=ac.createBuffer(1,len,ac.sampleRate),d=buf.getChannelData(0),last=0;
-      for(var i=0;i<len;i++){var w=Math.random()*2-1;last=0.6*last+0.4*w;d[i]=Math.random()<0.002?w:last*0.9+w*0.1;}
-      noise=buf;}
+    if(soundBtn.getAttribute('aria-pressed')!=='true'||!buf)return null;
+    if(!ac){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return null;ac=new AC();}
     if(ac.state==='suspended')ac.resume();
     return ac;
   }
-  function chain(c,freq,q,gain){
-    var src=c.createBufferSource();src.buffer=noise;src.loop=true;src.playbackRate.value=0.8+Math.random()*0.4;
-    var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=freq;bp.Q.value=q;
-    var gn=c.createGain();gn.gain.value=0;src.connect(bp);bp.connect(gn);gn.connect(c.destination);src.start(0,Math.random()*1.5);
-    return {src:src,bp:bp,gain:gn,g:gain};
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function vary(){return 0.94+Math.random()*0.12;}
+  // Plays the recording from `offset` at `rate` and `gain`; with `until`,
+  // fades out and stops then (seconds from now).
+  function play(offset,rate,gain,until){
+    var c=audio();if(!c)return null;var t=c.currentTime;
+    var src=c.createBufferSource(),g=c.createGain();
+    src.buffer=buf;src.playbackRate.value=rate;g.gain.setValueAtTime(gain,t);
+    if(until){g.gain.setValueAtTime(gain,t+until*0.8);g.gain.linearRampToValueAtTime(0,t+until);src.stop(t+until+0.05);}
+    src.connect(g);g.connect(c.destination);src.start(t,offset);
+    return {src:src,gain:g};
   }
-  // One turn: rustle with crinkles, the air of the moving leaf, the soft landing.
-  function sound(dur,strength){
-    var c=audio();if(!c)return;var t=c.currentTime;
-    var rustle=chain(c,2600,0.7,0.16*strength),air=chain(c,500,0.5,0.10*strength),land=chain(c,260,0.8,0.22*strength);
-    var gr=rustle.gain.gain;gr.setValueAtTime(0,t);gr.linearRampToValueAtTime(rustle.g,t+0.04);
-    for(var s=0.06;s<dur*0.8;s+=0.025+Math.random()*0.04)gr.setValueAtTime(rustle.g*(0.35+Math.random()*0.9),t+s);
-    gr.linearRampToValueAtTime(0,t+dur);rustle.bp.frequency.setValueAtTime(1800,t);rustle.bp.frequency.linearRampToValueAtTime(3600,t+dur*0.6);
-    var ga=air.gain.gain;ga.setValueAtTime(0,t);ga.linearRampToValueAtTime(air.g,t+dur*0.45);ga.linearRampToValueAtTime(0,t+dur);
-    var gl=land.gain.gain;gl.setValueAtTime(0,t+dur*0.9);gl.linearRampToValueAtTime(land.g,t+dur*0.95);gl.exponentialRampToValueAtTime(0.0001,t+dur+0.12);
-    [rustle,air,land].forEach(function(n){n.src.stop(t+dur+0.2);});
-  }
-  function soundStart(){var c=audio();if(!c)return;live=chain(c,2400,0.6,0.2);}
-  function soundSpeed(v){if(!live)return;live.gain.gain.setTargetAtTime(Math.min(0.22,v*0.12)*(0.6+Math.random()*0.6),ac.currentTime,0.03);
-    live.bp.frequency.setTargetAtTime(1800+Math.min(2400,v*1800),ac.currentTime,0.05);}
+  // A whole turn of `dur` seconds: the leaf lands when the turn ends.
+  function sound(dur,strength){play(0,clamp(LAND/dur,0.9,1.25)*vary(),0.55*strength*vary());}
+  // A page let go: only its fall, landing after `dur` seconds.
+  function soundFall(dur,strength){play(FALL,clamp((LAND-FALL)/dur,0.85,1.25)*vary(),0.5*strength*vary());}
+  // Dragging the corner: the paper sounds as fast as the hand moves.
+  function soundStart(){live=play(0,vary(),0);}
+  function soundSpeed(v){if(live)live.gain.gain.setTargetAtTime(Math.min(0.5,v*0.4),ac.currentTime,0.04);}
   function soundStop(){if(!live)return;var n=live;live=null;n.gain.gain.setTargetAtTime(0,ac.currentTime,0.04);n.src.stop(ac.currentTime+0.3);}
 
   // ---------- Entering and leaving ----------
   function enter(keep){
     if(active)return;if(!view)build();
+    loadSound();
     var anchor=keep||(P.anchorBlock&&P.anchorBlock()||[])[0];
     root.setAttribute('data-view','book');view.hidden=false;
     // Footnotes leave the margin column first: they change the flow.

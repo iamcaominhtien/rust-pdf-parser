@@ -15,6 +15,15 @@ const JS: &str = include_str!("friendly.js");
 /// Script of the book view (pagination, page turning, its sound),
 /// embedded after the main script.
 const BOOK_JS: &str = include_str!("book.js");
+/// The sound of a page turn in the book view (CC0; see `sounds/README.md`).
+const PAGE_SOUND: &[u8] = include_bytes!("sounds/page-turn.mp3");
+/// The page turn sound for the book view script, as base64 MP3 data.
+static PAGE_SOUND_JS: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        "window.p2hPageSound=\"{}\";",
+        base64::engine::general_purpose::STANDARD.encode(PAGE_SOUND)
+    )
+});
 /// Script run in the `<head>` before the first paint: applies the stored
 /// theme and contents state so the page does not flash.
 const HEAD_JS: &str = "(function(){var r=document.documentElement;try{var t=localStorage.getItem('p2h-theme');\
@@ -181,12 +190,14 @@ impl Page<'_> {
 <div class="sr" id="live" aria-live="polite"></div>
 <script>
 {JS}</script>
+<script>{sound}</script>
 <script>
 {BOOK_JS}</script>
 </body>
 </html>
 "#,
             title = esc(self.title),
+            sound = PAGE_SOUND_JS.as_str(),
             fonts = self.fonts,
             topbar = self.topbar,
             toc = self.toc,

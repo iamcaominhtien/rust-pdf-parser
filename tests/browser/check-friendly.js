@@ -11,7 +11,8 @@
 //  - footnotes in the margin are never above the line of their mark;
 //  - book view: pages are laid out, the buttons and keys turn them, a page
 //    turn takes its time and ends, the page count covers the text once all
-//    images have loaded, the article returns to the scroll view,
+//    images have loaded, the recorded page sound plays (and not when it is
+//    switched off), the article returns to the scroll view,
 //    and a translated (longer) text is paginated again.
 //
 // usage: node tests/browser/check-friendly.js file.friendly.html [...]
@@ -113,6 +114,31 @@ async function sidenotes(browser, file) {
   return { above, errors };
 }
 
+// The page turn sound: the recording is embedded and decodes; a turn plays
+// it with the sound on and stays silent with it off.
+async function pageSound(browser, file) {
+  const { context, page, errors } = await open(browser, file, { viewport: { width: 1440, height: 900 } });
+  await page.evaluate(() => {
+    window.__plays = 0;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function () {
+      if (this.buffer && this.buffer.duration > 0.5) window.__plays++;
+      return start.apply(this, arguments);
+    };
+  });
+  await page.evaluate(() => document.querySelector('[data-view-pick="book"]').click());
+  await page.waitForTimeout(600);
+  await page.click('.bk-row .bk-nav.next');
+  await page.waitForFunction(() => !window.p2hBook.state().busy, null, { timeout: 5000 });
+  const on = await page.evaluate(() => window.__plays);
+  await page.click('.bk-sound');
+  await page.click('.bk-row .bk-nav.next');
+  await page.waitForFunction(() => !window.p2hBook.state().busy, null, { timeout: 5000 });
+  const off = (await page.evaluate(() => window.__plays)) - on;
+  await context.close();
+  return { on, off, errors };
+}
+
 async function book(browser, file) {
   const { context, page, errors } = await open(browser, file, { viewport: { width: 1440, height: 900 } }, { 'p2h-sound': 'off' });
   await page.evaluate(() => document.querySelector('[data-view-pick="book"]').click());
@@ -172,12 +198,14 @@ async function book(browser, file) {
     const toc = await contents(browser, file);
     const side = await sidenotes(browser, file);
     const bk = await book(browser, file);
+    const snd = await pageSound(browser, file);
     console.log(
       `${file}: overflow 320px ${narrow}px, 390px ${phone}px; theme ${theme.chosen[0]}; ` +
         `contents ${toc.before}px -> ${toc.after[0]}px; book ${bk.state.pages} pages, ${bk.first} -> ${bk.second} -> ${bk.third}, ` +
         `after translation ${bk.translated.pages} pages`
     );
-    const errors = theme.errors.concat(toc.errors, side.errors, bk.errors);
+    const errors = theme.errors.concat(toc.errors, side.errors, bk.errors, snd.errors);
+    if (snd.on !== 1 || snd.off !== 0) fail(file, `page sound: ${snd.on} plays with the sound on, ${snd.off} with it off`);
     if (side.above.length) fail(file, `footnotes above their mark: ${side.above.join(', ')}`);
     if (errors.length) fail(file, 'page errors: ' + errors.join('; '));
     if (narrow > 0 || phone > 0) fail(file, `horizontal page scroll (${narrow}px at 320, ${phone}px at 390)`);

@@ -21,7 +21,7 @@ sang HTML đẹp, dễ đọc, câu chữ liền mạch — phù hợp làm đ�
 | `hard` | Giống 1-1 từng trang (trang gốc vẽ lại bằng SVG/PNG) | Lớp chữ ẩn, chọn/copy/tìm kiếm được | Cần đối chiếu chính xác với bản PDF |
 | `hard-95` | Như `hard`: từng trang, đúng vị trí, đúng ngắt dòng | **Chữ HTML thật, hiển thị**; bảng là `<table>`; công thức là chữ | Muốn giống bản gốc mà vẫn dịch/sửa/copy được |
 | `medium` | Giữ trang, số cột, vị trí tương đối của hình/bảng | HTML thật, tự dàn lại; đoạn văn không bị cắt giữa cột/trang | Muốn "cảm giác bài báo", chữ dàn tự nhiên |
-| `friendly` | Một cột, responsive, thiết kế Offprint: theme Paper / White / Dark, mục lục ẩn/hiện được, font đọc nhúng sẵn, code tô màu, chế độ đọc dạng sách lật trang | HTML thật, ưu tiên dễ đọc | Đọc trên web/điện thoại, đưa vào công cụ dịch |
+| `friendly` | Một cột, responsive, thiết kế Offprint: theme Paper / White / Dark, mục lục ẩn/hiện được, font đọc nhúng sẵn, code tô màu, chế độ đọc dạng sách lật trang, kèm tiếng lật giấy thu thật (CC0, tắt được) | HTML thật, ưu tiên dễ đọc | Đọc trên web/điện thoại, đưa vào công cụ dịch |
 
 Ở cả bốn chế độ, văn bản của một đoạn luôn nằm liền nhau trong DOM:
 

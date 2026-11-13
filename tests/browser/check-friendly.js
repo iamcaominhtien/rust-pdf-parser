@@ -13,7 +13,11 @@
 //    turn takes its time and ends, the page count covers the text once all
 //    images have loaded, the recorded page sound plays (and not when it is
 //    switched off), the article returns to the scroll view,
-//    and a translated (longer) text is paginated again.
+//    and a translated (longer) text is paginated again;
+//  - book view layout: a figure or table is on one page with its caption
+//    (except one too long for a page, which may split), no heading ends a
+//    page, and no page is more than 60% empty (except before a heading, or
+//    a float of more than half a page, and the last page).
 //
 // usage: node tests/browser/check-friendly.js file.friendly.html [...]
 // Uses the Playwright package if installed, else playwright-core with the
@@ -139,6 +143,59 @@ async function pageSound(browser, file) {
   return { on, off, errors };
 }
 
+// The book's pages, measured in the laid-out article: captions apart from
+// their figure or table, headings at the foot of a page, and pages that are
+// mostly empty. A page is a column of the article.
+function layoutProblems() {
+  const art = document.querySelector('.bk-window > article');
+  const cs = getComputedStyle(art);
+  const step = parseFloat(cs.columnWidth) + parseFloat(cs.columnGap);
+  const th = art.clientHeight;
+  const box = art.getBoundingClientRect();
+  const col = (x) => Math.max(0, Math.floor((x - box.left + 2) / step));
+  const pages = window.p2hBook.state().pages;
+  const fill = new Array(pages).fill(0);
+  const leaf = 'p,li,h1,h2,h3,h4,figcaption,img,tr,pre,.eq,.algo,.authors,.kicker,aside,.abstract-label,.ln';
+  art.querySelectorAll(leaf).forEach((e) => {
+    if (e.matches('li') && e.querySelector('p,li')) return;
+    for (const r of e.getClientRects()) {
+      const c = col(r.left);
+      if (r.height && c < pages) fill[c] = Math.max(fill[c], (r.bottom - box.top) / th);
+    }
+  });
+  // What starts each page: a heading, or a float of over half a page.
+  const excused = new Array(pages).fill(false);
+  for (const k of art.children) {
+    const r = k.getClientRects()[0];
+    if (!r || r.top - box.top > th * 0.12) continue;
+    const c = col(r.left);
+    const heading = /^H[1-4]$/.test(k.tagName);
+    const big = k.matches('figure.float') && k.getBoundingClientRect().height > th * 0.5;
+    if (c < pages && (heading || big)) excused[c] = true;
+  }
+  const empty = [];
+  for (let c = 0; c < pages - 1; c++) if (fill[c] < 0.4 && !excused[c + 1]) empty.push(`${c + 1} (${Math.round(fill[c] * 100)}%)`);
+  const apart = [];
+  art.querySelectorAll('figure.float').forEach((f) => {
+    const cap = f.querySelector('figcaption');
+    const body = f.querySelector('.plate,.tbl-wrap,.algo,img');
+    if (!cap || !body || f.classList.contains('bk-split')) return;
+    const cols = new Set([...cap.getClientRects()].map((r) => col(r.left)));
+    body.querySelectorAll('img,tr,.ln').forEach((e) => {
+      for (const r of e.getClientRects()) if (r.height) cols.add(col(r.left));
+    });
+    if (cols.size > 1) apart.push(f.id || f.className);
+  });
+  const orphans = [];
+  art.querySelectorAll('h2,h3,h4').forEach((h) => {
+    const rs = h.getClientRects();
+    const next = h.nextElementSibling;
+    const nr = next && next.getClientRects()[0];
+    if (rs.length && nr && !/^H[2-4]$/.test(next.tagName) && col(nr.left) > col(rs[rs.length - 1].left)) orphans.push(h.textContent.slice(0, 30));
+  });
+  return { empty, apart, orphans };
+}
+
 async function book(browser, file) {
   const { context, page, errors } = await open(browser, file, { viewport: { width: 1440, height: 900 } }, { 'p2h-sound': 'off' });
   await page.evaluate(() => document.querySelector('[data-view-pick="book"]').click());
@@ -157,6 +214,7 @@ async function book(browser, file) {
     return [Math.round((art.scrollWidth + parseFloat(cs.columnGap)) / step), window.p2hBook.state().pages];
   });
   const state = await page.evaluate(() => window.p2hBook.state());
+  const layout = await page.evaluate(layoutProblems);
   const first = await page.textContent('.bk-count');
   await page.evaluate(() => document.querySelector('.bk-row .bk-nav.next').click());
   await page.waitForTimeout(150);
@@ -181,7 +239,7 @@ async function book(browser, file) {
     document.querySelector('.layout > article') !== null,
   ]);
   await context.close();
-  return { state, fit, unloaded, first, midTurn, second, third, translated, back, errors };
+  return { state, fit, layout, unloaded, first, midTurn, second, third, translated, back, errors };
 }
 
 (async () => {
@@ -218,6 +276,9 @@ async function book(browser, file) {
     if (!bk.state.active || bk.state.pages < 2) fail(file, `book view not laid out: ${JSON.stringify(bk.state)}`);
     if (bk.unloaded) fail(file, `${bk.unloaded} images not loaded in book view`);
     if (bk.fit[0] !== bk.fit[1]) fail(file, `book page count ${bk.fit[1]} does not match the text (${bk.fit[0]} columns)`);
+    if (bk.layout.apart.length) fail(file, `caption apart from its figure or table: ${bk.layout.apart.join(', ')}`);
+    if (bk.layout.orphans.length) fail(file, `heading at the foot of a page: ${bk.layout.orphans.join(', ')}`);
+    if (bk.layout.empty.length) fail(file, `pages more than 60% empty: ${bk.layout.empty.join(', ')}`);
     if (!bk.midTurn) fail(file, 'the page turn is not animated');
     if (bk.first === bk.second || bk.second === bk.third) fail(file, `pages do not turn: ${bk.first}, ${bk.second}, ${bk.third}`);
     if (!(bk.translated.pages > bk.state.pages)) fail(file, 'longer text was not paginated again');

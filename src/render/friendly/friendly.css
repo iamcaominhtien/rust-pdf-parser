@@ -363,15 +363,24 @@ article>*{grid-column:text;min-width:0}
   transform:translateX(var(--bk-x,0px));will-change:transform}
 .bk-window>article>*{max-width:var(--tw)}
 .bk-window :is(h2,h3,h4,h5){break-after:avoid;break-inside:avoid}
-.bk-window :is(figure,.eq,.algo,tr,li,.authors,.kicker,h1){break-inside:avoid}
+.bk-window :is(figure,.eq,.algo,tr,.authors,.kicker,h1,ol.refs li){break-inside:avoid}
+/* A caption stays with its figure or table; one that cannot shrink to a page splits after its first rows. */
+.bk-window figure.bk-split{break-inside:auto}
+.bk-window figure>figcaption:first-child{break-after:avoid}
+.bk-window figure>figcaption:last-child{break-before:avoid}
+.bk-window figure.bk-split>.tbl-wrap{overflow:visible}
+.bk-window figure.bk-split tr:first-child{break-before:avoid}
+.bk-probe{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;font-size:var(--bk-fs);line-height:var(--bk-lh)}
 .bk-window p{orphans:2;widows:2;margin-bottom:var(--s3)}
 .bk-window h1.title{font-size:calc(var(--fs-title) * .8)}
 .bk-window h2{margin-top:var(--s6)}
 .bk-window .hang .secno{display:inline;width:auto;margin:0 .45em 0 0}
-.bk-window .plate img{max-height:calc(var(--th) - 7rem);width:auto;object-fit:contain}
+/* A picture is sized by the script to the room of its page; the rest of them fit the column. */
+.bk-window figure img[data-bkw]{width:var(--bk-w)!important;max-width:100%!important;height:auto}
+.bk-window .plate img,.bk-window .tbl-wrap>img{max-width:100%;max-height:var(--th);object-fit:contain}
 .bk-window pre.listing{max-height:calc(var(--th) - 5rem);overflow:auto}
 .bk-window aside.footnote.side{position:relative;grid-column:auto;width:auto;top:auto!important}
-.bk-window .colophon{margin-top:var(--s6)}
+.bk-window .colophon{margin-top:var(--s5);break-before:avoid}
 /* The page edge clips: the hover bleed of reference entries stays inside the text block. */
 .bk-window ol.refs li{margin:0;padding-left:2.6em;padding-right:0}
 .bk-turn{position:absolute;inset:0;pointer-events:none;z-index:3}

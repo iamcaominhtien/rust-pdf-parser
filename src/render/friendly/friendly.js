@@ -229,5 +229,5 @@
   function fitScroll(){if(root.getAttribute('data-view')!=='book')fitTables(article,0.8);}
   addEventListener('resize',fitScroll);fitScroll();
   if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(fitScroll);
-  window.p2h={store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll,fitTables:fitTables,fitScroll:fitScroll};
+  window.p2h={markFor:markFor,store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll,fitTables:fitTables,fitScroll:fitScroll};
 })();

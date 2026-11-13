@@ -4,6 +4,9 @@
 // now), shows the next page on the back of the folded part, shades the fold
 // and casts a shadow on the page beneath; the corner can be dragged by hand.
 // A recorded page turn (CC0, sounds/README.md) follows the motion.
+// The layout is helped by script where CSS columns cannot decide: figures
+// and tables are scaled to a page (and sent on past text that fills a gap),
+// footnotes stand after their mark, headings keep to what follows.
 (function(){
   var doc=document,root=doc.documentElement,P=window.p2h||{},article=doc.getElementById('article'),layout=doc.querySelector('.layout');
   if(!article||!layout)return;
@@ -54,6 +57,47 @@
     return s;
   }
 
+
+  // ---------- Footnotes: on the page of their mark ----------
+  // A note stands after the block that holds its mark (it is set where the
+  // paper had it, often far from the mark). The scroll view gets them back.
+  var moved=[];
+  function placeNotes(){
+    [].forEach.call(article.querySelectorAll('aside.footnote'),function(note){
+      var mark=P.markFor&&P.markFor(note);if(!mark||note.contains(mark))return;
+      var blk=mark;while(blk&&blk.parentNode!==article)blk=blk.parentNode;
+      if(!blk||blk===note)return;
+      var at=blk;while(at.nextElementSibling&&at.nextElementSibling.classList.contains('footnote')&&at.nextElementSibling!==note)at=at.nextElementSibling;
+      if(at.nextElementSibling===note||at===note)return;
+      var hole=doc.createComment('');note.parentNode.replaceChild(hole,note);
+      at.parentNode.insertBefore(note,at.nextSibling);moved.push([note,hole]);
+    });
+  }
+  function restoreNotes(){
+    while(moved.length){var m=moved.pop();m[1].parentNode.replaceChild(m[0],m[1]);}
+  }
+
+
+  // ---------- Headings: never the last thing on a page ----------
+  // The browser keeps a heading with what follows it, but gives up when
+  // two headings follow each other. A heading (or a run of them) whose
+  // next block starts on a later page starts a page itself.
+  function keepHeads(art){
+    [].forEach.call(art.querySelectorAll('[data-bkb]'),function(h){h.removeAttribute('data-bkb');h.style.breakBefore='';});
+    for(var round=0;round<4;round++){
+      var changed=false;
+      [].forEach.call(art.querySelectorAll('h2,h3,h4,h5'),function(h){
+        var next=h.nextElementSibling,hr=h.getClientRects(),nr=next&&next.getClientRects();
+        if(!hr.length||!nr||!nr.length||/^H[2-5]$/.test(next.tagName))return;
+        if(colOf(next)<=Math.floor((hr[hr.length-1].left-art.getBoundingClientRect().left+2)/step))return;
+        var start=h;while(start.previousElementSibling&&/^H[2-5]$/.test(start.previousElementSibling.tagName))start=start.previousElementSibling;
+        if(start.hasAttribute('data-bkb')||start.getBoundingClientRect().top-art.getBoundingClientRect().top<4)return;
+        start.setAttribute('data-bkb','');start.style.breakBefore='column';changed=true;
+      });
+      if(!changed)break;
+    }
+  }
+
   // ---------- Geometry and pagination ----------
   function measure(){
     var vw=innerWidth,vh=innerHeight-48,two=vw>=1100&&innerWidth/innerHeight>=1.25,phone=vw<600,pw,ph,k;
@@ -80,12 +124,120 @@
     var art=win.firstElementChild;art.style.setProperty('--bk-x','0px');
     // A page cannot scroll sideways: wide tables shrink further than in the scroll view.
     if(P.fitTables)P.fitTables(art,0.55);
+    fitFloats(art);fillGaps(art);keepHeads(art);if(observer)observer.takeRecords();
     pages=Math.max(1,Math.round((art.scrollWidth+(step-g.tw))/step));
-    heads=[].map.call(art.querySelectorAll('h2,h3,h4'),function(h){
+    // Entries of a bibliography that were mistaken for headings do not head a page.
+    heads=[].filter.call(art.querySelectorAll('h2,h3,h4'),function(h){return !/^\[\d+\]/.test(h.textContent.trim());}).map(function(h){
       var n=h.querySelector('.secno'),text=n?n.textContent+' '+h.textContent.slice(n.textContent.length):h.textContent;
       return {col:colOf(h),text:text.replace(/\s+/g,' ').trim(),el:h};});
     tocPages();
     stale=true;
+  }
+
+  // ---------- Floats: a figure or table stays whole, with its caption ----------
+  // A figure (a picture, a table, an algorithm) taller than the page is
+  // scaled down until it and its caption fit one page, and one that would
+  // leave most of a page empty by moving on is scaled to the room left
+  // (down to GAP_MIN of its size). A float that cannot shrink enough
+  // (a table of many rows) may split, the caption staying with its first rows.
+  var GAP_MIN=0.55,probe=null;
+  function probeBox(){
+    if(!probe){probe=el('div','bk-probe');probe.setAttribute('aria-hidden','true');}
+    if(probe.parentNode!==win)win.appendChild(probe);
+    probe.style.width=g.tw+'px';return probe;
+  }
+  // The float scaled by k (a copy, laid out alone in a column of the text's width).
+  function floatH(fig,base,k){
+    var box=probeBox(),c=fig.cloneNode(true);
+    box.textContent='';box.appendChild(c);
+    if(k!=null)scale(c,base,k);
+    var h=c.getBoundingClientRect().height;box.textContent='';return h;
+  }
+  function scale(root,base,k){
+    [].forEach.call(root.querySelectorAll('img'),function(im,i){
+      if(base.w[i]){im.setAttribute('data-bkw','');im.style.setProperty('--bk-w',(base.w[i]*k).toFixed(1)+'px');}});
+    [].forEach.call(root.querySelectorAll('.tbl-wrap>table'),function(t,i){t.style.fontSize=(base.f[i]*k).toFixed(2)+'%';});
+    [].forEach.call(root.querySelectorAll('.algo'),function(a){a.style.zoom=k<1?k.toFixed(3):'';});
+  }
+  // The sizes of the float before it is scaled, and the smallest scale that still reads.
+  function baseOf(fig){
+    var box=probeBox(),c=fig.cloneNode(true),base={w:[],f:[],min:1};
+    box.textContent='';box.appendChild(c);
+    [].forEach.call(c.querySelectorAll('img'),function(im){
+      var r=im.getBoundingClientRect(),cs=getComputedStyle(im.parentNode),room=im.parentNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+      base.w.push(Math.min(r.width,room)||0);base.min=Math.min(base.min,.15);});
+    [].forEach.call(c.querySelectorAll('.tbl-wrap>table'),function(t){base.f.push(parseFloat(t.style.fontSize)||100);base.min=Math.min(base.min,.5);});
+    if(c.querySelector('.algo'))base.min=Math.min(base.min,.6);
+    base.scalable=base.w.length||base.f.length||!!c.querySelector('.algo');
+    box.textContent='';return base;
+  }
+  // The largest scale in [lo, hi] at which the float is no taller than avail (0: none).
+  function solve(fig,base,avail,lo,hi){
+    if(floatH(fig,base,hi)<=avail)return hi;
+    if(floatH(fig,base,lo)>avail)return 0;
+    for(var i=0;i<7;i++){var m=(lo+hi)/2;if(floatH(fig,base,m)<=avail)lo=m;else hi=m;}
+    return lo;
+  }
+  function clearFloats(art){
+    [].forEach.call(art.querySelectorAll('img[data-bkw]'),function(im){im.removeAttribute('data-bkw');im.style.removeProperty('--bk-w');});
+    [].forEach.call(art.querySelectorAll('.algo'),function(a){a.style.zoom='';});
+    [].forEach.call(art.querySelectorAll('figure.float'),function(f){f.classList.remove('bk-split');f._bk=null;f._k=1;f._moves=0;});
+  }
+  // The room a float has on a page of its own: the page less the headings
+  // before it, which must not be left at the foot of the page before.
+  function pageRoom(fig){
+    var room=g.th-1,sum=0,p=fig.previousElementSibling;
+    while(p&&/^H[2-5]$/.test(p.tagName)){sum+=p.getBoundingClientRect().height;p=p.previousElementSibling;}
+    return sum?room-sum-parseFloat(getComputedStyle(fig).marginTop):room;
+  }
+  function fitFloats(art){
+    restoreFloats();clearFloats(art);
+    [].forEach.call(art.querySelectorAll('figure.float'),function(f){
+      var base=baseOf(f);f._bk=base;if(!base.scalable){if(floatH(f,base,null)>g.th)f.classList.add('bk-split');return;}
+      var room=pageRoom(f),k=solve(f,base,room,base.min,1);
+      if(!k&&room<g.th-1){room=g.th-1;k=solve(f,base,room,base.min,1);}
+      if(!k){scale(f,base,base.min);f._k=base.min;f.classList.add('bk-split');return;}
+      scale(f,base,k);f._k=k;
+    });
+  }
+  // A float that starts a page after a page left a good part empty is
+  // scaled to that room when it can be without shrinking too far; else it
+  // moves on, behind the text that fills the room (as a float does in print).
+  var floated=[];
+  function restoreFloats(){while(floated.length){var m=floated.pop();m[0]._hole=null;m[1].parentNode.replaceChild(m[0],m[1]);}}
+  function fragH(n){var h=0;[].forEach.call(n.getClientRects(),function(r){h+=r.height;});return h+parseFloat(getComputedStyle(n).marginBottom);}
+  function sendOn(f,gap){
+    var sum=0,n=f.nextElementSibling,at=null,count=0;
+    while(n&&count<16&&!/^H[12]$/.test(n.tagName)&&!n.matches('footer,.colophon')){
+      if(!n.classList.contains('footnote')){sum+=fragH(n);if(!/^H/.test(n.tagName))at=n;count++;if(sum>=gap)break;}
+      n=n.nextElementSibling;
+    }
+    // Short of text before the end of the section: the float still moves behind what there is.
+    if(!at||sum<gap*(!n||count<16&&sum<gap?0.3:0.9))return false;
+    while(at.nextElementSibling&&at.nextElementSibling.classList.contains('footnote'))at=at.nextElementSibling;
+    if(!f._hole){var hole=doc.createComment('');f.parentNode.insertBefore(hole,f);f._hole=hole;floated.push([f,hole]);}
+    at.parentNode.insertBefore(f,at.nextSibling);return true;
+  }
+  function fillGaps(art){
+    for(var round=0;round<8;round++){
+      var top=art.getBoundingClientRect().top,todo=[];
+      [].forEach.call(art.querySelectorAll('figure.float'),function(f){
+        var rs=f.getClientRects(),prev=f.previousElementSibling;
+        if(!rs.length||!prev||f.classList.contains('bk-split')||!f._bk||!f._bk.scalable)return;
+        var c=colOf(f);if(c===0||rs[0].top-top>6)return;
+        var pr=prev.getClientRects(),last=pr[pr.length-1];if(!last||colOf(prev)>=c)return;
+        var gap=g.th-(last.bottom-top)-parseFloat(getComputedStyle(f).marginTop)-2;
+        if(gap<g.th*0.2)return;
+        todo.push([f,gap,g.th-(last.bottom-top)]);
+      });
+      var changed=false;
+      todo.forEach(function(t){
+        var f=t[0],k=f._k>GAP_MIN?solve(f,f._bk,t[1],GAP_MIN,f._k):0;
+        if(k){if(k<f._k){scale(f,f._bk,k);f._k=k;changed=true;}}
+        else if((f._moves=(f._moves||0)+1)<=6&&t[2]>=g.th*0.35&&sendOn(f,t[2]))changed=true;
+      });
+      if(!changed)break;
+    }
   }
   function colOf(node){
     var art=win.firstElementChild,rects=node.getClientRects(),r=rects.length?rects[0]:node.getBoundingClientRect();
@@ -369,7 +521,7 @@
     root.setAttribute('data-view','book');view.hidden=false;
     // Footnotes leave the margin column first: they change the flow.
     if(P.placeSidenotes)P.placeSidenotes();
-    win.appendChild(article);active=true;
+    win.appendChild(article);active=true;placeNotes();
     paginate();show(anchor?colOf(anchor):0,false);
     // Prepare the replicas while the reader looks at the page, so the first turn starts at once.
     (window.requestIdleCallback||function(f){return setTimeout(f,200);})(function(){if(active&&!busy)ensureReplicas();});
@@ -391,7 +543,7 @@
   function leave(){
     if(!active)return;
     var keep=blockOnPage(page);if(observer)observer.disconnect();
-    active=false;layout.appendChild(article);view.hidden=true;root.removeAttribute('data-view');
+    active=false;restoreFloats();restoreNotes();clearFloats(article);layout.appendChild(article);view.hidden=true;root.removeAttribute('data-view');
     win.firstElementChild&&win.removeChild(win.firstElementChild);
     article.style.removeProperty('--bk-x');clearTocPages();
     if(P.syncToggle)P.syncToggle();if(P.placeSidenotes)P.placeSidenotes();if(P.fitScroll)P.fitScroll();
@@ -420,6 +572,6 @@
   addEventListener('afterprint',function(){if(root.getAttribute('data-print-book')){root.removeAttribute('data-print-book');enter();}});
   if(root.getAttribute('data-view')==='book'){root.removeAttribute('data-view');enter(article.firstElementChild);}
   syncButtons();
-  window.p2hBook={enter:enter,leave:leave,go:go,col:function(n){return colOf(n);},state:function(){return {page:page,pages:pages,per:per,active:active,busy:busy};},
+  window.p2hBook={enter:enter,leave:leave,go:go,to:function(p){turnTo(first(p),false,false);},col:function(n){return colOf(n);},state:function(){return {page:page,pages:pages,per:per,active:active,busy:busy};},
     drag:function(a,b){return {begin:begin,render:render,T:function(){return T;},stage:stage};}};
 })();

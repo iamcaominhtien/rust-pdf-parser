@@ -113,10 +113,22 @@ fn renders_all_modes() {
             ..Default::default()
         },
     );
-    assert!(friendly.html.contains("<h1>A Tiny Test Paper</h1>"));
+    assert!(friendly.html.contains("<h1 class=\"title\">A Tiny Test Paper</h1>"));
     assert!(friendly.html.contains("id=\"sec-1\""));
     assert!(friendly.html.contains("pipeline of the documentation tests."));
+    assert!(friendly.html.contains("data-theme-pick=\"white\""));
+    assert!(friendly.html.contains("@font-face{font-family:\"Literata\""));
     assert!(friendly.files.is_empty());
+    let system_fonts = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Friendly,
+            embed_fonts: false,
+            ..Default::default()
+        },
+    );
+    assert!(!system_fonts.html.contains("@font-face"));
+    assert!(system_fonts.html.len() + 200_000 < friendly.html.len());
 
     let medium = paper.to_html(
         &analysis,

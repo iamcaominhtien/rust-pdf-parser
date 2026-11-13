@@ -101,6 +101,15 @@ enum ImagesArg {
     Files,
 }
 
+/// Values of `--fonts`; the doc comments are the help texts.
+#[derive(Clone, Copy, ValueEnum, PartialEq)]
+enum FontsArg {
+    /// Embed the reading fonts in friendly pages (works offline, about 250 KB)
+    Embed,
+    /// Use the fonts installed on the reader's system (smaller files)
+    System,
+}
+
 /// Values of `--tables`; the doc comments are the help texts.
 #[derive(Clone, Copy, ValueEnum, PartialEq)]
 enum TablesArg {
@@ -150,6 +159,9 @@ struct ConvertArgs {
     /// How tables are handled
     #[arg(long, value_enum, default_value = "auto")]
     tables: TablesArg,
+    /// Fonts of friendly mode
+    #[arg(long, value_enum, default_value = "embed")]
+    fonts: FontsArg,
     /// Also write the structured document as JSON (for translation tools)
     #[arg(long)]
     json: bool,
@@ -338,6 +350,7 @@ fn write_mode(
             PageImageArg::Png => PageImage::Png,
         },
         jobs,
+        embed_fonts: args.fonts == FontsArg::Embed,
     };
     let started = Instant::now();
     let out = paper.to_html(analysis, &opts);

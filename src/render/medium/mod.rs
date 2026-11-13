@@ -101,6 +101,7 @@ fn page_html(doc: &Document, page_idx: usize, page: &PageInfo, images: &mut Imag
     let blocks: Vec<&Block> = doc.blocks.iter().filter(|block| block.page == page_idx).collect();
     let ctx = FlowCtx {
         unit: WidthUnit::Cqw { page_width: page.width },
+        offprint: false,
     };
     let mut inner = String::new();
 

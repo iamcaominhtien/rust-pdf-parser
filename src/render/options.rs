@@ -54,11 +54,15 @@ pub struct HtmlOptions {
     pub page_image: PageImage,
     /// Worker threads for drawing pages and images (0 = one per CPU).
     pub jobs: usize,
+    /// Embed the reading fonts in friendly-mode pages (otherwise the
+    /// reader's system fonts are used).
+    pub embed_fonts: bool,
 }
 
 impl Default for HtmlOptions {
-    /// Friendly mode, one self-contained file, SVG page backgrounds, images
-    /// at 3 pixels per point and one worker thread per CPU.
+    /// Friendly mode, one self-contained file with embedded fonts, SVG page
+    /// backgrounds, images at 3 pixels per point and one worker thread per
+    /// CPU.
     fn default() -> Self {
         Self {
             mode: Mode::Friendly,
@@ -67,6 +71,7 @@ impl Default for HtmlOptions {
             scale: 3.0,
             page_image: PageImage::Svg,
             jobs: 0,
+            embed_fonts: true,
         }
     }
 }

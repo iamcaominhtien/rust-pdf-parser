@@ -2,10 +2,16 @@
 
 use super::*;
 use crate::model::*;
+use regex::Regex;
+use std::sync::LazyLock;
 
 /// Cells with at most this many characters get the `nw` (no wrap) class:
 /// short entries such as numbers read badly when broken over two lines.
 const NOWRAP_MAX_CHARS: usize = 28;
+
+/// The text of a numeric table cell: digits with decimal and thousands
+/// separators, slashes, `±`, `%`, minus signs and dashes, brackets, `×`.
+static NUMERIC_CELL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[\d.,/±%−\-–()×\s]+$").unwrap());
 
 /// Classes describing the rules around the cell at (`row`, `col`) spanning
 /// `colspan` x `rowspan` positions: `ra1`/`ra2` thin/heavy rule above, `rb*`
@@ -71,6 +77,43 @@ pub(crate) fn table_walk(table: &Table, mut emit: impl FnMut(usize, usize, Optio
 
 /// A reconstructed table as an HTML `<table>`.
 pub(crate) fn table_html(table: &Table) -> String {
+    write_table(table, &[])
+}
+
+/// A reconstructed table as an HTML `<table>`, with the `num` class on the
+/// cells of numeric columns (see [`numeric_columns`]) so they align right.
+pub(crate) fn table_html_numeric(table: &Table) -> String {
+    write_table(table, &numeric_columns(table))
+}
+
+/// For each column, whether all its non-empty body cells hold a number
+/// (digits with `.`, `,`, `/`, `±`, `%`, minus signs, brackets, `×`).
+/// Header-only and spanning cells do not count.
+fn numeric_columns(table: &Table) -> Vec<bool> {
+    let mut numeric = vec![true; table.n_cols];
+    let mut seen = vec![false; table.n_cols];
+    for row in table.rows.iter().skip(table.header_rows) {
+        for cell in row.iter().filter(|cell| cell.colspan == 1 && cell.col < table.n_cols) {
+            let text = plain(&cell.spans);
+            if text.is_empty() {
+                continue;
+            }
+            seen[cell.col] = true;
+            if !NUMERIC_CELL.is_match(&text) {
+                numeric[cell.col] = false;
+            }
+        }
+    }
+    numeric
+        .iter()
+        .zip(&seen)
+        .map(|(numeric, seen)| *numeric && *seen)
+        .collect()
+}
+
+/// Writes a table; `numeric` tells which columns get the `num` class (may
+/// be empty: none).
+fn write_table(table: &Table, numeric: &[bool]) -> String {
     let mut out = String::from("<table class=\"tbl\">");
     let mut open_row: Option<usize> = None;
     table_walk(table, |row_idx, col, cell| {
@@ -84,7 +127,10 @@ pub(crate) fn table_html(table: &Table) -> String {
                 "<{tag} class=\"e{}\"></{tag}>",
                 table_rule_classes(table, row_idx, col, 1, 1)
             )),
-            Some(cell) => out.push_str(&cell_html(table, row_idx, cell, tag)),
+            Some(cell) => {
+                let num = cell.colspan == 1 && numeric.get(cell.col).copied().unwrap_or(false);
+                out.push_str(&cell_html(table, row_idx, cell, tag, num));
+            }
         }
     });
     if open_row.is_some() {
@@ -126,8 +172,8 @@ fn open_table_row(table: &Table, open_row: Option<usize>, row_idx: usize, out: &
 }
 
 /// A non-empty cell of row `row_idx` as a `tag` (`th` or `td`) element, with
-/// its alignment, wrapping and rule classes.
-fn cell_html(table: &Table, row_idx: usize, cell: &TableCell, tag: &str) -> String {
+/// its alignment, wrapping and rule classes (and `num` when `num`).
+fn cell_html(table: &Table, row_idx: usize, cell: &TableCell, tag: &str, num: bool) -> String {
     let align = if cell.colspan > 1 {
         "c"
     } else {
@@ -136,7 +182,8 @@ fn cell_html(table: &Table, row_idx: usize, cell: &TableCell, tag: &str) -> Stri
     let short = plain(&cell.spans).chars().count() <= NOWRAP_MAX_CHARS;
     let attrs = span_attrs(cell);
     format!(
-        "<{tag}{attrs} class=\"{align}{}{}{}\">{}</{tag}>",
+        "<{tag}{attrs} class=\"{align}{}{}{}{}\">{}</{tag}>",
+        if num { " num" } else { "" },
         if short { " nw" } else { "" },
         if cell.rowspan > 1 { " mid" } else { "" },
         table_rule_classes(table, row_idx, cell.col, cell.colspan, cell.rowspan),

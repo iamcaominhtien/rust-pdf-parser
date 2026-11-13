@@ -99,6 +99,24 @@ pub(crate) fn caption_html(spans: &[Span]) -> String {
     spans_html(spans)
 }
 
+/// Caption HTML with the label ("Figure 3") set apart and its trailing
+/// punctuation (":", ".", "|", a dash) dropped: the friendly mode marks
+/// the label by colour and weight instead.
+pub(crate) fn caption_html_bare(spans: &[Span]) -> String {
+    if let Some(first) = spans.first()
+        && let Some(label_match) = CAP_LABEL.find(&first.text)
+    {
+        let mut rest = spans.to_vec();
+        let label = first.text[..label_match.end()]
+            .trim_end()
+            .trim_end_matches([':', '.', '|', '—', '–', '-'])
+            .trim_end();
+        rest[0].text = first.text[label_match.end()..].trim_start().to_string();
+        return format!("<span class=\"cap-label\">{}</span>{}", esc(label), spans_html(&rest));
+    }
+    spans_html(spans)
+}
+
 /// The CSS class of a float of the given kind.
 pub(crate) fn float_class(kind: crate::model::FloatKind) -> &'static str {
     use crate::model::FloatKind::*;

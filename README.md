@@ -21,7 +21,7 @@ sang HTML đẹp, dễ đọc, câu chữ liền mạch — phù hợp làm đ�
 | `hard` | Giống 1-1 từng trang (trang gốc vẽ lại bằng SVG/PNG) | Lớp chữ ẩn, chọn/copy/tìm kiếm được | Cần đối chiếu chính xác với bản PDF |
 | `hard-95` | Như `hard`: từng trang, đúng vị trí, đúng ngắt dòng | **Chữ HTML thật, hiển thị**; bảng là `<table>`; công thức là chữ | Muốn giống bản gốc mà vẫn dịch/sửa/copy được |
 | `medium` | Giữ trang, số cột, vị trí tương đối của hình/bảng | HTML thật, tự dàn lại; đoạn văn không bị cắt giữa cột/trang | Muốn "cảm giác bài báo", chữ dàn tự nhiên |
-| `friendly` | Một cột, responsive, có mục lục, dark mode | HTML thật, ưu tiên dễ đọc | Đọc trên web/điện thoại, đưa vào công cụ dịch |
+| `friendly` | Một cột, responsive, thiết kế Offprint: theme Paper / White / Dark, mục lục ẩn/hiện được, font đọc nhúng sẵn | HTML thật, ưu tiên dễ đọc | Đọc trên web/điện thoại, đưa vào công cụ dịch |
 
 Ở cả bốn chế độ, văn bản của một đoạn luôn nằm liền nhau trong DOM:
 
@@ -92,6 +92,7 @@ hoặc URL arXiv (`https://arxiv.org/abs/1706.03762`).
 | `--scale <số>` | Độ phân giải ảnh hình/công thức, pixel trên mỗi point PDF (mặc định 3 ≈ 216 dpi) |
 | `--page-image <svg\|png>` | Nền trang ở chế độ `hard` (mặc định `svg`) |
 | `--tables <auto\|image>` | `auto` (mặc định): dựng `<table>` khi cấu trúc bảng rõ ràng. `image`: không dựng (bảng là ảnh ở `medium`/`friendly`, là chữ đặt theo vị trí ở `hard-95`) |
+| `--fonts <embed\|system>` | `embed` (mặc định): nhúng font đọc của `friendly` (Literata, IBM Plex Sans; IBM Plex Mono khi bài có code), khoảng 250 KB, xem offline vẫn đúng font. `system`: dùng font có sẵn trên máy người đọc |
 | `--json` | Ghi thêm `<tên>.json` — cấu trúc tài liệu |
 | `-j, --jobs <N>` | Số luồng xử lý song song. `0` (mặc định): một luồng mỗi nhân CPU. `1`: không song song. Kết quả giống hệt nhau với mọi giá trị |
 

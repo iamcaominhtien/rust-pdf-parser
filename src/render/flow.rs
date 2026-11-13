@@ -2,6 +2,13 @@
 
 use super::*;
 use crate::model::*;
+use regex::Regex;
+use std::sync::LazyLock;
+
+/// A section number at the start of a heading ("3.2 ", "A.1 ", "IV. "),
+/// set apart in the friendly mode so it can hang in the margin.
+static SECTION_NUMBER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:\d+(?:\.\d+)*\.?|[A-Z](?:\.\d+)+\.?|[A-Z]\.|[IVXL]+\.)\s+").unwrap());
 
 /// How image widths are expressed in a given mode.
 pub(crate) enum WidthUnit {
@@ -32,6 +39,10 @@ impl WidthUnit {
 pub(crate) struct FlowCtx {
     /// How image widths are expressed.
     pub unit: WidthUnit,
+    /// Write the markup of the Offprint design (friendly mode): hanging
+    /// section numbers, reference and list labels, figure plates, caption
+    /// labels without punctuation, numeric table columns.
+    pub offprint: bool,
 }
 
 /// A run of consecutive blocks that share a container element.
@@ -170,15 +181,32 @@ fn block_html(block: &Block, images: &mut ImageStore<'_>, ctx: &FlowCtx, out: &m
             } else {
                 ""
             };
-            out.push_str(&format!("<{tag}{id}{cls}>{}</{tag}>\n", spans_html(&block.spans)));
+            match section_number(&block.spans).filter(|_| ctx.offprint && cls.is_empty()) {
+                Some((number, rest)) => out.push_str(&format!(
+                    "<{tag}{id} class=\"hang\"><span class=\"secno\">{}</span>{}</{tag}>\n",
+                    esc(&number),
+                    spans_html(&rest)
+                )),
+                None => out.push_str(&format!("<{tag}{id}{cls}>{}</{tag}>\n", spans_html(&block.spans))),
+            }
         }
         BlockKind::Paragraph { .. } => out.push_str(&format!("<p{id}>{}</p>\n", spans_html(&block.spans))),
         BlockKind::ListItem { marker } => {
             let cls = if marker.is_some() { " class=\"labeled\"" } else { "" };
-            out.push_str(&format!("<li{id}{cls}>{}</li>\n", spans_html(&block.spans)));
+            let body = match marker.as_deref().filter(|_| ctx.offprint) {
+                Some(marker) => labelled_html(&block.spans, marker, "lbl"),
+                None => spans_html(&block.spans),
+            };
+            out.push_str(&format!("<li{id}{cls}>{body}</li>\n"));
         }
-        BlockKind::Reference { .. } => out.push_str(&format!("<li{id}>{}</li>\n", spans_html(&block.spans))),
-        BlockKind::Footnote { marker } => out.push_str(&footnote_html(block, marker, &id)),
+        BlockKind::Reference { label } => {
+            let body = match label.as_deref().filter(|_| ctx.offprint) {
+                Some(label) => reference_html(&block.spans, label),
+                None => spans_html(&block.spans),
+            };
+            out.push_str(&format!("<li{id}>{body}</li>\n"));
+        }
+        BlockKind::Footnote { marker } => out.push_str(&footnote_html(block, marker, &id, ctx)),
         BlockKind::Equation { image, number } => out.push_str(&equation_html(block, image, number, &id, images, ctx)),
         BlockKind::Figure { kind, image, label } => {
             out.push_str(&figure_html(block, *kind, image, label, &id, images, ctx));
@@ -186,10 +214,13 @@ fn block_html(block: &Block, images: &mut ImageStore<'_>, ctx: &FlowCtx, out: &m
     }
 }
 
-/// A footnote, with its marker (if any) as a superscript.
-fn footnote_html(block: &Block, marker: &str, id: &str) -> String {
+/// A footnote, with its marker (if any) as a superscript (in the friendly
+/// mode, as a rubric label).
+fn footnote_html(block: &Block, marker: &str, id: &str, ctx: &FlowCtx) -> String {
     let mark = if marker.is_empty() {
         String::new()
+    } else if ctx.offprint {
+        format!("<span class=\"fn-mark\">{}</span>", esc(marker))
     } else {
         format!("<sup class=\"fn-mark\">{}</sup> ", esc(marker))
     };
@@ -245,14 +276,21 @@ fn figure_html(
                 ctx.unit.css(spec.rect.width())
             )
         })
+        .map(|img| match kind {
+            FloatKind::Figure | FloatKind::Graphic if ctx.offprint => format!("<div class=\"plate\">{img}</div>"),
+            _ => img,
+        })
         .unwrap_or_default();
     // A reconstructed table replaces the picture of the table.
     let img = match &block.table {
+        Some(table) if ctx.offprint => format!("<div class=\"tbl-wrap\">{}</div>", table_html_numeric(table)),
         Some(table) => format!("<div class=\"tbl-wrap\">{}</div>", table_html(table)),
         None => img,
     };
     let cap = if block.spans.is_empty() {
         String::new()
+    } else if ctx.offprint {
+        format!("<figcaption>{}</figcaption>", caption_html_bare(&block.spans))
     } else {
         format!("<figcaption>{}</figcaption>", caption_html(&block.spans))
     };
@@ -267,4 +305,48 @@ fn figure_html(
         format!("{img}{cap}")
     };
     format!("<figure class=\"float {cls}\"{id}>{inner}</figure>\n")
+}
+
+/// The section number at the start of a heading and the rest of its spans,
+/// or `None` when the heading has no number.
+fn section_number(spans: &[Span]) -> Option<(String, Vec<Span>)> {
+    let first = spans.first()?;
+    let found = SECTION_NUMBER.find(&first.text)?;
+    if found.end() == first.text.len() && spans.len() == 1 {
+        return None;
+    }
+    let mut rest = spans.to_vec();
+    rest[0].text = first.text[found.end()..].to_string();
+    Some((found.as_str().trim_end().to_string(), rest))
+}
+
+/// A list item whose text starts with its `marker` ("(1)", "a."): the
+/// marker in a `<span class="{class}">`, then the rest of the text.
+/// Without the marker at the start, the plain text.
+fn labelled_html(spans: &[Span], marker: &str, class: &str) -> String {
+    match spans.first() {
+        Some(first) if !marker.is_empty() && first.text.starts_with(marker) => {
+            let mut rest = spans.to_vec();
+            rest[0].text = first.text[marker.len()..].trim_start().to_string();
+            format!("<span class=\"{class}\">{}</span>{}", esc(marker), spans_html(&rest))
+        }
+        _ => spans_html(spans),
+    }
+}
+
+/// A bibliography entry with its label ("[12]" or "12.") set apart in a
+/// `<span class="rn">`.
+fn reference_html(spans: &[Span], label: &str) -> String {
+    let Some(first) = spans.first() else {
+        return String::new();
+    };
+    let text = first.text.as_str();
+    for printed in [format!("[{label}]"), format!("{label}."), label.to_string()] {
+        if let Some(rest) = text.strip_prefix(printed.as_str()) {
+            let mut rest_spans = spans.to_vec();
+            rest_spans[0].text = rest.trim_start().to_string();
+            return format!("<span class=\"rn\">{}</span>{}", esc(&printed), spans_html(&rest_spans));
+        }
+    }
+    spans_html(spans)
 }

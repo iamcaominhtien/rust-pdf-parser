@@ -1,4 +1,10 @@
 //! High-level entry points: PDF bytes in, structured document and HTML out.
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 use crate::analysis::pipeline::{Analysis, analyze};
 use crate::backend::{PageRenderer, PdfFile};
@@ -7,7 +13,11 @@ use crate::model::Meta;
 use crate::render::{HtmlOptions, HtmlOutput, render};
 use anyhow::Result;
 
-/// A loaded PDF.
+/// A loaded PDF, ready to be analysed and rendered.
+///
+/// Typical use: [`Paper::from_bytes`], [`Paper::analyze`], then
+/// [`Paper::to_html`] once per output mode (the analysis does not depend on
+/// the mode, so it is computed once).
 pub struct Paper {
     /// The PDF itself.
     pdf: PdfFile,
@@ -27,7 +37,8 @@ impl Paper {
         })
     }
 
-    /// Records where the PDF came from (file name, arXiv id, ...).
+    /// Records where the PDF came from (file name, arXiv id, ...); it ends up
+    /// in [`Meta::source`].
     pub fn with_source(mut self, source: impl Into<String>) -> Self {
         self.source = Some(source.into());
         self
@@ -44,6 +55,9 @@ impl Paper {
     }
 
     /// Runs content extraction and layout analysis.
+    ///
+    /// Pages are read on `opts.jobs` threads; the result does not depend on
+    /// the number of threads.
     pub fn analyze_with(&self, opts: AnalyzeOptions) -> Analysis {
         let (raw, fonts) = self.pdf.extract(opts.jobs);
         let meta = Meta {
@@ -53,12 +67,14 @@ impl Paper {
         analyze(raw, &fonts, meta, opts)
     }
 
-    /// A renderer for pictures of pages and page regions.
+    /// A renderer for pictures of pages and page regions. Not thread-safe:
+    /// every thread that draws needs its own.
     pub fn renderer(&self) -> PageRenderer<'_> {
         self.pdf.renderer()
     }
 
-    /// Renders an analysis to HTML in the requested mode.
+    /// Renders an analysis to HTML in the requested mode. `analysis` must
+    /// come from this paper, since images are drawn from its PDF.
     pub fn to_html(&self, analysis: &Analysis, opts: &HtmlOptions) -> HtmlOutput {
         render(analysis, &self.pdf, opts)
     }

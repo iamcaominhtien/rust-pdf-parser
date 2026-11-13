@@ -4,7 +4,11 @@
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
 @media (prefers-color-scheme:dark){:root{--desk:#24262b}}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:3.5rem}
+html{scroll-padding-top:3.5rem}
+/* Smooth scrolling for links followed on the page (set once it has
+   opened), not for the jump to a #section when the page opens. */
+html[data-smooth]{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html[data-smooth]{scroll-behavior:auto}}
 body{margin:0;background:var(--desk);color:var(--ink);font-family:var(--serif)}
 .topbar{position:sticky;top:0;z-index:20;display:flex;gap:1rem;align-items:center;padding:.5rem 1rem;background:#1f2226;color:#e8eaed;
   font-family:var(--sans);font-size:.84rem}
@@ -63,7 +67,7 @@ aside.footnote{margin:0 0 .3em;text-align:justify}
   .page-inner{font-size:1rem;line-height:1.55;padding:1.4rem 1rem 3rem;min-height:0}
   .page-no{font-size:.8rem;bottom:.8rem}
   .zone{column-count:1!important}
-  figure.float img{width:auto!important}
+  figure.float img{width:var(--w,auto)!important}
   .eq-body img{max-width:100%}
   p,ul.list li,figcaption{text-align:left}
 }

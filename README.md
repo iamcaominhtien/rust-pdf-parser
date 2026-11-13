@@ -292,6 +292,14 @@ node tests/browser/check-hard95.js out/*.hard-95.html
 node tests/browser/check-friendly.js out/*.friendly.html
 ```
 
+Trang `medium` và `friendly` phải đứng yên khi ảnh (tải lười) hiện ra: mỗi ảnh có sẵn `width`/`height`,
+không khối nào dịch chuyển trước và sau khi tải hết ảnh, ảnh không bị méo, và mở link tới một mục
+(`#sec-…`) thì nhảy ngay đến đúng mục đó:
+
+```bash
+node tests/browser/check-stable.js out/*.medium.html out/*.friendly.html
+```
+
 Cần gói `playwright` hoặc `playwright-core`. CI (`.github/workflows/ci.yml`) chạy `cargo fmt`,
 `cargo clippy`, toàn bộ test và kiểm tra trình duyệt trên mỗi pull request. Các bài báo được giữ
 trong bộ nhớ đệm riêng của repo trên GitHub, nên chỉ lần đầu phải tải.

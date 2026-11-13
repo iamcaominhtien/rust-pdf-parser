@@ -59,8 +59,11 @@
   :root{--fs-title:1.875rem;--fs-h2:1.4375rem;--fs-h3:1.1875rem;--fs-body:1.0625rem;--lh-body:1.62;--fs-code:.8125rem}
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:72px;-webkit-text-size-adjust:100%;text-size-adjust:100%}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+html{scroll-padding-top:72px;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+/* Smooth scrolling once the page is open: a link opened from elsewhere
+   (#section) jumps straight to its place instead of gliding there. */
+html[data-smooth]{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html[data-smooth]{scroll-behavior:auto}}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:var(--fs-body);line-height:var(--lh-body);
   font-variant-numeric:lining-nums proportional-nums;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -126,7 +129,7 @@ h2.abstract-heading + .abstract{border-top:0;margin-top:0;padding-top:0}
 .abstract p:last-child{margin-bottom:0}
 
 /* ---------- Headings: hanging rubric numbers ---------- */
-h2,h3,h4,h5{font-family:var(--serif);color:var(--ink);text-wrap:balance;margin:0;scroll-margin-top:72px}
+h2,h3,h4,h5{font-family:var(--serif);color:var(--ink);text-wrap:balance;margin:0}
 h2{font-size:var(--fs-h2);line-height:var(--lh-h2);font-weight:600;letter-spacing:-.005em;margin:var(--s8) 0 var(--s4)}
 h3{font-size:var(--fs-h3);line-height:var(--lh-h3);font-weight:600;margin:var(--s7) 0 var(--s3)}
 h4{font-size:var(--fs-h4);line-height:var(--lh-h4);font-weight:600;margin:var(--s6) 0 var(--s2)}
@@ -362,7 +365,7 @@ article>*{grid-column:text;min-width:0}
 .bk-window h1.title{font-size:calc(var(--fs-title) * .8)}
 .bk-window h2{margin-top:var(--s6)}
 .bk-window .hang .secno{display:inline;width:auto;margin:0 .45em 0 0}
-.bk-window .plate img{max-height:calc(var(--th) - 7rem);width:auto}
+.bk-window .plate img{max-height:calc(var(--th) - 7rem);width:auto;object-fit:contain}
 .bk-window pre.listing{max-height:calc(var(--th) - 5rem);overflow:auto}
 .bk-window aside.footnote.side{position:relative;grid-column:auto;width:auto;top:auto!important}
 .bk-window .colophon{margin-top:var(--s6)}

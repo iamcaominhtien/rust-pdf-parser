@@ -71,12 +71,8 @@ impl<'a> PageRenderer<'a> {
     /// exist or the PNG cannot be encoded.
     pub fn region_png(&self, page: usize, rect: Rect, scale: f32, transparent: bool) -> Option<(Vec<u8>, u32, u32)> {
         let page = self.pdf.pages().get(page)?;
-        // Keep the bitmap within sane bounds.
-        let scale = scale
-            .min(MAX_BITMAP_SIDE_PX / rect.width().max(1.0))
-            .min(MAX_BITMAP_SIDE_PX / rect.height().max(1.0));
-        let width_px = (rect.width() * scale).ceil().max(1.0) as u16;
-        let height_px = (rect.height() * scale).ceil().max(1.0) as u16;
+        let (scale, width, height) = region_bitmap(rect, scale);
+        let (width_px, height_px) = (width as u16, height as u16);
         let mut ctx = RenderContext::new(width_px, height_px);
         let transform = Affine::scale(scale as f64)
             * Affine::translate((-rect.x0 as f64, -rect.y0 as f64))
@@ -268,4 +264,18 @@ fn recompress_png(engine: &base64::engine::GeneralPurpose, payload: &str) -> Opt
         })
         // Base64 turns 3 bytes into 4 characters.
         .filter(|jpeg| jpeg.len() * 4 / 3 < len)
+}
+
+/// The scale and pixel size of the bitmap of `rect` (page points) drawn at
+/// `scale` pixels per point by [`PageRenderer::region_png`]: the scale is
+/// lowered so that no side exceeds [`MAX_BITMAP_SIDE_PX`]. The HTML gives
+/// pictures this size before they are drawn, so that the page does not move
+/// when they load.
+pub fn region_bitmap(rect: Rect, scale: f32) -> (f32, u32, u32) {
+    let scale = scale
+        .min(MAX_BITMAP_SIDE_PX / rect.width().max(1.0))
+        .min(MAX_BITMAP_SIDE_PX / rect.height().max(1.0));
+    let width = (rect.width() * scale).ceil().max(1.0) as u32;
+    let height = (rect.height() * scale).ceil().max(1.0) as u32;
+    (scale, width, height)
 }

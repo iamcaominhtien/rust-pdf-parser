@@ -7,6 +7,11 @@ use crate::common::geom::median;
 
 /// Style sheet of the mode, embedded in the page.
 const CSS: &str = include_str!("medium.css");
+/// Smooth scrolling for links followed on the page, turned on once the page
+/// has opened: a link from elsewhere (`#sec-3`) jumps straight to its place
+/// instead of gliding over the whole paper.
+const SMOOTH_JS: &str = "addEventListener('load',function(){requestAnimationFrame(function(){\
+requestAnimationFrame(function(){document.documentElement.setAttribute('data-smooth','')})})})";
 
 /// Page margin used when no page has enough blocks to measure it, in points
 /// (a little under an inch, typical of papers).
@@ -62,6 +67,7 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
 <div class="topbar"><span class="t">{title}</span>{source}<span>{n} pages</span></div>
 <main class="pages">
 {pages}</main>
+<script>{SMOOTH_JS}</script>
 </body>
 </html>
 "#,

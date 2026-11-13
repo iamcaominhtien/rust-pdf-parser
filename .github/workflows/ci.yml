@@ -64,16 +64,21 @@ jobs:
 
       # Behaviour that only a browser can check, with the Chrome preinstalled
       # on the runner: hard-95 line fitting and reflow after translation;
-      # friendly themes, contents, phone widths and the book view.
+      # friendly themes, contents, phone widths and the book view; medium
+      # and friendly pages that stay still while their pictures load
+      # (inline and as separate files).
       - name: Browser checks
         run: |
           npm install --no-save --no-package-lock playwright-core@1.63.0
-          mkdir -p out
+          mkdir -p out out/files
           for p in 1706.03762v7 1512.03385v1 1602.03837v1 1412.6980v9; do
             target/debug/paper2html convert "tests/data/$p.pdf" -m hard-95 -o "out/$p.hard-95.html"
             target/debug/paper2html convert "tests/data/$p.pdf" -m friendly -o "out/$p.friendly.html"
+            target/debug/paper2html convert "tests/data/$p.pdf" -m medium -o "out/$p.medium.html"
           done
+          target/debug/paper2html convert tests/data/1412.6980v9.pdf -m friendly --images files -o out/files/1412.6980v9.friendly.html
           node tests/browser/check-hard95.js out/*.hard-95.html
           node tests/browser/check-friendly.js out/*.friendly.html
+          node tests/browser/check-stable.js out/*.medium.html out/*.friendly.html out/files/*.friendly.html
         env:
           P2H_CHROME_CHANNEL: chrome

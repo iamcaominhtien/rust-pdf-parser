@@ -207,6 +207,10 @@
     lb.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
   }
   if(live)live.textContent='';
+  // Links followed on the page glide; the jump to a #section when the page
+  // opens does not (see the CSS).
+  function smooth(){requestAnimationFrame(function(){requestAnimationFrame(function(){root.setAttribute('data-smooth','');});});}
+  if(doc.readyState==='complete')smooth();else addEventListener('load',smooth);
   // Shared with the book view (book.js).
   window.p2h={store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll};
 })();

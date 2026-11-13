@@ -29,8 +29,8 @@ impl WidthUnit {
     /// PDF, never wider than its container.
     fn css(&self, width_pt: f32) -> String {
         match self {
-            WidthUnit::Em { pt_per_em } => format!("width:min(100%,{:.2}em)", width_pt / pt_per_em),
-            WidthUnit::Cqw { page_width } => format!("width:min(100%,{:.2}cqw)", width_pt / page_width * 100.0),
+            WidthUnit::Em { pt_per_em } => format!("width:{:.2}em;max-width:100%", width_pt / pt_per_em),
+            WidthUnit::Cqw { page_width } => format!("width:{:.2}cqw;max-width:100%", width_pt / page_width * 100.0),
         }
     }
 }
@@ -267,8 +267,9 @@ fn equation_html(
 ) -> String {
     let alt = esc(&plain(&block.spans));
     let img = format!(
-        "<img src=\"{}\" alt=\"{alt}\" style=\"{}\" loading=\"lazy\">",
+        "<img src=\"{}\" alt=\"{alt}\"{} style=\"{}\" loading=\"lazy\">",
         images.region(image, "eq"),
+        images.region_size_attrs(image),
         ctx.unit.css(image.rect.width())
     );
     let num = number
@@ -306,10 +307,17 @@ fn figure_html(
     let img = image
         .as_ref()
         .filter(|_| block.table.is_none() && algo.is_none())
-        .map(|spec| (images.region(spec, cls), spec))
-        .map(|(src, spec)| {
+        .map(|spec| (images.region(spec, cls), images.region_size_attrs(spec), spec))
+        .map(|(src, size, spec)| {
+            // The medium mode shows figures at their own pixel width on
+            // phones (`--w`), known before the picture loads.
+            let own = if ctx.offprint {
+                String::new()
+            } else {
+                format!(";--w:{}px", images.region_size(spec).0)
+            };
             format!(
-                "<img src=\"{src}\" alt=\"{alt}\" style=\"{}\" loading=\"lazy\">",
+                "<img src=\"{src}\" alt=\"{alt}\"{size} style=\"{}{own}\" loading=\"lazy\">",
                 ctx.unit.css(spec.rect.width())
             )
         })

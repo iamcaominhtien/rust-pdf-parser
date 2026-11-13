@@ -58,6 +58,20 @@ impl ImageStore<'_> {
         self.add(ImageJob::Region(*spec, hint.to_string()))
     }
 
+    /// The `width` and `height` attributes of the picture of a page region
+    /// (its pixel size): the browser keeps its place, at the right height,
+    /// before it loads.
+    pub fn region_size_attrs(&self, spec: &ImageSpec) -> String {
+        let (width, height) = self.region_size(spec);
+        format!(" width=\"{width}\" height=\"{height}\"")
+    }
+
+    /// The pixel size of the picture of a page region.
+    pub fn region_size(&self, spec: &ImageSpec) -> (u32, u32) {
+        let (_, width, height) = crate::backend::render::region_bitmap(spec.rect, self.opts.scale);
+        (width, height)
+    }
+
     /// The `src` of a picture of a page without the glyphs whose origins,
     /// rounded to a quarter point, are in `drawn` (or next to one of them).
     pub fn page_without_text(&mut self, page: usize, drawn: HashSet<(i32, i32)>) -> String {

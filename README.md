@@ -216,7 +216,11 @@ PDF ──► trích xuất ──► dòng chữ ──► hình/bảng ──�
    trong hình/bảng bị loại khỏi mạch văn.
    **Cấu trúc bảng** (`layout/tables.rs`): hàng theo baseline, cột theo các "hành lang" trống chạy
    dọc bảng; ô vắt qua hành lang thành ô gộp ngang, nhãn nằm giữa các hàng thành ô gộp dọc, đường
-   kẻ gắn vào cạnh ô. Nội dung không giống lưới (ví dụ ô chứa ma trận) thì không dựng.
+   kẻ gắn vào cạnh ô. Ô viết nhiều dòng được gộp thành một ô khi các hàng logic tách nhau rõ
+   (đường kẻ giữa các hàng, hoặc khoảng cách lớn hơn khoảng cách dòng) và dòng dưới là phần nối
+   tiếp của dòng trên. Nội dung không giống lưới (ví dụ ô chứa ma trận, hai cột số bị gộp làm một)
+   thì không dựng. Chú thích `Figure N` đi kèm một bảng thì bảng đó là ảnh. Một số PDF vẽ đường kẻ
+   bảng bằng ảnh mặt nạ 1 pixel; những ảnh này được đọc như đường kẻ.
 4. **Thứ tự đọc** (`layout/order.rs`): cắt trang thành các vùng ngang, mỗi vùng một hoặc nhiều
    cột (tìm khe giữa các cột), đệ quy.
 5. **Block** (`layout/blocks.rs`): tách đoạn văn (thụt đầu dòng, dòng cuối ngắn, khoảng cách dọc),
@@ -232,8 +236,8 @@ PDF ──► trích xuất ──► dòng chữ ──► hình/bảng ──�
 - **Bảng**: bảng dạng lưới dựng được thành `<table>`; trên 8 bài thử là 52/67 bảng có chú thích
   (44/48 nếu không tính báo cáo GPT-4, vốn có nhiều bảng mà ô là cả đoạn văn). Bảng có ô chứa
   ma trận/ngoặc lớn, ô là đoạn văn dài, hoặc không đủ đều thì không dựng: ở `medium` và `friendly`
-  giữ ảnh, ở `hard-95` là chữ đặt theo vị trí. Ô có nhiều dòng chữ hiện thành nhiều hàng. Màu nền
-  ô không được giữ.
+  giữ ảnh, ở `hard-95` là chữ đặt theo vị trí. Ô có nhiều dòng chữ hiện thành nhiều hàng khi bảng
+  không cho thấy rõ chỗ ngắt giữa các hàng logic. Màu nền ô không được giữ.
 - **Công thức hiển thị**: là chữ thật ở `hard-95`; ở `medium` và `friendly` vẫn là ảnh.
 - **Font**: `hard-95` dùng font có sẵn trên máy người xem (họ Times/Helvetica/Courier), không nhúng
   font của PDF, nên nét chữ có thể hơi khác bản gốc; vị trí và độ rộng dòng thì được căn khớp.

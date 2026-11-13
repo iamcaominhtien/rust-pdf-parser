@@ -39,6 +39,10 @@ static CAPTION: LazyLock<Regex> = LazyLock::new(|| {
 static HEADING_LIKE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\d{1,2}(?:\.\d{1,2})*\.?|[IVX]+\.|[A-Z]\.)\s+\p{Lu}").unwrap());
 
+/// The marker that starts the sub-caption of a panel of a figure: "(b) An
+/// example of ...", "(c)".
+static PANEL_MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\([a-hA-H]\)(\s|$)").unwrap());
+
 /// Tuning parameters of float detection. Part of [`LayoutConfig`](crate::config::LayoutConfig).
 ///
 /// Lengths are in PDF points (`_pt`) or in multiples of a font size (`_em`,
@@ -177,6 +181,11 @@ pub struct FloatsConfig {
     /// A rule table within this distance of a drawing component is part of
     /// it (or contains it).
     pub rule_table_containment_tol_pt: f32,
+    /// A ruled drawing that holds a rule table and sticks out of its left or
+    /// right edge by more than this is the table plus stray rules (a
+    /// fraction bar of an equation in the next column): it shrinks to the
+    /// table.
+    pub rule_table_overhang_pt: f32,
 
     // --- votes for the table caption convention ---
     /// A table is next to its caption when it overlaps the caption
@@ -236,6 +245,19 @@ pub struct FloatsConfig {
     pub grow_horizontal_overlap_ratio: f32,
     /// ... or, for a one-line caption, the horizontal gap is at most this.
     pub grow_max_hgap_pt: f32,
+
+    // --- figures whose panels are partly text ---
+    /// A figure caption that found no drawing next to it may claim a drawing
+    /// above it when the panels between them have sub-captions ("(b) ...",
+    /// "(c) ..."); the drawing is at most this far above the caption (in
+    /// points).
+    pub panel_max_span_pt: f32,
+    /// The last sub-caption is at most this far above the caption (in
+    /// points).
+    pub panel_max_caption_gap_pt: f32,
+    /// A sub-caption must overlap the width of the caption by at least this
+    /// fraction of its own width.
+    pub panel_overlap_ratio: f32,
 
     // --- uncaptioned graphics ---
     /// An unclaimed component with an image is kept as a graphic when it is
@@ -309,6 +331,11 @@ pub struct FloatsConfig {
     /// A label overlaps the drawing by at least this fraction of its own
     /// width (stacked) or height (beside).
     pub label_overlap_ratio: f32,
+    /// A label right above or below the drawing also counts as stacked on it
+    /// when its centre is over the drawing and it overlaps the drawing's
+    /// width by at least this fraction of its own: the title of one panel
+    /// can stick out over the edge of a wide drawing.
+    pub label_centred_overlap_ratio: f32,
     /// A label beside the drawing has fewer than this many characters.
     pub side_label_max_chars: usize,
     /// A bold line is the drawing's title, not a heading, when its centre
@@ -411,6 +438,7 @@ impl Default for FloatsConfig {
             page_sized_area_ratio: 0.8,
             page_sized_min_lines_count: 30,
             rule_table_containment_tol_pt: 2.0,
+            rule_table_overhang_pt: 8.0,
             vote_overlap_ratio: 0.5,
             vote_min_gap_pt: -4.0,
             vote_max_gap_pt: 30.0,
@@ -430,7 +458,10 @@ impl Default for FloatsConfig {
             grow_max_vgap_pt: 32.0,
             grow_caption_margin_pt: 12.0,
             grow_horizontal_overlap_ratio: 0.3,
-            grow_max_hgap_pt: 28.0,
+            grow_max_hgap_pt: 36.0,
+            panel_max_span_pt: 320.0,
+            panel_max_caption_gap_pt: 30.0,
+            panel_overlap_ratio: 0.5,
             graphic_image_min_pt: 30.0,
             graphic_min_paths_count: 8,
             graphic_min_width_pt: 60.0,
@@ -457,6 +488,7 @@ impl Default for FloatsConfig {
             label_max_vgap_pt: 14.0,
             label_max_hgap_pt: 16.0,
             label_overlap_ratio: 0.8,
+            label_centred_overlap_ratio: 0.7,
             side_label_max_chars: 30,
             title_center_tol_ratio: 0.1,
             title_min_width_pt: 40.0,
@@ -808,6 +840,7 @@ pub fn detect_floats(
         let mut comps = candidate_components(page, &captions, cfg);
         let mut cap_region = pair_captions(&ctx, &mut comps, table_caption_above);
         grow_caption_regions(&ctx, &mut comps, &mut cap_region);
+        claim_paneled_figures(&ctx, &mut comps, &mut cap_region);
         let graphic_regions = uncaptioned_regions(&comps, cfg);
         let text_left = text_left_margin(&page.lines, cfg);
         let mut pending = pending_floats(&captions, &comps, &cap_region, graphic_regions);
@@ -1393,6 +1426,7 @@ fn candidate_components(page: &PageData, captions: &[Caption], cfg: &FloatsConfi
     let tol = cfg.rule_table_containment_tol_pt;
     let tables = rule_tables(page, captions, cfg);
     split_side_by_side_tables(&mut comps, &tables, captions, tol);
+    trim_stray_rules(&mut comps, &tables, cfg);
     for table in tables {
         if comps
             .iter()
@@ -1404,6 +1438,27 @@ fn candidate_components(page: &PageData, captions: &[Caption], cfg: &FloatsConfi
         comps.push(table);
     }
     comps
+}
+
+/// Shrinks a ruled drawing to the one rule table inside it when it sticks
+/// out of the table's left or right edge by more than
+/// `FloatsConfig::rule_table_overhang_pt`: the extra rules are not part of
+/// the table. Drawings with no or several rule tables are left alone.
+fn trim_stray_rules(comps: &mut [Component], tables: &[Component], cfg: &FloatsConfig) {
+    let tol = cfg.rule_table_containment_tol_pt;
+    for comp in comps.iter_mut().filter(|comp| comp.table_like) {
+        let mut inside = tables
+            .iter()
+            .filter(|table| comp.bbox.inflate(tol, tol).contains(&table.bbox));
+        let (Some(table), None) = (inside.next(), inside.next()) else {
+            continue;
+        };
+        if comp.bbox.x0 < table.bbox.x0 - cfg.rule_table_overhang_pt
+            || comp.bbox.x1 > table.bbox.x1 + cfg.rule_table_overhang_pt
+        {
+            *comp = table.clone();
+        }
+    }
 }
 
 /// Replaces a ruled drawing that is really two tables set side by side (their
@@ -1577,6 +1632,68 @@ fn grow_caption_regions(ctx: &PageContext, comps: &mut [Component], cap_region: 
             }
         }
         cap_region[cap_idx] = Some((region, above));
+    }
+}
+
+/// Gives a figure caption that found no drawing the drawing above it when
+/// the panels in between are announced by sub-captions: a figure of a
+/// histogram and two diagrams set as text ("(b) ...", "(c) ...") has only
+/// the histogram as a graphic, but all of it belongs to the figure.
+///
+/// The region runs from the top of the nearest unclaimed drawing above the
+/// caption, across the width of the caption, down to the last sub-caption
+/// (the lines inside are absorbed later). Nothing is claimed when no
+/// sub-caption stands within [`FloatsConfig::panel_max_caption_gap_pt`] of the
+/// caption, or when prose lies between that sub-caption and the caption.
+fn claim_paneled_figures(ctx: &PageContext, comps: &mut [Component], cap_region: &mut [Option<(Rect, bool)>]) {
+    let cfg = ctx.cfg;
+    for (cap_idx, caption) in ctx.captions.iter().enumerate() {
+        if caption.kind != FloatKind::Figure || cap_region[cap_idx].is_some() {
+            continue;
+        }
+        let cap_box = caption.bbox;
+        let Some(comp_idx) = comps
+            .iter()
+            .enumerate()
+            .filter(|(_, comp)| {
+                comp.owner.is_none()
+                    && !comp.table_like
+                    && comp.bbox.y1 <= cap_box.y0
+                    && cap_box.y0 - comp.bbox.y0 <= cfg.panel_max_span_pt
+                    && comp.bbox.x_overlap(&cap_box) > 0.0
+            })
+            .max_by(|a, b| a.1.bbox.y1.total_cmp(&b.1.bbox.y1))
+            .map(|(i, _)| i)
+        else {
+            continue;
+        };
+        let top = comps[comp_idx].bbox.y0;
+        let markers: Vec<&Line> = ctx
+            .page
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(i, line)| {
+                !ctx.is_caption_line[*i]
+                    && PANEL_MARKER.is_match(&line.text())
+                    && line.bbox.y0 >= top
+                    && line.bbox.y1 <= cap_box.y0
+                    && line.bbox.x_overlap(&cap_box) >= cfg.panel_overlap_ratio * line.bbox.width()
+            })
+            .map(|(_, line)| line)
+            .collect();
+        let Some(bottom) = markers.iter().map(|line| line.bbox.y1).max_by(|a, b| a.total_cmp(b)) else {
+            continue;
+        };
+        if cap_box.y0 - bottom > cfg.panel_max_caption_gap_pt || ctx.body_between(bottom, cap_box.y0, &cap_box) {
+            continue;
+        }
+        let mut region = comps[comp_idx].bbox;
+        region.y1 = region.y1.max(bottom);
+        region.x0 = region.x0.min(cap_box.x0);
+        region.x1 = region.x1.max(cap_box.x1);
+        comps[comp_idx].owner = Some(cap_idx);
+        cap_region[cap_idx] = Some((region, true));
     }
 }
 
@@ -1937,7 +2054,10 @@ fn stacked_label(region: &Rect, line: &Line, cfg: &FloatsConfig) -> bool {
         line.bbox.y0 - region.y1
     };
     (cfg.label_min_gap_pt..=cfg.label_max_vgap_pt).contains(&vgap)
-        && line.bbox.x_overlap(region) >= cfg.label_overlap_ratio * line.bbox.width()
+        && (line.bbox.x_overlap(region) >= cfg.label_overlap_ratio * line.bbox.width()
+            || (line.bbox.cx() > region.x0
+                && line.bbox.cx() < region.x1
+                && line.bbox.x_overlap(region) >= cfg.label_centred_overlap_ratio * line.bbox.width()))
 }
 
 /// Whether `line` is a short label right left or right of `region`, mostly

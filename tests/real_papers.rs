@@ -1025,3 +1025,73 @@ fn ligo_radical_is_a_square_root() {
     assert!(!text.contains("pffi"), "radical bar read as text");
     assert!(text.contains("= √2"), "radical sign missing");
 }
+
+/// Figure 2 of the Transformer paper (two diagrams, each with a title above
+/// it): the picture takes in the whole title of the left diagram, "Scaled"
+/// included, and the title is not left over as a paragraph after the caption.
+#[test]
+fn attention_figure_keeps_its_panel_titles() {
+    let Some(paper) = load("1706.03762v7") else { return };
+    let analysis = paper.analyze();
+    let blocks = &analysis.doc.blocks;
+    let fig = blocks
+        .iter()
+        .find(|block| matches!(&block.kind, BlockKind::Figure { label: Some(l), .. } if l == "Figure 2"))
+        .expect("Figure 2");
+    let BlockKind::Figure { image: Some(image), .. } = &fig.kind else {
+        panic!("Figure 2 has no picture");
+    };
+    let title = fig
+        .inner_lines
+        .iter()
+        .find(|line| line.text() == "Scaled Dot-Product Attention")
+        .expect("the title of the left diagram is inside the figure");
+    assert!(
+        image.rect.x0 <= title.bbox.x0 && image.rect.x1 >= title.bbox.x1,
+        "the picture {:?} cuts the title {:?}",
+        image.rect,
+        title.bbox
+    );
+    assert!(
+        !blocks
+            .iter()
+            .any(|block| block.page == fig.page && plain(&block.spans) == "Scaled Dot-Product Attention"),
+        "the title is left over as a paragraph"
+    );
+}
+
+/// Figure 4 of BERT is four panels with sub-captions "(a)" to "(d)" under a
+/// single caption: one picture with all of them, not one per column.
+#[test]
+fn bert_four_panel_figure_is_one_picture() {
+    let Some(paper) = load("1810.04805v2") else { return };
+    let analysis = paper.analyze();
+    let figures: Vec<_> = analysis
+        .doc
+        .blocks
+        .iter()
+        .filter(|block| block.page == 14 && matches!(block.kind, BlockKind::Figure { .. }))
+        .collect();
+    assert_eq!(figures.len(), 1, "page 15 has one figure, found {}", figures.len());
+    let BlockKind::Figure {
+        label,
+        image: Some(image),
+        ..
+    } = &figures[0].kind
+    else {
+        panic!("the figure has no picture");
+    };
+    assert_eq!(label.as_deref(), Some("Figure 4"));
+    assert!(
+        image.rect.width() > 350.0 && image.rect.height() > 350.0,
+        "the picture is only a part of the figure: {:?}",
+        image.rect
+    );
+    // The left panels start at x = 113 and the lowest sub-captions, "(c)" and
+    // "(d)", end at y = 431 (they are drawn as outlines, not text).
+    assert!(
+        image.rect.x0 <= 113.0 && image.rect.x1 >= 483.0 && image.rect.y0 <= 66.0 && image.rect.y1 >= 431.0,
+        "the picture does not hold all four panels: {:?}",
+        image.rect
+    );
+}

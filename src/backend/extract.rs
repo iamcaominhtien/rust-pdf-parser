@@ -64,6 +64,12 @@ const SLASH_MIN_ASPECT: f64 = 1.5;
 /// Images whose visible part is not wider and taller than this (in points)
 /// are ignored (invisible placeholder images, masks of single pixels).
 const MIN_IMAGE_SIDE_PT: f32 = 0.5;
+/// A stencil mask with at most this many pixels, stretched over a long thin
+/// box, is a rule: some producers draw table lines as one-pixel masks.
+const STENCIL_RULE_MAX_PIXELS: u32 = 1;
+/// Number of path elements recorded for a rule drawn as a stencil mask (the
+/// four sides of a rectangle and its closing).
+const STENCIL_RULE_ELEMENTS: u16 = 5;
 
 /// A picture of a single pixel stretched into a thin bar is a rule drawn
 /// the way some typesetters draw table rules (ATLAS): it is recorded in
@@ -293,6 +299,35 @@ impl Extractor<'_, '_> {
         ))
     }
 
+    /// Records a one-pixel stencil mask as a filled path of the box it is
+    /// stretched over, in the colour it is painted with. Masks that do not
+    /// paint their pixel (or are not visible) leave nothing.
+    fn record_stencil_rule(&mut self, stencil: &hayro_interpret::StencilImage<'_, '_>, bbox: kurbo::Rect) {
+        let mut painted = false;
+        let mut color = [0, 0, 0, 255];
+        stencil.with_stencil(
+            |luma, paint| {
+                painted = luma.data.first().is_some_and(|&sample| sample != 0);
+                color = paint_color(paint);
+            },
+            None,
+        );
+        if !painted || color[3] == 0 {
+            return;
+        }
+        let Some(bbox) = self.visible(bbox) else {
+            return;
+        };
+        self.page.paths.push(PathBox {
+            bbox,
+            stroked: false,
+            filled: true,
+            color,
+            line_width: 0.0,
+            elements: STENCIL_RULE_ELEMENTS,
+        });
+    }
+
     /// Text, advance (in glyph units), font index and outline box (in glyph
     /// space) of a glyph. Outline glyphs are identified through the font
     /// registry; Type 3 glyphs have no outline and an unknown font.
@@ -410,6 +445,17 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
         let (px_width, px_height) = (image.width(), image.height());
         let rect = kurbo::Rect::new(0.0, 0.0, px_width as f64, px_height as f64);
         let bbox = props.transform.transform_rect_bbox(rect);
+        // A tiny stencil mask stretched thin is a rule (table rules in some
+        // typesetting): it takes part in float and table detection.
+        let mut rule = false;
+        if px_width * px_height <= STENCIL_RULE_MAX_PIXELS
+            && let Image::Stencil(stencil) = &image
+        {
+            self.record_stencil_rule(stencil, bbox);
+            rule = true;
+        }
+        // A 1x1 image stretched into a bar is drawn as a rectangle in the
+        // hard-95 page picture and gives table rules (see `pixel_rules`).
         if (px_width, px_height) == (1, 1)
             && let Some(bar) = self.visible(bbox)
             && bar.width().min(bar.height()) <= PIXEL_RULE_MAX_THICKNESS_PT
@@ -423,6 +469,9 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
                 line_width: 0.0,
                 elements: 5,
             });
+            rule = true;
+        }
+        if rule {
             return;
         }
         if let Some(bbox) = self.visible(bbox)

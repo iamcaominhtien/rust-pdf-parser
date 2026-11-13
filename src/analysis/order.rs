@@ -29,6 +29,10 @@ pub struct OrderConfig {
     /// Smallest height (in points, measured from the float's top) of a
     /// float's band, so that very flat floats keep a non-empty band.
     pub float_band_min_height_pt: f32,
+    /// How far (in points) a float's horizontal extent is shrunk on each
+    /// side when looking for gutters: the margin of a float's picture can
+    /// reach into the gutter next to it and hide it.
+    pub float_gutter_inset_pt: f32,
     /// Two line centres closer than this (in points) are pieces of one
     /// visual row when measuring how many rows a group of items has.
     pub same_row_distance_pt: f32,
@@ -63,6 +67,7 @@ impl Default for OrderConfig {
             line_band_descent_em: 0.1,
             float_band_inset_pt: 1.0,
             float_band_min_height_pt: 1.5,
+            float_gutter_inset_pt: 4.0,
             same_row_distance_pt: 3.0,
             float_weight_rows_count: 3,
             min_items_to_split_count: 6,
@@ -111,6 +116,9 @@ struct OrderItem {
     y0: f32,
     /// Bottom of the vertical extent used for banding.
     y1: f32,
+    /// How far the box is shrunk on the left and right when looking for
+    /// gutters (0 for lines).
+    x_inset: f32,
 }
 
 /// The result of cutting a group of items into zones: either a run of
@@ -326,6 +334,7 @@ fn collect_items(lines: &[Line], floats: &[Float], cfg: &OrderConfig) -> Vec<Ord
             bbox: line.bbox,
             y0: line.baseline - cfg.line_band_ascent_em * line.size,
             y1: line.baseline + cfg.line_band_descent_em * line.size,
+            x_inset: 0.0,
         });
     }
     for (i, float) in floats.iter().enumerate() {
@@ -334,6 +343,7 @@ fn collect_items(lines: &[Line], floats: &[Float], cfg: &OrderConfig) -> Vec<Ord
             bbox: float.bbox,
             y0: float.bbox.y0 + cfg.float_band_inset_pt,
             y1: (float.bbox.y1 - cfg.float_band_inset_pt).max(float.bbox.y0 + cfg.float_band_min_height_pt),
+            x_inset: cfg.float_gutter_inset_pt.min(float.bbox.width() * 0.5),
         });
     }
     items
@@ -341,7 +351,10 @@ fn collect_items(lines: &[Line], floats: &[Float], cfg: &OrderConfig) -> Vec<Ord
 
 /// Horizontal extents of the items, merged where they overlap, left to right.
 fn x_intervals(items: &[OrderItem]) -> Vec<(f32, f32)> {
-    let mut intervals: Vec<(f32, f32)> = items.iter().map(|item| (item.bbox.x0, item.bbox.x1)).collect();
+    let mut intervals: Vec<(f32, f32)> = items
+        .iter()
+        .map(|item| (item.bbox.x0 + item.x_inset, item.bbox.x1 - item.x_inset))
+        .collect();
     intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
     let mut out: Vec<(f32, f32)> = Vec::new();
     for (start, end) in intervals {

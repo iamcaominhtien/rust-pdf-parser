@@ -32,6 +32,11 @@ pub struct TextConfig {
     /// characters ("multi-" + "head"); shorter left halves are usually
     /// prefixes broken off a single word.
     pub compound_part_min_chars_count: usize,
+    /// Two lines of a table cell stand one under the other (a cell wrapped
+    /// over several lines) when the second baseline is at least this far
+    /// below the first (multiple of the font size); pieces side by side on
+    /// one row are closer.
+    pub cell_wrap_min_dy_em: f32,
     /// Height of the math axis above the baseline (multiple of the font
     /// size); glyphs centred far from it are big operators or delimiters.
     pub math_axis_height_em: f32,
@@ -56,6 +61,7 @@ impl Default for TextConfig {
     fn default() -> Self {
         Self {
             compound_part_min_chars_count: 4,
+            cell_wrap_min_dy_em: 0.5,
             math_axis_height_em: 0.25,
             tall_glyph_min_height_em: 1.3,
             off_axis_min_offset_em: 0.6,
@@ -368,15 +374,21 @@ impl TextBuilder<'_> {
     }
 
     /// Styled text of a table cell: its lines joined by single spaces.
+    /// Lines that stand one under the other (a cell wrapped over several
+    /// lines) are joined like the lines of a paragraph, so a word broken by a
+    /// hyphen at the line end is whole again.
     fn cell_spans(&self, lines: &[Line]) -> Vec<Span> {
         let mut spans: Vec<Span> = Vec::new();
         for (line_idx, line) in lines.iter().enumerate() {
-            if line_idx > 0
-                && let Some(last) = spans.last_mut()
-            {
-                last.text.push(' ');
+            let mut line_spans = self.line_spans(line);
+            if let Some(next) = lines.get(line_idx + 1) {
+                if next.baseline - line.baseline > line.size * self.cfg.cell_wrap_min_dy_em {
+                    self.join_line_end(&mut line_spans, &line.text(), &next.text());
+                } else if let Some(last) = line_spans.last_mut() {
+                    last.text.push(' ');
+                }
             }
-            spans.extend(self.line_spans(line));
+            spans.extend(line_spans);
         }
         spans
     }

@@ -494,15 +494,24 @@ pub(crate) fn remove_hyphen(left: &str, right: &str, vocab: &HashSet<String>, cf
         return false;
     }
     if !leading.chars().next().unwrap().is_lowercase() {
-        return false;
+        // "PAS-\nCAL": TeX broke a word in capitals the paper uses whole.
+        let capitals = |part: &str| part.chars().all(char::is_uppercase);
+        return trailing.chars().count() >= 2
+            && leading.chars().count() >= 2
+            && capitals(&trailing)
+            && capitals(&leading)
+            && vocab.contains(&format!("{trailing}{leading}").to_lowercase());
     }
     // "state-of-\nthe-art": the left part is itself a hyphenated compound.
     let before: Vec<char> = left.chars().rev().skip(1 + trailing.chars().count()).take(1).collect();
     if before.first() == Some(&'-') {
         return false;
     }
-    // "CNN-\nbased": TeX never breaks an acronym; the hyphen is real.
-    if trailing.chars().count() >= 2 && trailing.chars().all(char::is_uppercase) {
+    // "CNN-\nbased", "RoI-\nbased": TeX never breaks an acronym (two
+    // capitals, the last letter one of them); the hyphen is real.
+    if trailing.chars().filter(|ch| ch.is_uppercase()).count() >= 2
+        && trailing.chars().last().is_some_and(char::is_uppercase)
+    {
         return false;
     }
     let (left_part, right_part) = (trailing.to_lowercase(), leading.to_lowercase());

@@ -75,6 +75,7 @@ pub use body::BodyConfig;
 pub use front_matter::FrontMatterConfig;
 pub use paragraphs::ParagraphsConfig;
 pub use references::ReferencesConfig;
+pub use text::TextConfig;
 
 pub(crate) use assemble::build_document;
 pub(crate) use body::classify_body;
@@ -120,6 +121,8 @@ pub struct SemanticsConfig {
     pub references: ReferencesConfig,
     /// Merging paragraphs and footnotes split across columns and pages.
     pub paragraphs: ParagraphsConfig,
+    /// Building styled text: de-hyphenation and equation runs.
+    pub text: TextConfig,
 }
 
 impl Default for SemanticsConfig {
@@ -133,6 +136,7 @@ impl Default for SemanticsConfig {
             body: BodyConfig::default(),
             references: ReferencesConfig::default(),
             paragraphs: ParagraphsConfig::default(),
+            text: TextConfig::default(),
         }
     }
 }

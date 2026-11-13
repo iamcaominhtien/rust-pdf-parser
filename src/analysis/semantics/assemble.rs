@@ -55,7 +55,11 @@ pub(crate) fn build_document(
         NodeKind::Float(f) => Some(f.caption.as_slice()),
         _ => None,
     }));
-    let tb = TextBuilder { fonts, vocab: &vocab };
+    let tb = TextBuilder {
+        fonts,
+        vocab: &vocab,
+        cfg: &opts.layout.semantics.text,
+    };
 
     let mut loose: Vec<Vec<PLine>> = vec![Vec::new(); pages.len()];
     for (pi, lines) in furniture.into_iter().enumerate() {

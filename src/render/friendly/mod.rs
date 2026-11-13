@@ -354,15 +354,26 @@ fn toc_html(body: &[&Block]) -> String {
             _ => None,
         })
         .collect();
+    // The text of a heading without its footnote marks ("scaling¹¹").
+    let title = |block: &Block| -> String {
+        block
+            .spans
+            .iter()
+            .filter(|span| !(span.style & SUP != 0 && span.href.as_deref().is_some_and(|href| href.starts_with("#fn"))))
+            .map(|span| span.text.as_str())
+            .collect::<String>()
+            .trim()
+            .to_string()
+    };
     let mut counts: HashMap<String, usize> = HashMap::new();
     for (block, _, _) in &headings {
-        *counts.entry(plain(&block.spans)).or_default() += 1;
+        *counts.entry(title(block)).or_default() += 1;
     }
     let mut listed: HashMap<String, bool> = HashMap::new();
     let mut items = String::new();
     let mut entries = 0usize;
     for (block, level, anchor) in headings {
-        let text = plain(&block.spans);
+        let text = title(block);
         if counts[&text] >= TOC_REPEAT_LIMIT && listed.insert(text.clone(), true).is_some() {
             continue;
         }

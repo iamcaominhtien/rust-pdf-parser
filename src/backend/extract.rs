@@ -357,6 +357,9 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
             if self.fonts.infos[font as usize].math_pi {
                 text = remap_math_pi(&text);
             }
+            if self.fonts.infos[font as usize].math {
+                text = remap_tex_math(&text);
+            }
             if self.fonts.infos[font as usize].radical_pi {
                 // The radical sign and the pieces of its bar, encoded on
                 // letters: the bar is drawn, not read.
@@ -494,6 +497,19 @@ fn normalize_text(text: &str, out: &mut String) {
             other => out.push(other),
         }
     }
+}
+
+/// Repairs the Unicode values that common TeX math fonts are given in
+/// PDFs: the lunate epsilon of cmmi comes out as "ǫ" (o with ogonek) and the
+/// box of msam as "✷" (an eight-spoked asterisk).
+fn remap_tex_math(text: &str) -> String {
+    text.chars()
+        .map(|ch| match ch {
+            '\u{01EB}' => '\u{03F5}',
+            '\u{2737}' => '\u{25A1}',
+            other => other,
+        })
+        .collect()
 }
 
 /// Undoes the encoding of "Mathematical Pi" fonts, which put math symbols

@@ -7,3 +7,7 @@
 # Claude Code: local settings and agent worktrees stay out of git
 /.claude/settings.local.json
 /.claude/worktrees/
+
+# Reports made by the SonarQube workflow
+/clippy-report.json
+/lcov.info

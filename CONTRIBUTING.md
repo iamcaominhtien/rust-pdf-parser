@@ -53,3 +53,20 @@ Nothing is published to crates.io: the version comes from git tags (`git_only = 
   GitHub Actions' default token; CI then **does not run on the release PR by itself** (a GitHub
   limitation for PRs opened with the default token). The release PR only changes `Cargo.toml` and
   `CHANGELOG.md`, and CI still runs again on `main` after the merge.
+
+## Code quality: SonarQube Cloud
+
+`.github/workflows/sonar.yml` sends each push to `main` and each pull request to SonarQube Cloud,
+with the clippy findings (`clippy-report.json`) and the test coverage from `cargo llvm-cov`
+(`lcov.info`). Settings are in `sonar-project.properties`. The job is skipped until the
+`SONAR_TOKEN` secret exists. One-time setup:
+
+1. Sign in to [sonarcloud.io](https://sonarcloud.io) with GitHub, import the GitHub organization
+   and add this repository as a project.
+2. In the project, **Administration → Analysis Method**: turn off **Automatic Analysis** (the
+   workflow does the analysis; both cannot run at once, and only the workflow imports clippy and
+   coverage).
+3. **My Account → Security**: generate a token, and add it to the repository as the GitHub secret
+   `SONAR_TOKEN` (**Settings → Secrets and variables → Actions**).
+4. If SonarQube Cloud gave the organization or project another key than the ones in
+   `sonar-project.properties`, change them there.

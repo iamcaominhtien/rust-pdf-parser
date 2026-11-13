@@ -1,0 +1,64 @@
+name: SonarQube
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  sonar:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Skipped until the SONAR_TOKEN secret exists, and on pull requests from forks
+    # (they get no secrets).
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        if: env.SONAR_TOKEN != ''
+        with:
+          # Full history, so that SonarQube can attribute issues and find new code.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        if: env.SONAR_TOKEN != ''
+        with:
+          components: clippy, llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        if: env.SONAR_TOKEN != ''
+        with:
+          shared-key: sonar
+      - uses: taiki-e/install-action@cargo-llvm-cov
+        if: env.SONAR_TOKEN != ''
+
+      # The same test papers as the CI test job, from the same cache.
+      - name: Restore test papers
+        if: env.SONAR_TOKEN != ''
+        id: papers
+        uses: actions/cache@v5
+        with:
+          path: tests/data/*.pdf
+          key: test-papers-${{ hashFiles('tests/data/papers.txt') }}
+      - name: Download test papers
+        if: env.SONAR_TOKEN != '' && steps.papers.outputs.cache-hit != 'true'
+        run: scripts/fetch-test-pdfs.sh
+
+      # Clippy findings for SonarQube; the CI lint job is what fails a build on them.
+      - name: Clippy report
+        if: env.SONAR_TOKEN != ''
+        run: cargo clippy --all-targets --message-format=json > clippy-report.json || true
+      - name: Test coverage
+        if: env.SONAR_TOKEN != ''
+        run: cargo llvm-cov --lcov --output-path lcov.info
+
+      - name: SonarQube scan
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v8

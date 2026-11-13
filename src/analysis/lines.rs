@@ -37,6 +37,11 @@ const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     justified_gutter_reach_em: 4.0,
     justified_gutter_tol_pt: 1.0,
     justified_max_gap_ratio: 3.0,
+    gutter_zone: (0.25, 0.75),
+    gutter_max_cover_ratio: 0.02,
+    gutter_min_column_lines: 10,
+    gutter_min_width_pt: 3.0,
+    gutter_min_span_ratio: 0.7,
     merge_max_size_factor: 2.2,
     math_axis_em: 0.25,
     math_reanchor_min_offset_em: 0.5,
@@ -127,6 +132,20 @@ pub struct LinesConfig {
     /// is closed only when it is at most this many times the median word
     /// space inside the pieces (table cells are far apart, words are not).
     pub justified_max_gap_ratio: f32,
+    /// A column gutter is looked for between these fractions of the page
+    /// width ...
+    pub gutter_zone: (f32, f32),
+    /// ... as an x range that the glyphs of at most this fraction of the
+    /// page's segments cover ...
+    pub gutter_max_cover_ratio: f32,
+    /// ... next to which, on both sides, the glyphs of at least this many
+    /// segments stand (the two columns) ...
+    pub gutter_min_column_lines: usize,
+    /// ... and at least this wide (in points). See [`split_at_gutters`].
+    pub gutter_min_width_pt: f32,
+    /// A segment is cut at a gap between two glyphs that spans at least this
+    /// fraction of the gutter.
+    pub gutter_min_span_ratio: f32,
     /// Segments on one baseline are not merged when one font is this many
     /// times larger than the other (a heading next to a margin note).
     pub merge_max_size_factor: f32,
@@ -463,6 +482,7 @@ pub fn build_lines(raw: &RawPage, cfg: &LinesConfig) -> (Vec<Line>, Vec<RotatedT
     // 3. Hosts may have grown towards each other.
     let segments = merge_same_baseline(segments, cfg);
     let segments = merge_justified_gaps(segments, cfg);
+    let segments = split_at_gutters(segments, raw.width, cfg);
 
     let mut lines: Vec<Line> = segments
         .into_iter()
@@ -900,6 +920,94 @@ fn gutter(left: &Segment, right: &Segment, all: &[Segment], cfg: &LinesConfig) -
             && ((other.x1 - left.x1).abs() <= cfg.justified_gutter_tol_pt
                 || (other.x0 - right.x0).abs() <= cfg.justified_gutter_tol_pt)
     })
+}
+
+/// Splits segments at a column gutter they run across. Two columns set
+/// with a gutter about one word space wide (the Batch Normalization paper)
+/// are joined line by line into one segment. Their gutter shows on the page
+/// as an x range in the middle that hardly any glyph covers, while many
+/// segments have a gap there. A segment is cut where its gap spans that
+/// range; pages whose lines do not cross a gutter are left alone.
+fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) -> Vec<Segment> {
+    let (lo, hi) = (cfg.gutter_zone.0 * page_width, cfg.gutter_zone.1 * page_width);
+    let bins = (hi - lo).max(0.0).ceil() as usize;
+    if bins == 0 || segments.len() < cfg.gutter_min_column_lines {
+        return segments;
+    }
+    // Per 1 pt bin: segments with ink there, and segments with a gap there.
+    let mut covered = vec![0usize; bins];
+    let mut gapped = vec![0usize; bins];
+    let bin_of = |x: f32| ((x - lo).floor().max(0.0) as usize).min(bins);
+    for segment in &segments {
+        let mut glyphs: Vec<&LineGlyph> = segment
+            .glyphs
+            .iter()
+            .filter(|glyph| !glyph.text.trim().is_empty())
+            .collect();
+        glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+        let mut ink = vec![false; bins];
+        for glyph in &glyphs {
+            let (from, to) = (bin_of(glyph.x0), bin_of(glyph.x1));
+            for flag in ink.iter_mut().take(to).skip(from) {
+                *flag = true;
+            }
+        }
+        for (bin, flag) in ink.iter().enumerate() {
+            if *flag {
+                covered[bin] += 1;
+            }
+        }
+        for pair in glyphs.windows(2) {
+            let (from, to) = (bin_of(pair[0].x1), bin_of(pair[1].x0));
+            for count in gapped.iter_mut().take(to).skip(from) {
+                *count += 1;
+            }
+        }
+    }
+    let max_cover = (cfg.gutter_max_cover_ratio * segments.len() as f32).max(1.0) as usize;
+    // The widest run of bins hardly any glyph covers, with columns of text
+    // on both sides and some segment running across it, is the gutter.
+    let mut best: Option<(usize, usize)> = None;
+    let mut start = None;
+    for bin in 0..=bins {
+        match (bin < bins && covered[bin] <= max_cover, start) {
+            (true, None) => start = Some(bin),
+            (false, Some(first)) => {
+                let flanked = first > 0
+                    && bin < bins
+                    && covered[first - 1] >= cfg.gutter_min_column_lines
+                    && covered[bin] >= cfg.gutter_min_column_lines;
+                let crossed = gapped[first..bin].iter().any(|&count| count > 0);
+                if flanked && crossed && best.is_none_or(|(a, b)| bin - first > b - a) {
+                    best = Some((first, bin));
+                }
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    let Some((first, last)) = best.filter(|(a, b)| (b - a) as f32 >= cfg.gutter_min_width_pt) else {
+        return segments;
+    };
+    let (gutter_x0, gutter_x1) = (lo + first as f32, lo + last as f32);
+    let mut out = Vec::with_capacity(segments.len());
+    for segment in segments {
+        let mut glyphs = segment.glyphs.clone();
+        glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+        // The gap between two glyphs spans (most of) the gutter.
+        let cut = glyphs.windows(2).position(|pair| {
+            pair[1].x0.min(gutter_x1) - pair[0].x1.max(gutter_x0) >= cfg.gutter_min_span_ratio * (gutter_x1 - gutter_x0)
+        });
+        match cut {
+            Some(at) => {
+                let right = glyphs.split_off(at + 1);
+                out.push(Segment::from_glyphs(glyphs, cfg));
+                out.push(Segment::from_glyphs(right, cfg));
+            }
+            None => out.push(segment),
+        }
+    }
+    out
 }
 
 /// Glyphs of math extension fonts (radicals, big operators, tall

@@ -618,13 +618,15 @@ fn link_footnote_marks(spans: &mut [Span], note_for: &dyn Fn(&str) -> Option<Str
 /// Whether the superscript span at `i` is an exponent rather than a
 /// footnote mark. A footnote mark follows a word or punctuation; a digit or
 /// a single letter before it means an exponent (x², c²), and so does
-/// nothing or another superscript before it.
+/// nothing or another superscript before it, and so does a closing bracket.
 fn is_exponent(spans: &[Span], i: usize, cfg: &AssembleConfig) -> bool {
     i == 0 || spans[i - 1].style & SUP != 0 || {
         let prev = spans[i - 1].text.trim_end();
         let run = prev.chars().rev().take_while(|ch| ch.is_alphabetic()).count();
         match prev.chars().last() {
             Some(ch) if ch.is_ascii_digit() => true,
+            // "(χ²)³", "{…}^{1/6}": a power of a bracketed expression.
+            Some(')' | ']' | '}') => true,
             Some(ch) if ch.is_alphabetic() => run < cfg.mark_min_word_letters_count,
             Some(_) => false,
             None => true,

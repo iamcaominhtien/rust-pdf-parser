@@ -1784,6 +1784,7 @@ fn settle_region(
     // table, but a figure caption says it is a drawing with labels.
     if !float.table_like || float.kind == FloatKind::Figure {
         region = absorb_side_labels(ctx, absorbed, float_idx, region, text_left);
+        region = absorb_rotated_labels(ctx, region);
     }
     if let Some(cap_idx) = float.cap {
         let caption = &ctx.captions[cap_idx];
@@ -1891,6 +1892,37 @@ fn absorb_side_labels(
         }
         if grown == before {
             break;
+        }
+    }
+    grown
+}
+
+/// Grows `region` by the rotated text right beside it (a y-axis title),
+/// which is too thin to be a component of the drawing on its own.
+fn absorb_rotated_labels(ctx: &PageContext, region: Rect) -> Rect {
+    let cfg = ctx.cfg;
+    let mut grown = region;
+    for rotated in &ctx.page.rotated {
+        let compact: String = rotated.text.chars().filter(|ch| !ch.is_whitespace()).collect();
+        if compact.starts_with("arXiv:") || rotated.bbox.is_unset() {
+            continue;
+        }
+        let hgap = if rotated.bbox.cx() < region.cx() {
+            region.x0 - rotated.bbox.x1
+        } else {
+            rotated.bbox.x0 - region.x1
+        };
+        let vgap = if rotated.bbox.cy() < region.cy() {
+            region.y0 - rotated.bbox.y1
+        } else {
+            rotated.bbox.y0 - region.y1
+        };
+        let beside = hgap <= cfg.label_max_hgap_pt
+            && rotated.bbox.y_overlap(&region) >= cfg.label_overlap_ratio * rotated.bbox.height();
+        let stacked = vgap <= cfg.label_max_vgap_pt
+            && rotated.bbox.x_overlap(&region) >= cfg.label_overlap_ratio * rotated.bbox.width();
+        if beside || stacked {
+            grown = grown.union(&rotated.bbox);
         }
     }
     grown

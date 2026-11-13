@@ -7,7 +7,7 @@ use crate::backend::{Dir, FontInfo, Glyph, RawPage};
 use crate::common::geom::{Rect, median, weighted_mode};
 use crate::model::style::{BOLD, ITALIC, MATH, MONO, SANS, SUB, SUP};
 use crate::model::{Line, LineGlyph, RotatedText};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use unicode_normalization::UnicodeNormalization;
 
 /// The default thresholds, as a constant so that [`merge_row`] and
@@ -861,42 +861,104 @@ fn median_glyph_gap(glyphs: &[LineGlyph]) -> f32 {
 fn merge_same_baseline(mut segments: Vec<Segment>, cfg: &LinesConfig) -> Vec<Segment> {
     segments.sort_by(|a, b| a.y.total_cmp(&b.y).then(a.x0.total_cmp(&b.x0)));
     let mut out: Vec<Segment> = Vec::with_capacity(segments.len());
-    let i = 0;
-    while i < segments.len() {
-        // Collect the group of segments with (nearly) the same baseline.
-        let mut j = i + 1;
-        while j < segments.len()
-            && segments[j].y - segments[i].y <= cfg.same_baseline_pt + cfg.same_baseline_em * segments[i].size
-        {
-            j += 1;
+    let mut rest = segments.into_iter().peekable();
+    while let Some(first) = rest.next() {
+        // Collect the group of segments with (nearly) the same baseline as its first one.
+        let (first_y, reach) = (first.y, cfg.same_baseline_pt + cfg.same_baseline_em * first.size);
+        let mut group = vec![first];
+        while let Some(segment) = rest.next_if(|segment| segment.y - first_y <= reach) {
+            group.push(segment);
         }
-        let mut group: Vec<Segment> = segments.drain(i..j).collect();
         group.sort_by(|a, b| a.x0.total_cmp(&b.x0));
-        let mut cur: Option<Segment> = None;
-        for segment in group {
-            match cur.as_mut() {
-                Some(current)
-                    if segment.x0 - current.x1 <= cfg.merge_max_gap_em * current.size.max(segment.size)
-                        && (current.size / segment.size).max(segment.size / current.size)
-                            < cfg.merge_max_size_factor =>
-                {
-                    current.glyphs.extend(segment.glyphs);
-                    current.refresh(cfg);
-                }
-                _ => {
-                    if let Some(current) = cur.take() {
-                        out.push(current);
-                    }
-                    cur = Some(segment);
-                }
-            }
-        }
-        if let Some(current) = cur {
-            out.push(current);
-        }
-        // `drain` shifted the tail down, so `i` already points at the next group.
+        merge_group(group, cfg, &mut out);
     }
     out
+}
+
+/// Merges the segments of one baseline group, sorted from left to right, and
+/// appends the results to `out`.
+///
+/// While a segment grows, only what the merge test reads is kept up to date
+/// (its extent, and its dominant size through a [`SizeTally`]); its glyphs
+/// are measured in full once, when it is complete. The result is the same as
+/// measuring it after every merge, without rescanning a long line once per
+/// glyph.
+fn merge_group(group: Vec<Segment>, cfg: &LinesConfig, out: &mut Vec<Segment>) {
+    let mut cur: Option<(Segment, Option<SizeTally>)> = None;
+    for segment in group {
+        match cur.as_mut() {
+            Some((current, tally))
+                if segment.x0 - current.x1 <= cfg.merge_max_gap_em * current.size.max(segment.size)
+                    && (current.size / segment.size).max(segment.size / current.size) < cfg.merge_max_size_factor =>
+            {
+                let tally = tally.get_or_insert_with(|| SizeTally::new(&current.glyphs, cfg.size_bin_pt));
+                tally.add(&segment.glyphs, cfg.size_bin_pt);
+                current.x0 = current.x0.min(segment.x0);
+                current.x1 = current.x1.max(segment.x1);
+                current.glyphs.extend(segment.glyphs);
+                current.size = tally.dominant(cfg.size_bin_pt, cfg.default_size_pt);
+            }
+            _ => {
+                out.extend(
+                    cur.take()
+                        .map(|(current, tally)| finish_merge(current, tally.is_some(), cfg)),
+                );
+                cur = Some((segment, None));
+            }
+        }
+    }
+    out.extend(cur.map(|(current, tally)| finish_merge(current, tally.is_some(), cfg)));
+}
+
+/// A segment out of [`merge_group`]: measured in full if it took in others.
+fn finish_merge(mut segment: Segment, merged: bool, cfg: &LinesConfig) -> Segment {
+    if merged {
+        segment.refresh(cfg);
+    }
+    segment
+}
+
+/// Glyph counts per font-size bucket of a growing segment, from which its
+/// dominant size is read as [`Segment::refresh`] computes it: the most common
+/// bucket among the glyphs on the baseline (all glyphs if none is), the
+/// smaller bucket on a tie.
+struct SizeTally {
+    /// Glyphs on the baseline (not sub- or superscripts), per size bucket.
+    base: HashMap<i32, u32>,
+    /// All glyphs, per size bucket.
+    all: HashMap<i32, u32>,
+}
+
+impl SizeTally {
+    /// The counts of `glyphs`, in buckets of `step` points.
+    fn new(glyphs: &[LineGlyph], step: f32) -> Self {
+        let mut tally = SizeTally {
+            base: HashMap::new(),
+            all: HashMap::new(),
+        };
+        tally.add(glyphs, step);
+        tally
+    }
+
+    /// Counts `glyphs` in.
+    fn add(&mut self, glyphs: &[LineGlyph], step: f32) {
+        for glyph in glyphs {
+            // The same rounding as `weighted_mode`.
+            let bucket = (glyph.size / step).round() as i32;
+            *self.all.entry(bucket).or_insert(0) += 1;
+            if glyph.script == 0 {
+                *self.base.entry(bucket).or_insert(0) += 1;
+            }
+        }
+    }
+
+    /// The dominant size, or `default` with no glyphs.
+    fn dominant(&self, step: f32, default: f32) -> f32 {
+        let hist = if self.base.is_empty() { &self.all } else { &self.base };
+        hist.iter()
+            .max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(a.0)))
+            .map_or(default, |(bucket, _)| *bucket as f32 * step)
+    }
 }
 
 /// Joins the pieces of a justified line whose word gaps were stretched

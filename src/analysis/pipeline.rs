@@ -1,16 +1,36 @@
 //! The analysis pipeline: runs every stage, from raw pages to the [`Document`].
+//!
+//! [`analyze`] reads from top to bottom as the whole flow: page data and
+//! document statistics, furniture removal, float detection, reading order
+//! and blocks per page, then the document-wide structuring stages of
+//! [`semantics`](super::semantics) and the assembly of the [`Document`].
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 use super::semantics::*;
 use crate::analysis::blocks::{RawBlock, build_blocks};
-use crate::analysis::floats::{detect_floats, join_caption_labels, table_caption_votes};
+use crate::analysis::floats::{Float, FloatsConfig, detect_floats, join_caption_labels, table_caption_votes};
 use crate::analysis::furniture::remove_furniture;
 use crate::analysis::order::order_page;
-use crate::analysis::page::{PageData, compute_stats};
+use crate::analysis::page::{DocStats, PageData, compute_stats};
 use crate::backend::{FontInfo, RawPage};
 use crate::config::AnalyzeOptions;
 use crate::model::*;
 
+/// Table captions are taken to sit above (or below) their tables when the
+/// votes for that side outnumber the other side by more than this factor;
+/// otherwise each table is decided on its own. This is a tuning value of
+/// float detection: it belongs in `FloatsConfig`, which is defined outside
+/// this module, so it is kept here as a constant for now.
+const TABLE_CAPTION_MAJORITY_FACTOR: usize = 2;
+
+/// Result of the analysis of a paper.
 pub struct Analysis {
+    /// The structured document.
     pub doc: Document,
     /// Lines that belong to no block (running heads, page numbers, equation
     /// numbers), per page. The position-preserving renderers draw them.
@@ -19,111 +39,148 @@ pub struct Analysis {
     pub rotated: Vec<Vec<RotatedRun>>,
 }
 
+/// Runs the whole analysis on the extracted pages of a PDF.
+///
+/// `fonts` is the font table the glyphs refer to, `meta` the metadata found
+/// so far (completed with the arXiv identifier and stamp found in the
+/// margins, and with the title). `opts` selects table reconstruction and
+/// holds every threshold.
 pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts: AnalyzeOptions) -> Analysis {
+    let layout = &opts.layout;
     let mut pages: Vec<PageData> = raw_pages
         .into_iter()
-        .map(|raw| PageData::from_raw(raw, &opts.layout.lines))
+        .map(|raw| PageData::from_raw(raw, &layout.lines))
         .collect();
-    let stats = compute_stats(&pages, &opts.layout.page);
-    let furniture = remove_furniture(&mut pages, &opts.layout.furniture);
+    let stats = compute_stats(&pages, &layout.page);
+    let furniture = remove_furniture(&mut pages, &layout.furniture);
     meta.arxiv_id = meta.arxiv_id.or(furniture.arxiv_id);
     meta.arxiv_stamp = furniture.arxiv_stamp.clone();
 
     // --- per-page layout ---
     let mut nodes: Vec<Node> = Vec::new();
     for page in pages.iter_mut() {
-        join_caption_labels(page, &opts.layout.floats);
+        join_caption_labels(page, &layout.floats);
     }
-    // Convention for table captions (above or below the table).
+    let table_caption_above = table_caption_convention(&pages, fonts, &layout.floats);
+    for page in pages.iter_mut() {
+        layout_page(page, &stats, fonts, table_caption_above, &opts, &mut nodes);
+    }
+
+    // --- document structure ---
+    classify_front_matter(&mut nodes, &pages, &stats, fonts, &layout.semantics);
+    classify_body(&mut nodes, &stats, fonts, &layout.semantics);
+    split_references(&mut nodes, &layout.semantics);
+    merge_paragraphs(&mut nodes, &stats, &layout.semantics);
+
+    let rotated = pages.iter().map(|page| rotated_runs(page, fonts)).collect();
+    let (doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);
+    Analysis { doc, loose, rotated }
+}
+
+/// Convention for table captions in this document: `Some(true)` if they
+/// clearly sit above their tables, `Some(false)` if clearly below, `None`
+/// when the pages do not agree.
+fn table_caption_convention(pages: &[PageData], fonts: &[FontInfo], cfg: &FloatsConfig) -> Option<bool> {
     let (mut votes_above, mut votes_below) = (0, 0);
-    for page in pages.iter() {
-        let (a, b) = table_caption_votes(page, fonts, &opts.layout.floats);
-        votes_above += a;
-        votes_below += b;
+    for page in pages {
+        let (above, below) = table_caption_votes(page, fonts, cfg);
+        votes_above += above;
+        votes_below += below;
     }
-    let table_caption_above = if votes_above > 2 * votes_below {
+    if votes_above > TABLE_CAPTION_MAJORITY_FACTOR * votes_below {
         Some(true)
-    } else if votes_below > 2 * votes_above {
+    } else if votes_below > TABLE_CAPTION_MAJORITY_FACTOR * votes_above {
         Some(false)
     } else {
         None
-    };
-
-    for page in pages.iter_mut() {
-        let floats = detect_floats(page, &stats, fonts, table_caption_above, &opts.layout.floats);
-
-        let leaves = order_page(&page.lines, &floats, &stats, &opts.layout.order);
-        let leaf_bounds: Vec<(f32, f32)> = leaves.iter().map(|l| (l.bbox.x0, l.bbox.x1)).collect();
-        for rb in build_blocks(page, &leaves, &stats, fonts, &opts.layout.blocks) {
-            let (kind, loc) = match rb {
-                RawBlock::Text(t) => {
-                    let loc = t.loc;
-                    (NodeKind::Text(t), loc)
-                }
-                RawBlock::Footnote(t) => {
-                    let loc = t.loc;
-                    (NodeKind::Footnote(t), loc)
-                }
-                RawBlock::Equation(e) => {
-                    let loc = e.loc;
-                    (NodeKind::Equation(e), loc)
-                }
-                RawBlock::Float { idx, loc } => (NodeKind::Float(floats[idx].clone()), loc),
-            };
-            let (leaf_left, leaf_right) = leaf_bounds[loc.leaf];
-            nodes.push(Node {
-                kind,
-                loc,
-                class: Class::Unknown,
-                tail: (loc.page, loc.leaf),
-                leaf_left,
-                leaf_right,
-                strip_prefix: 0,
-            });
-        }
     }
+}
 
-    classify_front_matter(&mut nodes, &pages, &stats, fonts, &opts.layout.semantics);
-    classify_body(&mut nodes, &stats, fonts, &opts.layout.semantics);
-    split_references(&mut nodes, &opts.layout.semantics);
-    merge_paragraphs(&mut nodes, &stats, &opts.layout.semantics);
+/// Lays out one page (floats, reading order, blocks) and appends a node for
+/// each of its blocks to `nodes`, in reading order.
+fn layout_page(
+    page: &mut PageData,
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    table_caption_above: Option<bool>,
+    opts: &AnalyzeOptions,
+    nodes: &mut Vec<Node>,
+) {
+    let layout = &opts.layout;
+    let floats = detect_floats(page, stats, fonts, table_caption_above, &layout.floats);
 
-    let rotated = pages
+    let leaves = order_page(&page.lines, &floats, stats, &layout.order);
+    let leaf_bounds: Vec<(f32, f32)> = leaves.iter().map(|leaf| (leaf.bbox.x0, leaf.bbox.x1)).collect();
+    for raw_block in build_blocks(page, &leaves, stats, fonts, &layout.blocks) {
+        nodes.push(new_node(raw_block, &floats, &leaf_bounds));
+    }
+}
+
+/// An unclassified node for a raw block. `floats` are the floats of the
+/// block's page (a float block refers to one by index) and `leaf_bounds`
+/// the left and right edges of the page's layout leaves.
+fn new_node(raw_block: RawBlock, floats: &[Float], leaf_bounds: &[(f32, f32)]) -> Node {
+    let (kind, loc) = match raw_block {
+        RawBlock::Text(block) => {
+            let loc = block.loc;
+            (NodeKind::Text(block), loc)
+        }
+        RawBlock::Footnote(block) => {
+            let loc = block.loc;
+            (NodeKind::Footnote(block), loc)
+        }
+        RawBlock::Equation(equation) => {
+            let loc = equation.loc;
+            (NodeKind::Equation(equation), loc)
+        }
+        RawBlock::Float { idx, loc } => (NodeKind::Float(floats[idx].clone()), loc),
+    };
+    let (leaf_left, leaf_right) = leaf_bounds[loc.leaf];
+    Node {
+        kind,
+        loc,
+        class: Class::Unknown,
+        tail: (loc.page, loc.leaf),
+        leaf_left,
+        leaf_right,
+        strip_prefix: 0,
+    }
+}
+
+/// The rotated text of a page as output runs, without runs that are blank
+/// or contain glyphs without a Unicode value.
+fn rotated_runs(page: &PageData, fonts: &[FontInfo]) -> Vec<RotatedRun> {
+    page.rotated
         .iter()
-        .map(|p| {
-            p.rotated
-                .iter()
-                .filter(|r| !r.text.contains('\u{FFFD}') && !r.text.trim().is_empty())
-                .map(|r| {
-                    let f = &fonts[r.font as usize];
-                    let mut style = 0;
-                    if f.bold {
-                        style |= BOLD;
-                    }
-                    if f.italic {
-                        style |= ITALIC;
-                    }
-                    if f.mono {
-                        style |= MONO;
-                    }
-                    if f.sans {
-                        style |= SANS;
-                    }
-                    RotatedRun {
-                        text: r.text.clone(),
-                        x: r.x,
-                        y: r.y,
-                        angle: r.angle,
-                        size: r.size,
-                        length: r.length,
-                        style,
-                        color: r.color,
-                        origins: r.origins.clone(),
-                    }
-                })
-                .collect()
+        .filter(|run| !run.text.contains('\u{FFFD}') && !run.text.trim().is_empty())
+        .map(|run| RotatedRun {
+            text: run.text.clone(),
+            x: run.x,
+            y: run.y,
+            angle: run.angle,
+            size: run.size,
+            length: run.length,
+            style: font_style(&fonts[run.font as usize]),
+            color: run.color,
+            origins: run.origins.clone(),
         })
-        .collect();
-    let (doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);
-    Analysis { doc, loose, rotated }
+        .collect()
+}
+
+/// Style bits (`BOLD`, `ITALIC`, `MONO`, `SANS`) of a font.
+fn font_style(font: &FontInfo) -> u8 {
+    let mut style = 0;
+    if font.bold {
+        style |= BOLD;
+    }
+    if font.italic {
+        style |= ITALIC;
+    }
+    if font.mono {
+        style |= MONO;
+    }
+    if font.sans {
+        style |= SANS;
+    }
+    style
 }

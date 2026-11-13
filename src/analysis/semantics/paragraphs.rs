@@ -37,7 +37,7 @@ pub struct ParagraphsConfig {
     /// Share of sampled paragraphs (percent) that must have an indented
     /// first line for the document to count as indenting.
     pub indent_min_percent: i32,
-    /// Fewest labelled references ("[3]", "3.") for the bibliography to
+    /// Fewest labelled references (`[3]`, "3.") for the bibliography to
     /// count as labelled; unlabelled pieces then always continue an entry.
     pub labeled_refs_min_count: usize,
     /// Width of an inter-word space (multiple of the font size) used to see

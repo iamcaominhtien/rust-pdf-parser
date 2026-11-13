@@ -1,4 +1,4 @@
-//! Cross-reference links ("Figure 3", "[12]", "Eq. (2)", URLs) in running text.
+//! Cross-reference links ("Figure 3", `[12]`, "Eq. (2)", URLs) in running text.
 //!
 //! Runs on the finished spans of every block: a reference becomes a link
 //! when the anchor it points to exists in the document (see the anchors set
@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 /// A linkable reference, one alternative per kind: a URL (`url`), a
-/// bracketed citation list (`cite`, "[2, 7–9]"), a figure, table,
+/// bracketed citation list (`cite`, `[2, 7–9]`), a figure, table,
 /// algorithm, section or appendix (`obj` with its number `num`), or an
 /// equation (`eq`, numbered `eqa` in parentheses or bare `eqb`).
 pub(crate) static XREF: LazyLock<Regex> = LazyLock::new(|| {

@@ -2,7 +2,7 @@
 //!
 //! The block analysis often groups several bibliography entries into one
 //! block (their lines are equally spaced). Each entry starts with a label
-//! ("[12]", "12.") at the left edge of the first entry.
+//! (`[12]`, "12.") at the left edge of the first entry.
 #![warn(
     missing_docs,
     clippy::missing_docs_in_private_items,
@@ -18,7 +18,7 @@ use super::*;
 pub struct ReferencesConfig {
     /// A labelled line starts a new entry when its left edge is at most this
     /// far (multiple of the first line's font size) right of the block's
-    /// first line; labels further right are wrapped text such as "[12]"
+    /// first line; labels further right are wrapped text such as `[12]`
     /// inside an entry.
     pub entry_indent_tolerance_em: f32,
 }

@@ -1,12 +1,12 @@
 //! Structuring: turns the per-page blocks into a document. Each block
-//! becomes a [`Node`]; the stages classify nodes (title, authors, headings,
+//! becomes a `Node`; the stages classify nodes (title, authors, headings,
 //! paragraphs, list items, references), split and merge them, and
-//! [`assemble`] builds the final [`Document`](crate::model::Document).
+//! `assemble` builds the final [`Document`](crate::model::Document).
 //!
 //! The stages run in this order (see [`crate::analysis::pipeline`]):
-//! [`classify_front_matter`], [`classify_body`], [`split_references`],
-//! [`merge_paragraphs`] and finally [`build_document`]. Their thresholds
-//! are collected in [`SemanticsConfig`].
+//! `classify_front_matter`, `classify_body`, `split_references`,
+//! `merge_paragraphs` and finally `build_document`. Their thresholds are
+//! collected in [`SemanticsConfig`].
 #![warn(
     missing_docs,
     clippy::missing_docs_in_private_items,

@@ -487,7 +487,7 @@ fn spans_text(spans: &[Span]) -> String {
     spans.iter().map(|span| span.text.as_str()).collect()
 }
 
-/// The label of a reference entry ("12" of "[12]" or "12."), if it has one.
+/// The label of a reference entry ("12" of `[12]` or "12."), if it has one.
 fn reference_label(text: &str) -> Option<String> {
     REF_LABEL
         .captures(text.trim())

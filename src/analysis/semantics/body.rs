@@ -1,6 +1,6 @@
 //! Classification of body blocks: headings, paragraphs, list items, references.
 //!
-//! Runs after [`classify_front_matter`](super::classify_front_matter) on the
+//! Runs after [`classify_front_matter`] on the
 //! nodes it left [`Class::Unknown`], in two passes:
 //!
 //! 1. **Headings.** Short text blocks are tested against a sequence of
@@ -474,7 +474,7 @@ impl FlowState {
 }
 
 /// A block starting with a list label ("•", "1.", "(a)"): a list item; a
-/// bullet when the label is a single symbol. Labels in brackets ("[3]") are
+/// bullet when the label is a single symbol. Labels in brackets (`[3]`) are
 /// citations, not list labels.
 fn list_item_rule(trimmed: &str) -> Option<Class> {
     let label = LIST_LABEL.find(trimmed)?.as_str().trim();

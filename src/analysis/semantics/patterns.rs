@@ -40,8 +40,8 @@ pub(crate) static REF_HEADING: LazyLock<Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
-/// Label at the start of a bibliography entry: "[label]" (captured as `a`,
-/// e.g. "[12]" or "[Vas17]") or "12." (captured as `b`).
+/// Label at the start of a bibliography entry: `[label]` (captured as `a`,
+/// e.g. `[12]` or `[Vas17]`) or "12." (captured as `b`).
 pub(crate) static REF_LABEL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\[(?P<a>[^\]]{1,24})\]|(?P<b>\d{1,3})\.(?:\s|$))").unwrap());
 /// Unnumbered headings common to papers ("Introduction", "Acknowledgments",

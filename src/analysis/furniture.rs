@@ -89,6 +89,11 @@ pub struct FurnitureConfig {
     /// A number followed on its row, within this many font sizes, by text
     /// that is not furniture is a heading's number, not a page number.
     pub heading_number_max_gap_em: f32,
+    /// The offset of printed page numbers to page indexes is the one at
+    /// least this many pages ...
+    pub number_offset_min_pages: usize,
+    /// ... and this fraction of the pages agree on.
+    pub number_offset_min_ratio: f32,
 }
 
 impl Default for FurnitureConfig {
@@ -112,6 +117,8 @@ impl Default for FurnitureConfig {
             crowded_min_distance_pt: 2.0,
             crowded_max_distance_em: 1.45,
             heading_number_max_gap_em: 3.0,
+            number_offset_min_pages: 3,
+            number_offset_min_ratio: 0.3,
         }
     }
 }
@@ -148,6 +155,9 @@ struct RepeatCounts {
     counts: HashMap<RepeatKey, usize>,
     /// Number of pages from which on a key is a running head or foot.
     min_repeat: usize,
+    /// Printed page number minus the 1-based page index, as most pages
+    /// show it (a document whose cover page is unnumbered starts at -1).
+    number_offset: i64,
 }
 
 impl RepeatCounts {
@@ -192,6 +202,7 @@ pub fn remove_furniture(pages: &mut [PageData], cfg: &FurnitureConfig) -> Furnit
         } else {
             cfg.min_repeat_count
         },
+        number_offset: page_number_offset(pages, cfg),
     };
     for page in pages.iter_mut() {
         let removed = remove_page_furniture(page, &repeats, cfg);
@@ -339,8 +350,20 @@ fn body_extent(page: &PageData, repeats: &RepeatCounts, cfg: &FurnitureConfig) -
                 .any(|&row| (row - line.baseline).abs() <= cfg.crowded_min_distance_pt)
         })
         .collect();
-    let (top, bottom) = if body.is_empty() {
+    // A page with no long line (a lone "Appendix" heading): its other text,
+    // without page numbers, is the text block.
+    let short: Vec<&Line> = page
+        .lines
+        .iter()
+        .filter(|line| !PAGE_NUMBER.is_match(line.text().trim()) && !is_repeated(line))
+        .collect();
+    let (top, bottom) = if body.is_empty() && short.is_empty() {
         (0.0, page.height)
+    } else if body.is_empty() {
+        (
+            short.iter().map(|line| line.bbox.y0).fold(f32::INFINITY, f32::min),
+            short.iter().map(|line| line.bbox.y1).fold(f32::NEG_INFINITY, f32::max),
+        )
     } else {
         (
             body.iter().map(|line| line.bbox.y0).fold(f32::INFINITY, f32::min),
@@ -495,18 +518,46 @@ fn is_furniture_candidate(
         None => {
             is_page_no
                 && outside
-                && is_own_number(page, &text)
+                && is_own_number(page, &text, repeats.number_offset)
                 && is_extreme_line(page, line, cfg)
                 && alone_on_row(page, line, cfg)
         }
     }
 }
 
-/// Whether `text` is the page's number in the document (its 1-based index).
-fn is_own_number(page: &PageData, text: &str) -> bool {
+/// Whether `text` is the page's number: its 1-based index plus the
+/// document's `offset`.
+fn is_own_number(page: &PageData, text: &str, offset: i64) -> bool {
     text.trim()
-        .parse::<usize>()
-        .is_ok_and(|number| number == page.index + 1)
+        .parse::<i64>()
+        .is_ok_and(|number| number == page.index as i64 + 1 + offset)
+}
+
+/// The offset between printed page numbers and page indexes that most pages
+/// agree on: lone numbers on the top or bottom line of a page, alone on
+/// their row. 0 unless enough pages agree.
+fn page_number_offset(pages: &[PageData], cfg: &FurnitureConfig) -> i64 {
+    let mut votes: HashMap<i64, usize> = HashMap::new();
+    for page in pages {
+        let offsets: HashSet<i64> = page
+            .lines
+            .iter()
+            .filter(|line| is_extreme_line(page, line, cfg) && alone_on_row(page, line, cfg))
+            .filter_map(|line| line.text().trim().parse::<i64>().ok())
+            .map(|number| number - (page.index as i64 + 1))
+            .collect();
+        for offset in offsets {
+            *votes.entry(offset).or_default() += 1;
+        }
+    }
+    let needed = cfg
+        .number_offset_min_pages
+        .max((pages.len() as f32 * cfg.number_offset_min_ratio).ceil() as usize);
+    votes
+        .into_iter()
+        .filter(|&(_, count)| count >= needed)
+        .max_by_key(|&(offset, count)| (count, -offset.abs()))
+        .map_or(0, |(offset, _)| offset)
 }
 
 /// Whether no other line shares the row of `line` (a footnote's number

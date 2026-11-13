@@ -14,63 +14,16 @@
     clippy::min_ident_chars
 )]
 
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod assemble;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod body;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod front_matter;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod links;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod paragraphs;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod patterns;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod references;
-#[allow(
-    missing_docs,
-    clippy::missing_docs_in_private_items,
-    clippy::too_many_lines,
-    clippy::min_ident_chars
-)] // TODO(semantics2): remove once the file is cleaned up
 pub(crate) mod text;
 
+pub use assemble::AssembleConfig;
 pub use body::BodyConfig;
 pub use front_matter::FrontMatterConfig;
 pub use paragraphs::ParagraphsConfig;
@@ -123,6 +76,9 @@ pub struct SemanticsConfig {
     pub paragraphs: ParagraphsConfig,
     /// Building styled text: de-hyphenation and equation runs.
     pub text: TextConfig,
+    /// Assembly of the output blocks: author rows, equation images, table
+    /// cells and footnote marks.
+    pub assemble: AssembleConfig,
 }
 
 impl Default for SemanticsConfig {
@@ -137,6 +93,7 @@ impl Default for SemanticsConfig {
             references: ReferencesConfig::default(),
             paragraphs: ParagraphsConfig::default(),
             text: TextConfig::default(),
+            assemble: AssembleConfig::default(),
         }
     }
 }

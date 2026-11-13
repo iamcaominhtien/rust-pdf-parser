@@ -238,8 +238,8 @@ pre.listing.hl .tok-dec,[data-code-hl="on"] pre.listing .tok-dec{color:var(--hl-
     linear-gradient(to left,color-mix(in srgb,var(--ink) 16%,transparent),transparent) right/10px 100% no-repeat scroll}
 table.tbl{border-collapse:collapse;margin:0 auto;font-family:var(--sans);font-size:var(--fs-tbl);line-height:var(--lh-tbl);
   font-variant-numeric:tabular-nums lining-nums;color:var(--ink)}
-.tbl th,.tbl td{padding:5px 12px;vertical-align:baseline;font-weight:400;text-align:left}
-.tbl thead th{font-weight:600;font-size:.8125rem;line-height:1.3;vertical-align:bottom}
+.tbl th,.tbl td{padding:.36em .86em;vertical-align:baseline;font-weight:400;text-align:left}
+.tbl thead th{font-weight:600;font-size:.93em;line-height:1.3;vertical-align:bottom}
 .tbl td em,.tbl th em{font-family:var(--serif);font-style:italic;font-size:1.08em}
 .tbl strong{font-weight:600}
 .tbl code{font-size:.9em}
@@ -253,7 +253,8 @@ table.tbl{border-collapse:collapse;margin:0 auto;font-family:var(--sans);font-si
 .tbl .rr{border-right:var(--hair) solid var(--rule)}
 .tbl .mid{vertical-align:middle}
 .tbl tbody tr:hover td{background:var(--wash)}
-@media (max-width:599.98px){.tbl th,.tbl td{padding:4px 9px}}
+@media (max-width:599.98px){.tbl th,.tbl td{padding:.29em .64em}}
+.tbl-wrap>img{display:block;margin:0 auto;height:auto}
 
 /* ---------- References ---------- */
 ol.refs{list-style:none;margin:0;padding:0;font-size:var(--fs-note);line-height:var(--lh-note)}

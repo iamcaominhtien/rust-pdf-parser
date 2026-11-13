@@ -212,5 +212,22 @@
   function smooth(){requestAnimationFrame(function(){requestAnimationFrame(function(){root.setAttribute('data-smooth','');});});}
   if(doc.readyState==='complete')smooth();else addEventListener('load',smooth);
   // Shared with the book view (book.js).
-  window.p2h={store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll};
+  // A table wider than its column gets a smaller font, down to `min` of
+  // its size; what is still too wide scrolls inside its frame. The size is
+  // set relative to the surrounding text, so it follows zoom and themes.
+  function fitTables(scope,min){
+    [].forEach.call((scope||article).querySelectorAll('.tbl-wrap>table'),function(t){
+      t.style.fontSize='';
+      var w=t.parentNode;if(!w.clientWidth)return;
+      var rel=parseFloat(getComputedStyle(t).fontSize)/parseFloat(getComputedStyle(w).fontSize),k=1;
+      for(var i=0;i<4&&t.scrollWidth>w.clientWidth+1;i++){
+        var next=Math.max(min,k*w.clientWidth/t.scrollWidth);
+        if(next>=k-0.005)break;k=next;t.style.fontSize=(rel*k*100).toFixed(2)+'%';
+      }
+    });
+  }
+  function fitScroll(){if(root.getAttribute('data-view')!=='book')fitTables(article,0.8);}
+  addEventListener('resize',fitScroll);fitScroll();
+  if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(fitScroll);
+  window.p2h={store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll,fitTables:fitTables,fitScroll:fitScroll};
 })();

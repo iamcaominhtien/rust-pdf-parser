@@ -287,11 +287,13 @@ fn roman_number_rule(features: &HeadingFeatures<'_>) -> Option<HeadingNumber> {
     })
 }
 
-/// "Appendix A", "A.1 Proofs": an appendix letter, strong. A bare letter
+/// "Appendix A", "A.1 Proofs": an appendix letter, strong or in capitals
+/// (ICLR sets them in small capitals at the body size). A bare letter
 /// ("A Proofs") is only accepted after the bibliography heading.
 fn appendix_number_rule(features: &HeadingFeatures<'_>, seen_refs: bool) -> Option<HeadingNumber> {
     let captures = HEADING_APP.captures(features.text).filter(|captures| {
-        (seen_refs || captures.name("word").is_some() || captures["num"].contains('.')) && features.strong
+        (seen_refs || captures.name("word").is_some() || captures["num"].contains('.'))
+            && (features.strong || features.caps)
     })?;
     Some(dotted_number(&captures["num"]))
 }

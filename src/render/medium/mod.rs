@@ -13,6 +13,16 @@ const CSS: &str = include_str!("medium.css");
 const SMOOTH_JS: &str = "addEventListener('load',function(){requestAnimationFrame(function(){\
 requestAnimationFrame(function(){document.documentElement.setAttribute('data-smooth','')})})})";
 
+/// A table wider than its page column gets a smaller font (down to half),
+/// relative to the page text so it scales with the page; what is still too
+/// wide scrolls inside its frame.
+const FIT_TABLES_JS: &str = "(function(){function fit(){[].forEach.call(document.querySelectorAll('.tbl-wrap>table'),\
+function(t){t.style.fontSize='';var w=t.parentNode;if(!w.clientWidth)return;\
+var rel=parseFloat(getComputedStyle(t).fontSize)/parseFloat(getComputedStyle(w).fontSize),k=1;\
+for(var i=0;i<4&&t.scrollWidth>w.clientWidth+1;i++){var n=Math.max(0.5,k*w.clientWidth/t.scrollWidth);\
+if(n>=k-0.005)break;k=n;t.style.fontSize=(rel*k*100).toFixed(2)+'%'}})}\
+fit();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);addEventListener('resize',fit)})()";
+
 /// Page margin used when no page has enough blocks to measure it, in points
 /// (a little under an inch, typical of papers).
 const DEFAULT_MARGIN_PT: f32 = 60.0;
@@ -80,6 +90,7 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
 <main class="pages">
 {pages}</main>
 <script>{SMOOTH_JS}</script>
+<script>{FIT_TABLES_JS}</script>
 </body>
 </html>
 "#,

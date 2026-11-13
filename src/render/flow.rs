@@ -10,6 +10,11 @@ use std::sync::LazyLock;
 static SECTION_NUMBER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\d+(?:\.\d+)*\.?|[A-Z](?:\.\d+)+\.?|[A-Z]\.|[IVXL]+\.)\s+").unwrap());
 
+/// Smallest scale of an equation or a picture of a table in a narrow column
+/// (a phone, a book page): text in it stays readable, and the picture
+/// scrolls sideways instead.
+const LEGIBLE_MIN_SCALE: f32 = 0.7;
+
 /// How image widths are expressed in a given mode.
 pub(crate) enum WidthUnit {
     /// Relative to the body font size (`pt_per_em` points per em).
@@ -26,9 +31,18 @@ pub(crate) enum WidthUnit {
 
 impl WidthUnit {
     /// The CSS `width` of an image that is `width_pt` points wide in the
-    /// PDF, never wider than its container.
-    fn css(&self, width_pt: f32) -> String {
+    /// PDF, never wider than its container. A `legible` image (equations,
+    /// pictures of tables) shrinks to fit only down to
+    /// [`LEGIBLE_MIN_SCALE`] of its size; beyond that its container scrolls.
+    fn css(&self, width_pt: f32, legible: bool) -> String {
         match self {
+            WidthUnit::Em { pt_per_em } if legible => {
+                let width = width_pt / pt_per_em;
+                format!(
+                    "width:{width:.2}em;max-width:max(100%,{:.2}em)",
+                    width * LEGIBLE_MIN_SCALE
+                )
+            }
             WidthUnit::Em { pt_per_em } => format!("width:{:.2}em;max-width:100%", width_pt / pt_per_em),
             WidthUnit::Cqw { page_width } => format!("width:{:.2}cqw;max-width:100%", width_pt / page_width * 100.0),
         }
@@ -270,7 +284,7 @@ fn equation_html(
         "<img src=\"{}\" alt=\"{alt}\"{} style=\"{}\" loading=\"lazy\">",
         images.region(image, "eq"),
         images.region_size_attrs(image),
-        ctx.unit.css(image.rect.width())
+        ctx.unit.css(image.rect.width(), true)
     );
     let num = number
         .as_ref()
@@ -316,13 +330,17 @@ fn figure_html(
             } else {
                 format!(";--w:{}px", images.region_size(spec).0)
             };
+            let legible = matches!(kind, FloatKind::Table | FloatKind::Algorithm);
             format!(
                 "<img src=\"{src}\" alt=\"{alt}\"{size} style=\"{}{own}\" loading=\"lazy\">",
-                ctx.unit.css(spec.rect.width())
+                ctx.unit.css(spec.rect.width(), legible)
             )
         })
         .map(|img| match kind {
             FloatKind::Figure | FloatKind::Graphic if ctx.offprint => format!("<div class=\"plate\">{img}</div>"),
+            // A picture of a table scrolls like a rebuilt table when the
+            // column is too narrow for it.
+            FloatKind::Table | FloatKind::Algorithm if ctx.offprint => format!("<div class=\"tbl-wrap\">{img}</div>"),
             _ => img,
         })
         .unwrap_or_default();

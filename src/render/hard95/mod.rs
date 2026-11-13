@@ -169,6 +169,15 @@ impl PageLayer<'_> {
     /// Adds the part of `block` that is on this page: an equation, author
     /// lines, or a text block with the content of its float.
     fn block(&mut self, doc: &Document, block: &Block) {
+        // The target of cross references ("#fig-3", "#ref-12") to this block.
+        if let Some(anchor) = block.anchor.as_deref().filter(|_| block.page == self.page_idx) {
+            self.html.push_str(&format!(
+                "<a class=\"anc\" id=\"{}\" style=\"left:{};top:{}\"></a>\n",
+                esc(anchor),
+                self.units.x(block.bbox.x0),
+                self.units.y(block.bbox.y0)
+            ));
+        }
         match &block.kind {
             BlockKind::Equation { .. } => self.equation(block),
             BlockKind::Authors => self.authors(block),

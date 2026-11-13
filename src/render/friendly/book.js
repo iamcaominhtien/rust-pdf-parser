@@ -78,6 +78,8 @@
   function paginate(){
     measure();
     var art=win.firstElementChild;art.style.setProperty('--bk-x','0px');
+    // A page cannot scroll sideways: wide tables shrink further than in the scroll view.
+    if(P.fitTables)P.fitTables(art,0.55);
     pages=Math.max(1,Math.round((art.scrollWidth+(step-g.tw))/step));
     heads=[].map.call(art.querySelectorAll('h2,h3,h4'),function(h){
       var n=h.querySelector('.secno'),text=n?n.textContent+' '+h.textContent.slice(n.textContent.length):h.textContent;
@@ -392,7 +394,7 @@
     active=false;layout.appendChild(article);view.hidden=true;root.removeAttribute('data-view');
     win.firstElementChild&&win.removeChild(win.firstElementChild);
     article.style.removeProperty('--bk-x');clearTocPages();
-    if(P.syncToggle)P.syncToggle();if(P.placeSidenotes)P.placeSidenotes();
+    if(P.syncToggle)P.syncToggle();if(P.placeSidenotes)P.placeSidenotes();if(P.fitScroll)P.fitScroll();
     if(keep)keep.scrollIntoView({block:'start'});
     if(P.onScroll)P.onScroll();syncButtons();
   }

@@ -7,6 +7,15 @@ use crate::common::geom::median;
 
 const CSS: &str = include_str!("medium.css");
 
+/// The `medium` mode: page and column layout kept, text reflowed.
+pub(crate) struct Medium;
+
+impl Renderer for Medium {
+    fn render(&self, analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
+        render(&analysis.doc, images)
+    }
+}
+
 pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let title = doc_title(doc);
 

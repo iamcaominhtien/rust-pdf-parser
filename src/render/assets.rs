@@ -3,9 +3,9 @@
 
 use super::*;
 use crate::backend::PageRenderer;
+use crate::backend::PdfFile;
 use crate::model::*;
 use base64::Engine;
-use hayro_syntax::Pdf;
 use std::collections::HashSet;
 
 /// A picture the HTML needs: a page region, or a whole page.
@@ -82,11 +82,11 @@ impl ImageStore<'_> {
     }
 
     /// Draws all recorded pictures and replaces the placeholders in `html`.
-    pub(crate) fn finish(self, pdf: &Pdf, html: String) -> HtmlOutput {
+    pub(crate) fn finish(self, pdf: &PdfFile, html: String) -> HtmlOutput {
         let drawn = crate::common::parallel::map(
             self.jobs.len(),
             self.opts.jobs,
-            || PageRenderer::new(pdf),
+            || pdf.renderer(),
             |r, i| self.draw(r, &self.jobs[i]),
         );
         let mut drawn: Vec<_> = drawn.into_iter().map(Some).collect();

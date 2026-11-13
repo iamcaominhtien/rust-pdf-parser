@@ -39,6 +39,15 @@ fn kind_name(kind: &BlockKind) -> &'static str {
     }
 }
 
+/// The `hard` mode: facsimile pages with an invisible text layer.
+pub(crate) struct Hard;
+
+impl Renderer for Hard {
+    fn render(&self, analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
+        render(analysis, images)
+    }
+}
+
 pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
     let doc = &analysis.doc;
     let title = doc_title(doc);

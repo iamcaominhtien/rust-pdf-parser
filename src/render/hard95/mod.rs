@@ -448,6 +448,15 @@ fn add_origins(set: &mut HashSet<(i32, i32)>, line: &Line) {
     }
 }
 
+/// The `hard-95` mode: facsimile pages whose text is real, visible HTML.
+pub(crate) struct Hard95;
+
+impl Renderer for Hard95 {
+    fn render(&self, analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
+        render(analysis, images)
+    }
+}
+
 pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
     let doc = &analysis.doc;
     let title = doc_title(doc);

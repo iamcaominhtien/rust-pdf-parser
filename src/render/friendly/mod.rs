@@ -5,6 +5,15 @@ use super::*;
 const CSS: &str = include_str!("friendly.css");
 const JS: &str = include_str!("friendly.js");
 
+/// The `friendly` mode: single-column responsive article.
+pub(crate) struct Friendly;
+
+impl Renderer for Friendly {
+    fn render(&self, analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
+        render(&analysis.doc, images)
+    }
+}
+
 pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let title = doc_title(doc);
     let all: Vec<&Block> = doc.blocks.iter().collect();

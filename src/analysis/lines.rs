@@ -42,6 +42,11 @@ const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     gutter_min_column_lines: 10,
     gutter_min_width_pt: 3.0,
     gutter_min_span_ratio: 0.7,
+    gutter_window_rows: 6,
+    gutter_edge_reach_pt: 4.0,
+    gutter_window_min_lines: 4,
+    gutter_window_min_width_pt: 5.0,
+    gutter_window_space_factor: 2.0,
     merge_max_size_factor: 2.2,
     math_axis_em: 0.25,
     math_reanchor_min_offset_em: 0.5,
@@ -146,6 +151,19 @@ pub struct LinesConfig {
     /// A segment is cut at a gap between two glyphs that spans at least this
     /// fraction of the gutter.
     pub gutter_min_span_ratio: f32,
+    /// Without a gutter over the whole page, one is looked for in windows
+    /// of this many consecutive rows (a figure set into a column) ...
+    pub gutter_window_rows: usize,
+    /// The text beside a gutter is counted within this many points of its
+    /// edge (column edges are ragged by a few points).
+    pub gutter_edge_reach_pt: f32,
+    /// ... with text from at least this many segments on both sides ...
+    pub gutter_window_min_lines: usize,
+    /// ... at least this wide (in points) ...
+    pub gutter_window_min_width_pt: f32,
+    /// ... and this many times the median word space of the window: word
+    /// spaces lined up by chance in justified text are not a gutter.
+    pub gutter_window_space_factor: f32,
     /// Segments on one baseline are not merged when one font is this many
     /// times larger than the other (a heading next to a margin note).
     pub merge_max_size_factor: f32,
@@ -923,28 +941,109 @@ fn gutter(left: &Segment, right: &Segment, all: &[Segment], cfg: &LinesConfig) -
 }
 
 /// Splits segments at a column gutter they run across. Two columns set
-/// with a gutter about one word space wide (the Batch Normalization paper)
-/// are joined line by line into one segment. Their gutter shows on the page
-/// as an x range in the middle that hardly any glyph covers, while many
-/// segments have a gap there. A segment is cut where its gap spans that
-/// range; pages whose lines do not cross a gutter are left alone.
+/// with a gutter about one word space wide (the Batch Normalization paper),
+/// or a figure set into a column with its caption beside the text, are
+/// joined line by line into one segment. Their gutter shows as an x range
+/// that hardly any glyph covers, with text on both sides, over the whole
+/// page or over a run of consecutive lines (see [`find_gutter`]). A segment
+/// is cut where its gap spans that range; pages without one are left alone.
 fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) -> Vec<Segment> {
-    let (lo, hi) = (cfg.gutter_zone.0 * page_width, cfg.gutter_zone.1 * page_width);
-    let bins = (hi - lo).max(0.0).ceil() as usize;
-    if bins == 0 || segments.len() < cfg.gutter_min_column_lines {
-        return segments;
+    let zone = (cfg.gutter_zone.0 * page_width, cfg.gutter_zone.1 * page_width);
+    let all: Vec<&Segment> = segments.iter().collect();
+    // One gutter per segment: the page's, or that of the window of lines it is in.
+    let mut gutters: Vec<Option<(f32, f32)>> = vec![None; segments.len()];
+    if let Some(gutter) = find_gutter(&all, zone, cfg.gutter_min_column_lines, cfg.gutter_min_width_pt, cfg) {
+        gutters.fill(Some(gutter));
+    } else {
+        let mut order: Vec<usize> = (0..segments.len()).collect();
+        order.sort_by(|&a, &b| segments[a].y.total_cmp(&segments[b].y));
+        // Rows of segments on one baseline.
+        let mut rows: Vec<Vec<usize>> = Vec::new();
+        for index in order {
+            match rows.last_mut() {
+                Some(row)
+                    if (segments[row[0]].y - segments[index].y).abs()
+                        <= cfg.same_baseline_pt + cfg.same_baseline_em * segments[index].size =>
+                {
+                    row.push(index)
+                }
+                _ => rows.push(vec![index]),
+            }
+        }
+        let rows_per_window = cfg.gutter_window_rows;
+        for start in (0..rows.len()).step_by((rows_per_window / 2).max(1)) {
+            let members: Vec<usize> = rows[start..(start + rows_per_window).min(rows.len())].concat();
+            let window: Vec<&Segment> = members.iter().map(|&index| &segments[index]).collect();
+            let min_width = cfg
+                .gutter_window_min_width_pt
+                .max(cfg.gutter_window_space_factor * median_space(&window, cfg));
+            let lines = cfg.gutter_window_min_lines;
+            if let Some(gutter) = find_gutter(&window, zone, lines, min_width, cfg) {
+                for index in members {
+                    gutters[index] = gutters[index].or(Some(gutter));
+                }
+            }
+        }
     }
-    // Per 1 pt bin: segments with ink there, and segments with a gap there.
+    let mut out = Vec::with_capacity(segments.len());
+    for (segment, gutter) in segments.into_iter().zip(gutters) {
+        match gutter {
+            Some(gutter) => out.extend(cut_at_gutter(segment, gutter, cfg)),
+            None => out.push(segment),
+        }
+    }
+    out
+}
+
+/// The visible glyphs of `segment`, left to right.
+fn visible_glyphs(segment: &Segment) -> Vec<&LineGlyph> {
+    let mut glyphs: Vec<&LineGlyph> = segment
+        .glyphs
+        .iter()
+        .filter(|glyph| !glyph.text.trim().is_empty())
+        .collect();
+    glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+    glyphs
+}
+
+/// The median word space of `segments` (0 when there is none).
+fn median_space(segments: &[&Segment], cfg: &LinesConfig) -> f32 {
+    let mut spaces: Vec<f32> = segments
+        .iter()
+        .flat_map(|segment| {
+            let glyphs = visible_glyphs(segment);
+            glyphs
+                .windows(2)
+                .map(|pair| pair[1].x0 - pair[0].x1)
+                .filter(|&gap| gap > cfg.space_gap_em * segment.size)
+                .collect::<Vec<f32>>()
+        })
+        .collect();
+    spaces.sort_by(f32::total_cmp);
+    spaces.get(spaces.len() / 2).copied().unwrap_or(0.0)
+}
+
+/// The gutter of `segments` within the x range `zone`: the widest run of
+/// 1 pt bins that the glyphs of hardly any segment cover, at least
+/// `min_width` wide, with the glyphs of at least `min_lines` segments right
+/// next to it on both sides, and with some segment running across it.
+fn find_gutter(
+    segments: &[&Segment],
+    zone: (f32, f32),
+    min_lines: usize,
+    min_width: f32,
+    cfg: &LinesConfig,
+) -> Option<(f32, f32)> {
+    let (lo, hi) = zone;
+    let bins = (hi - lo).max(0.0).ceil() as usize;
+    if bins == 0 || segments.len() < min_lines {
+        return None;
+    }
     let mut covered = vec![0usize; bins];
     let mut gapped = vec![0usize; bins];
     let bin_of = |x: f32| ((x - lo).floor().max(0.0) as usize).min(bins);
-    for segment in &segments {
-        let mut glyphs: Vec<&LineGlyph> = segment
-            .glyphs
-            .iter()
-            .filter(|glyph| !glyph.text.trim().is_empty())
-            .collect();
-        glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+    for segment in segments {
+        let glyphs = visible_glyphs(segment);
         let mut ink = vec![false; bins];
         for glyph in &glyphs {
             let (from, to) = (bin_of(glyph.x0), bin_of(glyph.x1));
@@ -952,10 +1051,8 @@ fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) 
                 *flag = true;
             }
         }
-        for (bin, flag) in ink.iter().enumerate() {
-            if *flag {
-                covered[bin] += 1;
-            }
+        for (count, flag) in covered.iter_mut().zip(&ink) {
+            *count += usize::from(*flag);
         }
         for pair in glyphs.windows(2) {
             let (from, to) = (bin_of(pair[0].x1), bin_of(pair[1].x0));
@@ -965,18 +1062,21 @@ fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) 
         }
     }
     let max_cover = (cfg.gutter_max_cover_ratio * segments.len() as f32).max(1.0) as usize;
-    // The widest run of bins hardly any glyph covers, with columns of text
-    // on both sides and some segment running across it, is the gutter.
     let mut best: Option<(usize, usize)> = None;
     let mut start = None;
     for bin in 0..=bins {
         match (bin < bins && covered[bin] <= max_cover, start) {
             (true, None) => start = Some(bin),
             (false, Some(first)) => {
-                let flanked = first > 0
-                    && bin < bins
-                    && covered[first - 1] >= cfg.gutter_min_column_lines
-                    && covered[bin] >= cfg.gutter_min_column_lines;
+                // Ragged column edges: the most lines within a few points.
+                let reach = cfg.gutter_edge_reach_pt as usize;
+                let left = covered[first.saturating_sub(reach)..first]
+                    .iter()
+                    .max()
+                    .copied()
+                    .unwrap_or(0);
+                let right = covered[bin..(bin + reach).min(bins)].iter().max().copied().unwrap_or(0);
+                let flanked = left >= min_lines && right >= min_lines;
                 let crossed = gapped[first..bin].iter().any(|&count| count > 0);
                 if flanked && crossed && best.is_none_or(|(a, b)| bin - first > b - a) {
                     best = Some((first, bin));
@@ -986,28 +1086,26 @@ fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) 
             _ => {}
         }
     }
-    let Some((first, last)) = best.filter(|(a, b)| (b - a) as f32 >= cfg.gutter_min_width_pt) else {
-        return segments;
-    };
-    let (gutter_x0, gutter_x1) = (lo + first as f32, lo + last as f32);
-    let mut out = Vec::with_capacity(segments.len());
-    for segment in segments {
-        let mut glyphs = segment.glyphs.clone();
-        glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
-        // The gap between two glyphs spans (most of) the gutter.
-        let cut = glyphs.windows(2).position(|pair| {
-            pair[1].x0.min(gutter_x1) - pair[0].x1.max(gutter_x0) >= cfg.gutter_min_span_ratio * (gutter_x1 - gutter_x0)
-        });
-        match cut {
-            Some(at) => {
-                let right = glyphs.split_off(at + 1);
-                out.push(Segment::from_glyphs(glyphs, cfg));
-                out.push(Segment::from_glyphs(right, cfg));
-            }
-            None => out.push(segment),
+    best.filter(|(first, last)| (last - first) as f32 >= min_width)
+        .map(|(first, last)| (lo + first as f32, lo + last as f32))
+}
+
+/// Cuts `segment` where the gap between two of its glyphs spans (most of)
+/// the `gutter`.
+fn cut_at_gutter(segment: Segment, gutter: (f32, f32), cfg: &LinesConfig) -> Vec<Segment> {
+    let (gutter_x0, gutter_x1) = gutter;
+    let mut glyphs = segment.glyphs.clone();
+    glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+    let cut = glyphs.windows(2).position(|pair| {
+        pair[1].x0.min(gutter_x1) - pair[0].x1.max(gutter_x0) >= cfg.gutter_min_span_ratio * (gutter_x1 - gutter_x0)
+    });
+    match cut {
+        Some(at) => {
+            let right = glyphs.split_off(at + 1);
+            vec![Segment::from_glyphs(glyphs, cfg), Segment::from_glyphs(right, cfg)]
         }
+        None => vec![segment],
     }
-    out
 }
 
 /// Glyphs of math extension fonts (radicals, big operators, tall

@@ -531,13 +531,9 @@ pub(crate) fn remove_hyphen(left: &str, right: &str, vocab: &HashSet<String>, cf
                 })
             })
     };
-    if left_part.chars().count() >= cfg.compound_part_min_chars_count
+    !(left_part.chars().count() >= cfg.compound_part_min_chars_count
         && vocab.contains(&left_part)
-        && known(&right_part)
-    {
-        return false;
-    }
-    true
+        && known(&right_part))
 }
 
 /// Removes the first `n` characters from a span list (dropping spans that

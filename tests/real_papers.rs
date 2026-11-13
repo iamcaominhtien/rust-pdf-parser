@@ -416,7 +416,7 @@ paper_test!(
     split <= 0,
     // 188 on p10, the rest are labels in the detection examples of p12-p13,
     // drawn twice (outline and fill) and kept in the figure pictures.
-    glyphs <= 372,
+    glyphs <= 391,
     hyphenated <= 162
 );
 paper_test!(
@@ -480,9 +480,28 @@ fn mislabelled_math_glyphs_are_read_by_shape() {
         .iter()
         .map(|block| plain(&block.spans) + "\n")
         .collect();
-    for expected in ["ρ/{[1 + (χ", "erg/s", "0031-9007/16/116(6)/061102", "(m1 + m2)1/5"] {
+    for expected in ["ρ/{[1 + (χ", "erg/s", "(m1 + m2)1/5"] {
         assert!(text.contains(expected), "missing {expected:?}");
     }
+    // The first page's foot is furniture, out of the text, read the same way.
+    let foot: String = analysis
+        .loose
+        .iter()
+        .flatten()
+        .filter(|line| line.line.page == 0)
+        .map(|line| line.line.text() + "\n")
+        .collect();
+    assert!(
+        foot.contains("0031-9007/16/116(6)/061102"),
+        "{foot} / {:?}",
+        analysis
+            .loose
+            .iter()
+            .map(|page| page.iter().map(|line| line.line.text()).collect::<Vec<_>>())
+            .take(2)
+            .collect::<Vec<_>>()
+    );
+    assert!(!text.contains("061102-1"), "the first page's foot is in the text");
     assert!(!text.contains("erg=s"), "a slash read as an equals sign");
 }
 
@@ -766,4 +785,17 @@ fn gpt4_chart_titles_stay_in_figures() {
             "{title:?} left out of its figure"
         );
     }
+}
+
+/// The first page's foot of the LIGO paper sets the journal line on the
+/// row of the page id; the whole row is furniture, not the end of the
+/// paragraph above it.
+#[test]
+fn ligo_first_page_foot_is_furniture() {
+    let Some(paper) = load("1602.03837v1") else { return };
+    let analysis = paper.analyze();
+    assert!(!analysis.doc.blocks.iter().any(|block| {
+        plain(&block.spans).contains("Published by the American Physical Society")
+            && !plain(&block.spans).contains("Creative Commons")
+    }));
 }

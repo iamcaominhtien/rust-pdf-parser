@@ -14,6 +14,10 @@ use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
+/// A page id of a journal page: digits joined by a hyphen ("061102-3",
+/// "e2014-12").
+static PAGE_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z]?\d{2,}-\d{1,4}$").unwrap());
+
 /// A line that is nothing but a page number: arabic or roman, optionally
 /// "page N", "N of M" or "N/M", with up to three decorating non-word
 /// characters on each side ("- 3 -", "[iv]").
@@ -308,10 +312,28 @@ fn drop_head_rules(page: &mut PageData, removed: &[Line], body: &BodyExtent, cfg
 fn body_extent(page: &PageData, repeats: &RepeatCounts, cfg: &FurnitureConfig) -> BodyExtent {
     let is_repeated =
         |line: &Line| band(page, line, cfg).is_some_and(|line_band| repeats.is_repeated(&line.text(), line_band));
+    // A first page's foot may set a journal line on the row of the page id
+    // that the other pages repeat alone ("0031-9007/16/116(6)/061102(16)
+    // 061102-1 Published by ..."): that row is not text.
+    let id_rows: Vec<f32> = page
+        .lines
+        .iter()
+        .filter(|line| {
+            let text = line.text();
+            PAGE_ID.is_match(text.trim())
+                && band(page, line, cfg).is_some_and(|line_band| repeats.is_repeated(&text, line_band))
+        })
+        .map(|line| line.baseline)
+        .collect();
     let body: Vec<&Line> = page
         .lines
         .iter()
         .filter(|line| line.char_count() >= cfg.body_line_min_glyphs_count && !is_repeated(line))
+        .filter(|line| {
+            !id_rows
+                .iter()
+                .any(|&row| (row - line.baseline).abs() <= cfg.crowded_min_distance_pt)
+        })
         .collect();
     let (top, bottom) = if body.is_empty() {
         (0.0, page.height)
@@ -384,23 +406,50 @@ fn mark_running_heads(
         .iter()
         .map(|line| is_furniture_candidate(page, line, body, repeats, cfg))
         .collect();
-    for (i, line) in page.lines.iter().enumerate() {
-        if !candidate[i] {
-            continue;
-        }
-        // Running heads stand apart from the content. A repeated line
-        // with other text right above or below it is content itself
-        // (for instance the header row of a table at the top of a page).
-        let crowded = page.lines.iter().enumerate().any(|(j, other)| {
-            let distance = (other.baseline - line.baseline).abs();
-            !candidate[j]
-                && distance > cfg.crowded_min_distance_pt
-                && distance < cfg.crowded_max_distance_em * line.size.max(other.size)
-        });
-        if !crowded {
-            drop[i] = true;
-        }
+    let dropped = drop_apart(page, &candidate, cfg);
+    // The other pieces of the row of a dropped page id (see `body_extent`)
+    // are furniture too.
+    let id_rows: Vec<f32> = page
+        .lines
+        .iter()
+        .zip(&dropped)
+        .filter(|(line, is_dropped)| **is_dropped && PAGE_ID.is_match(line.text().trim()))
+        .map(|(line, _)| line.baseline)
+        .collect();
+    let with_mates: Vec<bool> = page
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| {
+            dropped[i]
+                || (band(page, line, cfg).is_some()
+                    && id_rows
+                        .iter()
+                        .any(|&row| (row - line.baseline).abs() <= cfg.crowded_min_distance_pt))
+        })
+        .collect();
+    for (flag, keep_out) in drop.iter_mut().zip(drop_apart(page, &with_mates, cfg)) {
+        *flag |= keep_out;
     }
+}
+
+/// The candidates that stand apart from the content: running heads do. A
+/// candidate with other text right above or below it is content itself
+/// (for instance the header row of a table at the top of a page).
+fn drop_apart(page: &PageData, candidate: &[bool], cfg: &FurnitureConfig) -> Vec<bool> {
+    page.lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| {
+            candidate[i]
+                && !page.lines.iter().enumerate().any(|(j, other)| {
+                    let distance = (other.baseline - line.baseline).abs();
+                    !candidate[j]
+                        && distance > cfg.crowded_min_distance_pt
+                        && distance < cfg.crowded_max_distance_em * line.size.max(other.size)
+                })
+        })
+        .collect()
 }
 
 /// Whether `line` is a candidate for removal: a repeated line or a page
@@ -412,13 +461,45 @@ fn is_furniture_candidate(
     repeats: &RepeatCounts,
     cfg: &FurnitureConfig,
 ) -> bool {
-    let Some(line_band) = band(page, line, cfg) else {
-        return false;
-    };
     let text = line.text();
-    let repeated = repeats.is_repeated(&text, line_band);
     let outside = line.bbox.y1 <= body.top + cfg.body_edge_tolerance_pt
         || line.bbox.y0 >= body.bottom - cfg.body_edge_tolerance_pt;
     let is_page_no = PAGE_NUMBER.is_match(text.trim()) && line.char_count() <= cfg.page_number_max_glyphs_count;
-    (repeated || is_page_no) && outside
+    match band(page, line, cfg) {
+        Some(line_band) => (repeats.is_repeated(&text, line_band) || is_page_no) && outside,
+        // Wide margins (LNCS, a preprint in plain TeX) put the page number
+        // below the head band or above the foot band: there it must be the
+        // page's own number, on the first or last line of the page.
+        None => {
+            is_page_no
+                && outside
+                && is_own_number(page, &text)
+                && is_extreme_line(page, line, cfg)
+                && alone_on_row(page, line, cfg)
+        }
+    }
+}
+
+/// Whether `text` is the page's number in the document (its 1-based index).
+fn is_own_number(page: &PageData, text: &str) -> bool {
+    text.trim()
+        .parse::<usize>()
+        .is_ok_and(|number| number == page.index + 1)
+}
+
+/// Whether no other line shares the row of `line` (a footnote's number
+/// sits next to its text; a page number stands alone).
+fn alone_on_row(page: &PageData, line: &Line, cfg: &FurnitureConfig) -> bool {
+    page.lines
+        .iter()
+        .filter(|other| (other.baseline - line.baseline).abs() <= cfg.crowded_min_distance_pt)
+        .count()
+        == 1
+}
+
+/// Whether `line` is the top or the bottom line of the page.
+fn is_extreme_line(page: &PageData, line: &Line, cfg: &FurnitureConfig) -> bool {
+    let tol = cfg.body_edge_tolerance_pt;
+    page.lines.iter().all(|other| other.bbox.y0 >= line.bbox.y0 - tol)
+        || page.lines.iter().all(|other| other.bbox.y1 <= line.bbox.y1 + tol)
 }

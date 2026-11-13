@@ -1438,36 +1438,12 @@
       "bbox": {
         "x0": 52.0441,
         "y0": 51.1425,
-        "x1": 560.1019,
-        "y1": 748.1368
+        "x1": 560.09595,
+        "y1": 718.6337
       },
       "spans": [
         {
-          "text": "A century after the fundamental predictions of Einstein and Schwarzschild, we report the first direct detection of gravitational waves and the first direct observation of a binary black hole system merging to form a single black hole. Our observations provide unique access to the 0031-9007",
-          "style": 0
-        },
-        {
-          "text": "/",
-          "style": 2
-        },
-        {
-          "text": "16",
-          "style": 0
-        },
-        {
-          "text": "/",
-          "style": 2
-        },
-        {
-          "text": "116(6)",
-          "style": 0
-        },
-        {
-          "text": "/",
-          "style": 2
-        },
-        {
-          "text": "061102(16) 061102-1 Published by the American Physical Society properties of space-time in the strong-field, high-velocity regime and confirm predictions of general relativity for the nonlinear dynamics of highly disturbed black holes.",
+          "text": "A century after the fundamental predictions of Einstein and Schwarzschild, we report the first direct detection of gravitational waves and the first direct observation of a binary black hole system merging to form a single black hole. Our observations provide unique access to the properties of space-time in the strong-field, high-velocity regime and confirm predictions of general relativity for the nonlinear dynamics of highly disturbed black holes.",
           "style": 0
         }
       ]

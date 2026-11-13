@@ -15,7 +15,7 @@ pub(crate) fn classify_front_matter(
     pages: &[PageData],
     stats: &DocStats,
     fonts: &[FontInfo],
-    _cfg: &SemanticsConfig,
+    cfg: &SemanticsConfig,
 ) {
     let Some(first_page) = nodes.iter().find(|n| n.text_block().is_some()).map(|n| n.loc.page) else {
         return;
@@ -70,7 +70,7 @@ pub(crate) fn classify_front_matter(
             let is_abstract = trimmed.eq_ignore_ascii_case("abstract") || ABSTRACT_INLINE.is_match(trimmed);
             let bold = frac(&t.lines, fonts, |f| f.bold) >= 0.6;
             let is_section = (HEADING_NUM.is_match(trimmed) || HEADING_ROMAN.is_match(trimmed))
-                && (bold || block_size(&t.lines) > stats.body_size + 0.5 || upper_ratio(trimmed) > 0.8)
+                && (bold || block_size(&t.lines) > stats.body_size + 0.5 || upper_ratio(trimmed, cfg) > 0.8)
                 && trimmed.chars().count() < 80;
             // Running prose: several justified lines.
             let full = t

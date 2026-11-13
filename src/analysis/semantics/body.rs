@@ -7,7 +7,7 @@ use crate::analysis::page::DocStats;
 use crate::backend::FontInfo;
 use crate::common::geom::median;
 
-pub(crate) fn classify_body(nodes: &mut [Node], stats: &DocStats, fonts: &[FontInfo], _cfg: &SemanticsConfig) {
+pub(crate) fn classify_body(nodes: &mut [Node], stats: &DocStats, fonts: &[FontInfo], cfg: &SemanticsConfig) {
     // Pass 1: heading candidates.
     struct Cand {
         idx: usize,
@@ -31,7 +31,7 @@ pub(crate) fn classify_body(nodes: &mut [Node], stats: &DocStats, fonts: &[FontI
         let size = block_size(&t.lines);
         let bold = frac(&t.lines, fonts, |f| f.bold) >= 0.9;
         let italic = frac(&t.lines, fonts, |f| f.italic) >= 0.7;
-        let caps = upper_ratio(text) >= 0.8 || small_caps(&t.lines);
+        let caps = upper_ratio(text, cfg) >= 0.8 || small_caps(&t.lines, cfg);
         let strong = bold || size >= stats.body_size + 0.7;
         let weak = italic || caps;
         let known = KNOWN_HEADINGS.is_match(text.trim_end_matches(['.', ':']));

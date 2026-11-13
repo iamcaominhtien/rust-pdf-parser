@@ -8,7 +8,7 @@
 set -u
 root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty')
-[ -n "$f" ] && [ -f "$f" ] || exit 0
+[[ -n "$f" && -f "$f" ]] || exit 0
 case "$f" in "$root"/*) ;; *) exit 0 ;; esac
 case "$f" in */target/*|*/.claude/worktrees/*) exit 0 ;; esac
 

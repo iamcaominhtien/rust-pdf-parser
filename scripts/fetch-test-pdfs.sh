@@ -8,13 +8,13 @@ first=1
 while read -r id sum; do
   case "$id" in ''|'#'*) continue ;; esac
   file="$id.pdf"
-  if [ -f "$file" ] && echo "$sum  $file" | sha256sum -c --status; then
+  if [[ -f "$file" ]] && echo "$sum  $file" | sha256sum -c --status; then
     continue
   fi
-  [ "$first" = 1 ] || sleep 3
+  [[ "$first" = 1 ]] || sleep 3
   first=0
   echo "downloading $id"
-  curl -fsSL --retry 3 --retry-delay 5 -A "paper2html-tests" -o "$file.part" "https://arxiv.org/pdf/$id"
+  curl -fsSL --proto =https --proto-redir =https --retry 3 --retry-delay 5 -A "paper2html-tests" -o "$file.part" "https://arxiv.org/pdf/$id"
   if ! echo "$sum  $file.part" | sha256sum -c --status; then
     echo "checksum mismatch for $id" >&2
     rm -f "$file.part"

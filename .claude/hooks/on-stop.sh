@@ -5,7 +5,7 @@
 set -u
 root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 mark="$root/target/.claude-rust-edited"
-[ -f "$mark" ] || exit 0
+[[ -f "$mark" ]] || exit 0
 active=$(jq -r '.stop_hook_active // false' 2>/dev/null || echo false)
 cd "$root" || exit 0
 
@@ -15,7 +15,7 @@ if out=$(cargo clippy --all-targets --quiet -- -D warnings 2>&1); then
   rm -f "$mark"
   exit 0
 fi
-if [ "$active" = "true" ]; then
+if [[ "$active" = "true" ]]; then
   # Already sent back once this turn: do not loop; leave the mark for the next turn.
   echo '{"systemMessage":"clippy still reports warnings; run cargo clippy --all-targets -- -D warnings"}'
   exit 0

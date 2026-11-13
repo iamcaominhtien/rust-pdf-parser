@@ -25,27 +25,28 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: env.SONAR_TOKEN != ''
         with:
           # Full history, so that SonarQube can attribute issues and find new code.
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         if: env.SONAR_TOKEN != ''
         with:
+          toolchain: stable
           components: clippy, llvm-tools-preview
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: env.SONAR_TOKEN != ''
         with:
           shared-key: sonar
-      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: taiki-e/install-action@3f7c3597aa4e6da3f315e128de702ce61e7b2877 # cargo-llvm-cov
         if: env.SONAR_TOKEN != ''
 
       # The same test papers as the CI test job, from the same cache.
       - name: Restore test papers
         if: env.SONAR_TOKEN != ''
         id: papers
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: tests/data/*.pdf
           key: test-papers-${{ hashFiles('tests/data/papers.txt') }}
@@ -63,4 +64,4 @@ jobs:
 
       - name: SonarQube scan
         if: env.SONAR_TOKEN != ''
-        uses: SonarSource/sonarqube-scan-action@v8
+        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0

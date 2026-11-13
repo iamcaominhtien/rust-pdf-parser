@@ -304,6 +304,12 @@ pub struct FloatsConfig {
     pub title_min_width_pt: f32,
     /// ... and it starts more than this right of the text margin.
     pub title_min_indent_pt: f32,
+    /// ... or starts within this distance (in points) of the drawing's left
+    /// edge (a chart title set flush left).
+    pub title_edge_tol_pt: f32,
+    /// Labels around a drawing are looked for in this many passes, each
+    /// against the drawing grown by the labels found before.
+    pub label_max_passes_count: usize,
     /// A heading is at least the body size minus this.
     pub heading_size_tol_pt: f32,
     /// A bold line with at least this many characters may be a heading.
@@ -436,6 +442,8 @@ impl Default for FloatsConfig {
             title_center_tol_ratio: 0.1,
             title_min_width_pt: 40.0,
             title_min_indent_pt: 15.0,
+            title_edge_tol_pt: 4.0,
+            label_max_passes_count: 3,
             heading_size_tol_pt: 0.5,
             heading_min_chars: 4,
             heading_bold_ratio: 0.6,
@@ -1669,7 +1677,9 @@ fn settle_region(
 ) {
     let Some(region) = float.region else { return };
     let mut region = absorb_inner_lines(ctx, absorbed, float_idx, region, float.table_like);
-    if !float.table_like {
+    // A chart drawn only with straight lines (bars, grid) looks like a ruled
+    // table, but a figure caption says it is a drawing with labels.
+    if !float.table_like || float.kind == FloatKind::Figure {
         region = absorb_side_labels(ctx, absorbed, float_idx, region, text_left);
     }
     if let Some(cap_idx) = float.cap {
@@ -1740,9 +1750,10 @@ fn belongs_to_region(ctx: &PageContext, region: &Rect, probe: &Rect, line: &Line
 }
 
 /// Absorbs short isolated labels right above, below or beside the drawing
-/// (titles of sub-figures), as long as they are not headings or paragraph
-/// ends. Returns `region` grown by the absorbed labels; the tests all use
-/// the region as it was before.
+/// (titles of sub-figures, axis titles), as long as they are not headings
+/// or paragraph ends. A few passes, each against the region grown by the
+/// labels found before: a chart title sits above its axis title. Returns the
+/// grown region.
 fn absorb_side_labels(
     ctx: &PageContext,
     absorbed: &mut [Option<usize>],
@@ -1752,20 +1763,26 @@ fn absorb_side_labels(
 ) -> Rect {
     let cfg = ctx.cfg;
     let mut grown = region;
-    for (i, line) in ctx.page.lines.iter().enumerate() {
-        if ctx.is_caption_line[i] || absorbed[i].is_some() || line.char_count() >= cfg.body_min_chars {
-            continue;
+    for _ in 0..cfg.label_max_passes_count {
+        let before = grown;
+        for (i, line) in ctx.page.lines.iter().enumerate() {
+            if ctx.is_caption_line[i] || absorbed[i].is_some() || line.char_count() >= cfg.body_min_chars {
+                continue;
+            }
+            let stacked = stacked_label(&before, line, cfg);
+            if !(stacked || beside_label(&before, line, cfg)) {
+                continue;
+            }
+            if heading_like(ctx, &before, line, stacked, text_left) {
+                continue;
+            }
+            if !attached_to_paragraph(ctx, absorbed, i) {
+                absorbed[i] = Some(float_idx);
+                grown = grown.union(&line.bbox);
+            }
         }
-        let stacked = stacked_label(&region, line, cfg);
-        if !(stacked || beside_label(&region, line, cfg)) {
-            continue;
-        }
-        if heading_like(ctx, &region, line, stacked, text_left) {
-            continue;
-        }
-        if !attached_to_paragraph(ctx, absorbed, i) {
-            absorbed[i] = Some(float_idx);
-            grown = grown.union(&line.bbox);
+        if grown == before {
+            break;
         }
     }
     grown
@@ -1802,10 +1819,19 @@ fn beside_label(region: &Rect, line: &Line, cfg: &FloatsConfig) -> bool {
 /// drawing's title.
 fn heading_like(ctx: &PageContext, region: &Rect, line: &Line, stacked: bool, text_left: f32) -> bool {
     let cfg = ctx.cfg;
-    let centred_title = (line.bbox.cx() - region.cx()).abs()
-        <= cfg.title_center_tol_ratio * region.width().max(cfg.title_min_width_pt)
-        && line.bbox.x0 > text_left + cfg.title_min_indent_pt
-        && stacked;
+    // A title over a drawing is centred on it, starts at its left edge (a
+    // chart title), or is set in the drawing's own font (sans-serif labels
+    // in a serif paper); a heading starts at the text margin.
+    let centred =
+        (line.bbox.cx() - region.cx()).abs() <= cfg.title_center_tol_ratio * region.width().max(cfg.title_min_width_pt);
+    let at_edge = (line.bbox.x0 - region.x0).abs() <= cfg.title_edge_tol_pt;
+    let body_sans = ctx
+        .fonts
+        .get(ctx.stats.body_font as usize)
+        .is_some_and(|font| font.sans);
+    let own_font = !body_sans && line.font_frac(ctx.fonts, |font| font.sans) >= cfg.heading_bold_ratio;
+    let centred_title =
+        (centred || at_edge || own_font) && line.bbox.x0 > text_left + cfg.title_min_indent_pt && stacked;
     line.size >= ctx.stats.body_size - cfg.heading_size_tol_pt
         && (HEADING_LIKE.is_match(&line.text())
             || (line.char_count() >= cfg.heading_min_chars

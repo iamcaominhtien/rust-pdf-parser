@@ -33,7 +33,13 @@ pub static LIST_LABEL: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// The equation rules for rows without an equation number, tried in order.
-const EQUATION_RULES: [EquationRule; 4] = [displayed_formula, symbol_row, centred_relation, stacked_formula];
+const EQUATION_RULES: [EquationRule; 5] = [
+    displayed_formula,
+    symbol_row,
+    centred_relation,
+    stacked_formula,
+    centred_stacked_relation,
+];
 
 /// The paragraph break rules, tried in order (centred groups never break).
 const PARAGRAPH_RULES: [ParagraphRule; 4] = [
@@ -892,6 +898,17 @@ fn stacked_formula(row: &RowFeatures, cfg: &BlocksConfig) -> bool {
         && row.prose_frac <= cfg.stacked_max_prose_ratio
         && row.left_indent >= cfg.stacked_min_margin_em * row.em
         && row.right_slack >= cfg.stacked_min_margin_em * row.em
+}
+
+/// Rule: a centred formula spanning several baselines with a relation sign
+/// and no prose word at all (variables set in text italics, as in APS
+/// papers, are not counted as math but are no words either).
+fn centred_stacked_relation(row: &RowFeatures, cfg: &BlocksConfig) -> bool {
+    row.centered
+        && row.multi
+        && row.has_relation
+        && row.prose_frac == 0.0
+        && row.math_frac >= cfg.operator_min_math_ratio
 }
 
 /// Whether a row that is not an equation on its own looks like one line of

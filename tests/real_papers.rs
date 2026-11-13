@@ -403,7 +403,9 @@ paper_test!(
     broken <= 1,
     split <= 0,
     glyphs <= 3,
-    hyphenated <= 76
+    // Two compounds ("gravitational-wave", "signal-to-noise") are in the
+    // column beside Fig. 2, which the figure no longer swallows.
+    hyphenated <= 78
 );
 paper_test!(
     faster_rcnn,
@@ -719,4 +721,49 @@ fn vit_captions_and_figure_text() {
         .html;
     assert!(html.contains("data-kind=\"figure-text\""));
     assert!(html.contains(".b[data-kind=\"figure-text\"]{color:transparent}"));
+}
+
+/// The rule under the running head of the LIGO paper does not join the
+/// figure below it: Fig. 2 stays in its column and the text of the other
+/// column stays text. The display equation beside it is a picture.
+#[test]
+fn ligo_figure_keeps_to_its_column() {
+    let Some(paper) = load("1602.03837v1") else { return };
+    let analysis = paper.analyze();
+    let blocks = &analysis.doc.blocks;
+    let fig = blocks
+        .iter()
+        .find(|block| matches!(&block.kind, BlockKind::Figure { label: Some(l), .. } if l == "FIG. 2"))
+        .expect("Fig. 2");
+    assert!(fig.bbox.x0 > 300.0, "Fig. 2 spans the page: {:?}", fig.bbox);
+    assert!(
+        blocks
+            .iter()
+            .any(|block| plain(&block.spans).starts_with("Only the LIGO detectors were observing"))
+    );
+    assert!(blocks.iter().any(|block| block.page == 2
+        && matches!(block.kind, BlockKind::Equation { .. })
+        && plain(&block.spans).contains("(m1 + m2)1/5")));
+}
+
+/// Chart titles and axis titles above a chart are part of the figure, not
+/// headings or paragraphs (GPT-4 Figures 1-3).
+#[test]
+fn gpt4_chart_titles_stay_in_figures() {
+    let Some(paper) = load("2303.08774v6") else { return };
+    let analysis = paper.analyze();
+    for title in [
+        "OpenAI codebase next word prediction",
+        "Capability prediction on 23 coding problems",
+        "Inverse scaling prize, hindsight neglect",
+    ] {
+        assert!(
+            !analysis
+                .doc
+                .blocks
+                .iter()
+                .any(|block| !matches!(block.kind, BlockKind::Figure { .. }) && plain(&block.spans).trim() == title),
+            "{title:?} left out of its figure"
+        );
+    }
 }

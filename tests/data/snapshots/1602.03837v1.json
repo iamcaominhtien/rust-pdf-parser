@@ -1610,7 +1610,38 @@
           ]
         },
         {
-          "text": "recovered GW150914 as the most significant event from each detector for the observations reported here. Occurring within the 10-ms intersite",
+          "text": "recovered GW150914 as the most significant event from each detector for the observations reported here. Occurring within the 10-ms intersite propagation time, the events have a combined signal-to-noise ratio (SNR) of 24 ",
+          "style": 0
+        },
+        {
+          "text": "[",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": "45",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": "]",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": ".",
           "style": 0
         }
       ]
@@ -1958,151 +1989,31 @@
     },
     {
       "id": 18,
-      "type": "figure",
-      "kind": "figure",
-      "image": {
-        "page": 2,
-        "rect": {
-          "x0": 49.043484,
-          "y0": 39.210617,
-          "x1": 563.012,
-          "y1": 304.1247
-        },
-        "transparent": false
-      },
-      "label": "FIG. 2",
+      "type": "paragraph",
+      "in_abstract": false,
       "page": 2,
       "bbox": {
-        "x0": 49.043484,
-        "y0": 37.08194,
-        "x1": 563.012,
-        "y1": 411.0171
+        "x0": 52.043484,
+        "y0": 75.23603,
+        "x1": 297.05554,
+        "y1": 170.49242
       },
       "spans": [
         {
-          "text": "FIG. 2. ",
+          "text": "Only the LIGO detectors were observing at the time of GW150914. The Virgo detector was being upgraded, and GEO 600, though not sufficiently sensitive to detect this event, was operating but not in observational mode. With only two detectors the source position is primarily determined by the relative arrival time and localized to an area of approximately 600 deg",
           "style": 0
         },
         {
-          "text": "Top: ",
-          "style": 2
-        },
-        {
-          "text": "Estimated gravitational-wave strain amplitude from GW150914 projected onto H1. This shows the full bandwidth of the waveforms, without the filtering used for Fig. ",
-          "style": 0
-        },
-        {
-          "text": "1",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ". The inset images show numerical relativity models of the black hole horizons as the black holes coalesce. ",
-          "style": 0
-        },
-        {
-          "text": "Bottom: ",
-          "style": 2
-        },
-        {
-          "text": "The Keplerian effective black hole separation in units of Schwarzschild radii (",
-          "style": 0
-        },
-        {
-          "text": "R",
-          "style": 2
-        },
-        {
-          "text": "S ",
-          "style": 34
-        },
-        {
-          "text": "= ",
-          "style": 8
-        },
-        {
-          "text": "2",
-          "style": 0
-        },
-        {
-          "text": "GM/c",
-          "style": 2
-        },
-        {
-          "text": "2",
-          "style": 16
-        },
-        {
-          "text": ") and the effective relative velocity given by the post-Newtonian parameter ",
-          "style": 0
-        },
-        {
-          "text": "v/c ",
-          "style": 2
-        },
-        {
-          "text": "= (",
-          "style": 8
-        },
-        {
-          "text": "GM",
-          "style": 2
-        },
-        {
-          "text": "π",
-          "style": 0
-        },
-        {
-          "text": "f/c",
-          "style": 2
-        },
-        {
-          "text": "3",
-          "style": 16
-        },
-        {
-          "text": ")",
-          "style": 8
-        },
-        {
-          "text": "1",
+          "text": "2 ",
           "style": 16,
-          "href": "#fn-1"
+          "href": "#fn-2"
         },
         {
-          "text": "/",
-          "style": 18
-        },
-        {
-          "text": "3",
-          "style": 16
-        },
-        {
-          "text": ", where ",
+          "text": "(90% credible region) ",
           "style": 0
         },
         {
-          "text": "f ",
-          "style": 2
-        },
-        {
-          "text": "is the gravitational-wave frequency calculated with numerical relativity and ",
-          "style": 0
-        },
-        {
-          "text": "M ",
-          "style": 2
-        },
-        {
-          "text": "is the total mass (value from Table ",
-          "style": 0
-        },
-        {
-          "text": "I",
+          "text": "[",
           "style": 0,
           "color": [
             46,
@@ -2111,60 +2022,124 @@
           ]
         },
         {
-          "text": ").",
+          "text": "39",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": ",",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": "46",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": "]",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": ".",
           "style": 0
         }
-      ],
-      "rows": [
-        [
-          {
-            "text": "propagation time, the events have a combined signal-to- noise ratio (SNR) of 24 [",
-            "style": 0
-          },
-          {
-            "text": "45",
-            "style": 0
-          },
-          {
-            "text": "]. Only the LIGO detectors were observing at the time of GW150914. The Virgo detector was being upgraded, and GEO 600, though not sufficiently sensitive to detect this event, was operating but not in observational mode. With only two detectors the source position is primarily determined by the relative arrival time and localized to an area of approximately 600 deg2 (90% credible region) [",
-            "style": 0
-          },
-          {
-            "text": "39",
-            "style": 0
-          },
-          {
-            "text": ",",
-            "style": 0
-          },
-          {
-            "text": "46",
-            "style": 0
-          },
-          {
-            "text": "]. The basic features of GW150914 point to it being produced by the coalescence of two black holes—i.e., their orbital inspiral and merger, and subsequent final black hole ringdown. Over 0.2 s, the signal increases in frequency and amplitude in about 8 cycles from 35 to 150 Hz, where the amplitude reaches a maximum. The most plausible explanation for this evolution is the inspiral of two orbiting masses, m1 and m2, due to gravitational-wave emission. At the lower frequencies, such evolution is characterized by the chirp mass [",
-            "style": 0
-          },
-          {
-            "text": "11",
-            "style": 0
-          },
-          {
-            "text": "] 3/5 (m1m2)3/5 c3 5",
-            "style": 0
-          }
-        ]
-      ],
-      "anchor": "fig-2"
+      ]
     },
     {
       "id": 19,
+      "type": "paragraph",
+      "in_abstract": false,
+      "page": 2,
+      "bbox": {
+        "x0": 52.043484,
+        "y0": 172.01083,
+        "x1": 297.08853,
+        "y1": 291.4756
+      },
+      "spans": [
+        {
+          "text": "The basic features of GW150914 point to it being produced by the coalescence of two black holes—i.e., their orbital inspiral and merger, and subsequent final black hole ringdown. Over 0.2 s, the signal increases in frequency and amplitude in about 8 cycles from 35 to 150 Hz, where the amplitude reaches a maximum. The most plausible explanation for this evolution is the inspiral of two orbiting masses, ",
+          "style": 0
+        },
+        {
+          "text": "m",
+          "style": 2
+        },
+        {
+          "text": "1 ",
+          "style": 32
+        },
+        {
+          "text": "and ",
+          "style": 0
+        },
+        {
+          "text": "m",
+          "style": 2
+        },
+        {
+          "text": "2",
+          "style": 32
+        },
+        {
+          "text": ", due to gravitational-wave emission. At the lower frequencies, such evolution is characterized by the chirp mass ",
+          "style": 0
+        },
+        {
+          "text": "[",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": "11",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": "]",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        }
+      ]
+    },
+    {
+      "id": 20,
       "type": "equation",
       "image": {
         "page": 2,
         "rect": {
           "x0": 72.56111,
-          "y0": 302.25824,
+          "y0": 301.37665,
           "x1": 276.04562,
           "y1": 332.81012
         },
@@ -2174,20 +2149,20 @@
       "page": 2,
       "bbox": {
         "x0": 72.56111,
-        "y0": 302.25824,
+        "y0": 301.37665,
         "x1": 276.04562,
         "y1": 332.81012
       },
       "spans": [
         {
-          "text": "−8/3 −11/3 _ π = f ; M = � f� G 96 (m1 + m2)1/5",
+          "text": "3/5 (m1m2)3/5 c3 5 −8/3 −11/3 _ π = f ; M = � f� G 96 (m1 + m2)1/5",
           "style": 0
         }
       ],
       "anchor": "eq-u1"
     },
     {
-      "id": 20,
+      "id": 21,
       "type": "paragraph",
       "in_abstract": false,
       "page": 2,
@@ -2347,7 +2322,7 @@
       ]
     },
     {
-      "id": 21,
+      "id": 22,
       "type": "heading",
       "level": 1,
       "page": 2,
@@ -2366,7 +2341,7 @@
       "anchor": "sec-III"
     },
     {
-      "id": 22,
+      "id": 23,
       "type": "paragraph",
       "in_abstract": false,
       "page": 2,
@@ -2540,7 +2515,168 @@
       ]
     },
     {
-      "id": 23,
+      "id": 24,
+      "type": "figure",
+      "kind": "figure",
+      "image": {
+        "page": 2,
+        "rect": {
+          "x0": 313.953,
+          "y0": 44.95389,
+          "x1": 560.567,
+          "y1": 291.811
+        },
+        "transparent": false
+      },
+      "label": "FIG. 2",
+      "page": 2,
+      "bbox": {
+        "x0": 313.953,
+        "y0": 44.95389,
+        "x1": 560.567,
+        "y1": 411.0171
+      },
+      "spans": [
+        {
+          "text": "FIG. 2. ",
+          "style": 0
+        },
+        {
+          "text": "Top: ",
+          "style": 2
+        },
+        {
+          "text": "Estimated gravitational-wave strain amplitude from GW150914 projected onto H1. This shows the full bandwidth of the waveforms, without the filtering used for Fig. ",
+          "style": 0
+        },
+        {
+          "text": "1",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": ". The inset images show numerical relativity models of the black hole horizons as the black holes coalesce. ",
+          "style": 0
+        },
+        {
+          "text": "Bottom: ",
+          "style": 2
+        },
+        {
+          "text": "The Keplerian effective black hole separation in units of Schwarzschild radii (",
+          "style": 0
+        },
+        {
+          "text": "R",
+          "style": 2
+        },
+        {
+          "text": "S ",
+          "style": 34
+        },
+        {
+          "text": "= ",
+          "style": 8
+        },
+        {
+          "text": "2",
+          "style": 0
+        },
+        {
+          "text": "GM/c",
+          "style": 2
+        },
+        {
+          "text": "2",
+          "style": 16
+        },
+        {
+          "text": ") and the effective relative velocity given by the post-Newtonian parameter ",
+          "style": 0
+        },
+        {
+          "text": "v/c ",
+          "style": 2
+        },
+        {
+          "text": "= (",
+          "style": 8
+        },
+        {
+          "text": "GM",
+          "style": 2
+        },
+        {
+          "text": "π",
+          "style": 0
+        },
+        {
+          "text": "f/c",
+          "style": 2
+        },
+        {
+          "text": "3",
+          "style": 16
+        },
+        {
+          "text": ")",
+          "style": 8
+        },
+        {
+          "text": "1",
+          "style": 16,
+          "href": "#fn-1"
+        },
+        {
+          "text": "/",
+          "style": 18
+        },
+        {
+          "text": "3",
+          "style": 16
+        },
+        {
+          "text": ", where ",
+          "style": 0
+        },
+        {
+          "text": "f ",
+          "style": 2
+        },
+        {
+          "text": "is the gravitational-wave frequency calculated with numerical relativity and ",
+          "style": 0
+        },
+        {
+          "text": "M ",
+          "style": 2
+        },
+        {
+          "text": "is the total mass (value from Table ",
+          "style": 0
+        },
+        {
+          "text": "I",
+          "style": 0,
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": ").",
+          "style": 0
+        }
+      ],
+      "anchor": "fig-2"
+    },
+    {
+      "id": 25,
       "type": "paragraph",
       "in_abstract": false,
       "page": 2,
@@ -2767,15 +2903,15 @@
       ]
     },
     {
-      "id": 24,
+      "id": 26,
       "type": "figure",
       "kind": "figure",
       "image": {
         "page": 3,
         "rect": {
-          "x0": 49.044,
-          "y0": 39.210617,
-          "x1": 563.012,
+          "x0": 82.1892,
+          "y0": 45.295,
+          "x1": 529.773,
           "y1": 340.525
         },
         "transparent": false
@@ -2783,9 +2919,9 @@
       "label": "FIG. 3",
       "page": 3,
       "bbox": {
-        "x0": 49.044,
-        "y0": 37.08194,
-        "x1": 563.012,
+        "x0": 52.0422,
+        "y0": 45.295,
+        "x1": 560.07465,
         "y1": 459.54425
       },
       "spans": [
@@ -2852,7 +2988,7 @@
       "anchor": "fig-3"
     },
     {
-      "id": 25,
+      "id": 27,
       "type": "paragraph",
       "in_abstract": false,
       "page": 3,
@@ -3012,7 +3148,7 @@
       ]
     },
     {
-      "id": 26,
+      "id": 28,
       "type": "paragraph",
       "in_abstract": false,
       "page": 3,
@@ -3030,7 +3166,7 @@
       ]
     },
     {
-      "id": 27,
+      "id": 29,
       "type": "paragraph",
       "in_abstract": false,
       "page": 3,
@@ -3172,7 +3308,7 @@
       ]
     },
     {
-      "id": 28,
+      "id": 30,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3260,7 +3396,7 @@
       ]
     },
     {
-      "id": 29,
+      "id": 31,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3340,7 +3476,7 @@
       ]
     },
     {
-      "id": 30,
+      "id": 32,
       "type": "heading",
       "level": 1,
       "page": 4,
@@ -3359,7 +3495,7 @@
       "anchor": "sec-IV"
     },
     {
-      "id": 31,
+      "id": 33,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3426,7 +3562,7 @@
       ]
     },
     {
-      "id": 32,
+      "id": 34,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3475,7 +3611,7 @@
       ]
     },
     {
-      "id": 33,
+      "id": 35,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3524,7 +3660,7 @@
       ]
     },
     {
-      "id": 34,
+      "id": 36,
       "type": "heading",
       "level": 1,
       "page": 4,
@@ -3543,7 +3679,7 @@
       "anchor": "sec-V"
     },
     {
-      "id": 35,
+      "id": 37,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3561,7 +3697,7 @@
       ]
     },
     {
-      "id": 36,
+      "id": 38,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3579,7 +3715,7 @@
       ]
     },
     {
-      "id": 37,
+      "id": 39,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3597,7 +3733,7 @@
       ]
     },
     {
-      "id": 38,
+      "id": 40,
       "type": "paragraph",
       "in_abstract": false,
       "page": 4,
@@ -3646,7 +3782,7 @@
       ]
     },
     {
-      "id": 39,
+      "id": 41,
       "type": "heading",
       "level": 1,
       "page": 5,
@@ -3665,7 +3801,7 @@
       "anchor": "sec-a-generic-transient-search"
     },
     {
-      "id": 40,
+      "id": 42,
       "type": "paragraph",
       "in_abstract": false,
       "page": 5,
@@ -3732,7 +3868,7 @@
       ]
     },
     {
-      "id": 41,
+      "id": 43,
       "type": "paragraph",
       "in_abstract": false,
       "page": 5,
@@ -3882,7 +4018,7 @@
       ]
     },
     {
-      "id": 42,
+      "id": 44,
       "type": "paragraph",
       "in_abstract": false,
       "page": 5,
@@ -3931,7 +4067,7 @@
       ]
     },
     {
-      "id": 43,
+      "id": 45,
       "type": "paragraph",
       "in_abstract": false,
       "page": 5,
@@ -3990,7 +4126,7 @@
       ]
     },
     {
-      "id": 44,
+      "id": 46,
       "type": "paragraph",
       "in_abstract": false,
       "page": 5,
@@ -4061,7 +4197,7 @@
       ]
     },
     {
-      "id": 45,
+      "id": 47,
       "type": "figure",
       "kind": "figure",
       "image": {
@@ -4115,7 +4251,7 @@
       "anchor": "fig-4"
     },
     {
-      "id": 46,
+      "id": 48,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -4226,7 +4362,7 @@
       ]
     },
     {
-      "id": 47,
+      "id": 49,
       "type": "heading",
       "level": 1,
       "page": 6,
@@ -4245,7 +4381,7 @@
       "anchor": "sec-b-binary-coalescence-search"
     },
     {
-      "id": 48,
+      "id": 50,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -4490,7 +4626,7 @@
       ]
     },
     {
-      "id": 49,
+      "id": 51,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -4834,7 +4970,7 @@
       ]
     },
     {
-      "id": 50,
+      "id": 52,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -4860,7 +4996,7 @@
       ]
     },
     {
-      "id": 51,
+      "id": 53,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -4919,7 +5055,7 @@
       ]
     },
     {
-      "id": 52,
+      "id": 54,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -4986,7 +5122,7 @@
       ]
     },
     {
-      "id": 53,
+      "id": 55,
       "type": "figure",
       "kind": "table",
       "image": {
@@ -5492,7 +5628,7 @@
       }
     },
     {
-      "id": 54,
+      "id": 56,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -5554,7 +5690,7 @@
       ]
     },
     {
-      "id": 55,
+      "id": 57,
       "type": "heading",
       "level": 1,
       "page": 6,
@@ -5573,7 +5709,7 @@
       "anchor": "sec-VI"
     },
     {
-      "id": 56,
+      "id": 58,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -5759,7 +5895,7 @@
       ]
     },
     {
-      "id": 57,
+      "id": 59,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -5997,7 +6133,7 @@
       ]
     },
     {
-      "id": 58,
+      "id": 60,
       "type": "paragraph",
       "in_abstract": false,
       "page": 6,
@@ -6077,7 +6213,7 @@
       ]
     },
     {
-      "id": 59,
+      "id": 61,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6195,7 +6331,7 @@
       ]
     },
     {
-      "id": 60,
+      "id": 62,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6411,7 +6547,7 @@
       ]
     },
     {
-      "id": 61,
+      "id": 63,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6627,7 +6763,7 @@
       ]
     },
     {
-      "id": 62,
+      "id": 64,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6741,7 +6877,7 @@
       ]
     },
     {
-      "id": 63,
+      "id": 65,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6790,7 +6926,7 @@
       ]
     },
     {
-      "id": 64,
+      "id": 66,
       "type": "heading",
       "level": 1,
       "page": 7,
@@ -6809,7 +6945,7 @@
       "anchor": "sec-VII"
     },
     {
-      "id": 65,
+      "id": 67,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6920,7 +7056,7 @@
       ]
     },
     {
-      "id": 66,
+      "id": 68,
       "type": "heading",
       "level": 1,
       "page": 7,
@@ -6939,7 +7075,7 @@
       "anchor": "sec-VIII"
     },
     {
-      "id": 67,
+      "id": 69,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6957,7 +7093,7 @@
       ]
     },
     {
-      "id": 68,
+      "id": 70,
       "type": "heading",
       "level": 1,
       "page": 7,
@@ -6976,7 +7112,7 @@
       "anchor": "sec-acknowledgments"
     },
     {
-      "id": 69,
+      "id": 71,
       "type": "paragraph",
       "in_abstract": false,
       "page": 7,
@@ -6994,7 +7130,7 @@
       ]
     },
     {
-      "id": 70,
+      "id": 72,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7028,7 +7164,7 @@
       ]
     },
     {
-      "id": 71,
+      "id": 73,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7062,7 +7198,7 @@
       ]
     },
     {
-      "id": 72,
+      "id": 74,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7119,7 +7255,7 @@
       ]
     },
     {
-      "id": 73,
+      "id": 75,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7153,7 +7289,7 @@
       ]
     },
     {
-      "id": 74,
+      "id": 76,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7210,7 +7346,7 @@
       ]
     },
     {
-      "id": 75,
+      "id": 77,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7267,7 +7403,7 @@
       ]
     },
     {
-      "id": 76,
+      "id": 78,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7324,7 +7460,7 @@
       ]
     },
     {
-      "id": 77,
+      "id": 79,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7420,7 +7556,7 @@
       ]
     },
     {
-      "id": 78,
+      "id": 80,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7477,7 +7613,7 @@
       ]
     },
     {
-      "id": 79,
+      "id": 81,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7534,7 +7670,7 @@
       ]
     },
     {
-      "id": 80,
+      "id": 82,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7591,7 +7727,7 @@
       ]
     },
     {
-      "id": 81,
+      "id": 83,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7648,7 +7784,7 @@
       ]
     },
     {
-      "id": 82,
+      "id": 84,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7705,7 +7841,7 @@
       ]
     },
     {
-      "id": 83,
+      "id": 85,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7762,7 +7898,7 @@
       ]
     },
     {
-      "id": 84,
+      "id": 86,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7819,7 +7955,7 @@
       ]
     },
     {
-      "id": 85,
+      "id": 87,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7876,7 +8012,7 @@
       ]
     },
     {
-      "id": 86,
+      "id": 88,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7933,7 +8069,7 @@
       ]
     },
     {
-      "id": 87,
+      "id": 89,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -7990,7 +8126,7 @@
       ]
     },
     {
-      "id": 88,
+      "id": 90,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8047,7 +8183,7 @@
       ]
     },
     {
-      "id": 89,
+      "id": 91,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8104,7 +8240,7 @@
       ]
     },
     {
-      "id": 90,
+      "id": 92,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8161,7 +8297,7 @@
       ]
     },
     {
-      "id": 91,
+      "id": 93,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8218,7 +8354,7 @@
       ]
     },
     {
-      "id": 92,
+      "id": 94,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8283,7 +8419,7 @@
       ]
     },
     {
-      "id": 93,
+      "id": 95,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8317,7 +8453,7 @@
       ]
     },
     {
-      "id": 94,
+      "id": 96,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8374,7 +8510,7 @@
       ]
     },
     {
-      "id": 95,
+      "id": 97,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8414,7 +8550,7 @@
       ]
     },
     {
-      "id": 96,
+      "id": 98,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8448,7 +8584,7 @@
       ]
     },
     {
-      "id": 97,
+      "id": 99,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8488,7 +8624,7 @@
       ]
     },
     {
-      "id": 98,
+      "id": 100,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8553,7 +8689,7 @@
       ]
     },
     {
-      "id": 99,
+      "id": 101,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8601,7 +8737,7 @@
       ]
     },
     {
-      "id": 100,
+      "id": 102,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8658,7 +8794,7 @@
       ]
     },
     {
-      "id": 101,
+      "id": 103,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8766,7 +8902,7 @@
       ]
     },
     {
-      "id": 102,
+      "id": 104,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8793,7 +8929,7 @@
       ]
     },
     {
-      "id": 103,
+      "id": 105,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8858,7 +8994,7 @@
       ]
     },
     {
-      "id": 104,
+      "id": 106,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8915,7 +9051,7 @@
       ]
     },
     {
-      "id": 105,
+      "id": 107,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -8955,7 +9091,7 @@
       ]
     },
     {
-      "id": 106,
+      "id": 108,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9020,7 +9156,7 @@
       ]
     },
     {
-      "id": 107,
+      "id": 109,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9068,7 +9204,7 @@
       ]
     },
     {
-      "id": 108,
+      "id": 110,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9125,7 +9261,7 @@
       ]
     },
     {
-      "id": 109,
+      "id": 111,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9173,7 +9309,7 @@
       ]
     },
     {
-      "id": 110,
+      "id": 112,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9230,7 +9366,7 @@
       ]
     },
     {
-      "id": 111,
+      "id": 113,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9273,7 +9409,7 @@
       ]
     },
     {
-      "id": 112,
+      "id": 114,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9321,7 +9457,7 @@
       ]
     },
     {
-      "id": 113,
+      "id": 115,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9364,7 +9500,7 @@
       ]
     },
     {
-      "id": 114,
+      "id": 116,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9412,7 +9548,7 @@
       ]
     },
     {
-      "id": 115,
+      "id": 117,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9460,7 +9596,7 @@
       ]
     },
     {
-      "id": 116,
+      "id": 118,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9494,7 +9630,7 @@
       ]
     },
     {
-      "id": 117,
+      "id": 119,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9536,7 +9672,7 @@
       ]
     },
     {
-      "id": 118,
+      "id": 120,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9562,7 +9698,7 @@
       ]
     },
     {
-      "id": 119,
+      "id": 121,
       "type": "paragraph",
       "in_abstract": false,
       "page": 8,
@@ -9619,7 +9755,7 @@
       ]
     },
     {
-      "id": 120,
+      "id": 122,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -9676,7 +9812,7 @@
       ]
     },
     {
-      "id": 121,
+      "id": 123,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -9741,7 +9877,7 @@
       ]
     },
     {
-      "id": 122,
+      "id": 124,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -9849,7 +9985,7 @@
       ]
     },
     {
-      "id": 123,
+      "id": 125,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -9876,7 +10012,7 @@
       ]
     },
     {
-      "id": 124,
+      "id": 126,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -9941,7 +10077,7 @@
       ]
     },
     {
-      "id": 125,
+      "id": 127,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10006,7 +10142,7 @@
       ]
     },
     {
-      "id": 126,
+      "id": 128,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10071,7 +10207,7 @@
       ]
     },
     {
-      "id": 127,
+      "id": 129,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10179,7 +10315,7 @@
       ]
     },
     {
-      "id": 128,
+      "id": 130,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10206,7 +10342,7 @@
       ]
     },
     {
-      "id": 129,
+      "id": 131,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10271,7 +10407,7 @@
       ]
     },
     {
-      "id": 130,
+      "id": 132,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10328,7 +10464,7 @@
       ]
     },
     {
-      "id": 131,
+      "id": 133,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10376,7 +10512,7 @@
       ]
     },
     {
-      "id": 132,
+      "id": 134,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10449,7 +10585,7 @@
       ]
     },
     {
-      "id": 133,
+      "id": 135,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10506,7 +10642,7 @@
       ]
     },
     {
-      "id": 134,
+      "id": 136,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10563,7 +10699,7 @@
       ]
     },
     {
-      "id": 135,
+      "id": 137,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10675,7 +10811,7 @@
       ]
     },
     {
-      "id": 136,
+      "id": 138,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10723,7 +10859,7 @@
       ]
     },
     {
-      "id": 137,
+      "id": 139,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10788,7 +10924,7 @@
       ]
     },
     {
-      "id": 138,
+      "id": 140,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10845,7 +10981,7 @@
       ]
     },
     {
-      "id": 139,
+      "id": 141,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10902,7 +11038,7 @@
       ]
     },
     {
-      "id": 140,
+      "id": 142,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10937,7 +11073,7 @@
       ]
     },
     {
-      "id": 141,
+      "id": 143,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -10994,7 +11130,7 @@
       ]
     },
     {
-      "id": 142,
+      "id": 144,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11051,7 +11187,7 @@
       ]
     },
     {
-      "id": 143,
+      "id": 145,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11108,7 +11244,7 @@
       ]
     },
     {
-      "id": 144,
+      "id": 146,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11208,7 +11344,7 @@
       ]
     },
     {
-      "id": 145,
+      "id": 147,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11235,7 +11371,7 @@
       ]
     },
     {
-      "id": 146,
+      "id": 148,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11292,7 +11428,7 @@
       ]
     },
     {
-      "id": 147,
+      "id": 149,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11349,7 +11485,7 @@
       ]
     },
     {
-      "id": 148,
+      "id": 150,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11406,7 +11542,7 @@
       ]
     },
     {
-      "id": 149,
+      "id": 151,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11463,7 +11599,7 @@
       ]
     },
     {
-      "id": 150,
+      "id": 152,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11528,7 +11664,7 @@
       ]
     },
     {
-      "id": 151,
+      "id": 153,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11593,7 +11729,7 @@
       ]
     },
     {
-      "id": 152,
+      "id": 154,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11658,7 +11794,7 @@
       ]
     },
     {
-      "id": 153,
+      "id": 155,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11715,7 +11851,7 @@
       ]
     },
     {
-      "id": 154,
+      "id": 156,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11772,7 +11908,7 @@
       ]
     },
     {
-      "id": 155,
+      "id": 157,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11829,7 +11965,7 @@
       ]
     },
     {
-      "id": 156,
+      "id": 158,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11894,7 +12030,7 @@
       ]
     },
     {
-      "id": 157,
+      "id": 159,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11951,7 +12087,7 @@
       ]
     },
     {
-      "id": 158,
+      "id": 160,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -11994,7 +12130,7 @@
       ]
     },
     {
-      "id": 159,
+      "id": 161,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12051,7 +12187,7 @@
       ]
     },
     {
-      "id": 160,
+      "id": 162,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12108,7 +12244,7 @@
       ]
     },
     {
-      "id": 161,
+      "id": 163,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12156,7 +12292,7 @@
       ]
     },
     {
-      "id": 162,
+      "id": 164,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12213,7 +12349,7 @@
       ]
     },
     {
-      "id": 163,
+      "id": 165,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12270,7 +12406,7 @@
       ]
     },
     {
-      "id": 164,
+      "id": 166,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12327,7 +12463,7 @@
       ]
     },
     {
-      "id": 165,
+      "id": 167,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12384,7 +12520,7 @@
       ]
     },
     {
-      "id": 166,
+      "id": 168,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12441,7 +12577,7 @@
       ]
     },
     {
-      "id": 167,
+      "id": 169,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12498,7 +12634,7 @@
       ]
     },
     {
-      "id": 168,
+      "id": 170,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12555,7 +12691,7 @@
       ]
     },
     {
-      "id": 169,
+      "id": 171,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12589,7 +12725,7 @@
       ]
     },
     {
-      "id": 170,
+      "id": 172,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12646,7 +12782,7 @@
       ]
     },
     {
-      "id": 171,
+      "id": 173,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12681,7 +12817,7 @@
       ]
     },
     {
-      "id": 172,
+      "id": 174,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12738,7 +12874,7 @@
       ]
     },
     {
-      "id": 173,
+      "id": 175,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12795,7 +12931,7 @@
       ]
     },
     {
-      "id": 174,
+      "id": 176,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12852,7 +12988,7 @@
       ]
     },
     {
-      "id": 175,
+      "id": 177,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12909,7 +13045,7 @@
       ]
     },
     {
-      "id": 176,
+      "id": 178,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -12966,7 +13102,7 @@
       ]
     },
     {
-      "id": 177,
+      "id": 179,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -13023,7 +13159,7 @@
       ]
     },
     {
-      "id": 178,
+      "id": 180,
       "type": "paragraph",
       "in_abstract": false,
       "page": 9,
@@ -13071,7 +13207,7 @@
       ]
     },
     {
-      "id": 179,
+      "id": 181,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13128,7 +13264,7 @@
       ]
     },
     {
-      "id": 180,
+      "id": 182,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13185,7 +13321,7 @@
       ]
     },
     {
-      "id": 181,
+      "id": 183,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13250,7 +13386,7 @@
       ]
     },
     {
-      "id": 182,
+      "id": 184,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13298,7 +13434,7 @@
       ]
     },
     {
-      "id": 183,
+      "id": 185,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13338,7 +13474,7 @@
       ]
     },
     {
-      "id": 184,
+      "id": 186,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13403,7 +13539,7 @@
       ]
     },
     {
-      "id": 185,
+      "id": 187,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -13451,7 +13587,7 @@
       ]
     },
     {
-      "id": 186,
+      "id": 188,
       "type": "paragraph",
       "in_abstract": false,
       "page": 10,
@@ -21813,7 +21949,7 @@
       ]
     },
     {
-      "id": 187,
+      "id": 189,
       "type": "paragraph",
       "in_abstract": false,
       "page": 12,
@@ -21831,7 +21967,7 @@
       ]
     },
     {
-      "id": 188,
+      "id": 190,
       "type": "footnote",
       "marker": "1",
       "page": 12,
@@ -21850,7 +21986,7 @@
       "anchor": "fn-1"
     },
     {
-      "id": 189,
+      "id": 191,
       "type": "footnote",
       "marker": "2",
       "page": 12,
@@ -21869,7 +22005,7 @@
       "anchor": "fn-2"
     },
     {
-      "id": 190,
+      "id": 192,
       "type": "footnote",
       "marker": "3",
       "page": 12,
@@ -21888,7 +22024,7 @@
       "anchor": "fn-3"
     },
     {
-      "id": 191,
+      "id": 193,
       "type": "footnote",
       "marker": "4",
       "page": 12,
@@ -21907,7 +22043,7 @@
       "anchor": "fn-4"
     },
     {
-      "id": 192,
+      "id": 194,
       "type": "footnote",
       "marker": "5",
       "page": 12,
@@ -21926,7 +22062,7 @@
       "anchor": "fn-5"
     },
     {
-      "id": 193,
+      "id": 195,
       "type": "footnote",
       "marker": "6",
       "page": 12,
@@ -21945,7 +22081,7 @@
       "anchor": "fn-6"
     },
     {
-      "id": 194,
+      "id": 196,
       "type": "footnote",
       "marker": "7",
       "page": 12,
@@ -21972,7 +22108,7 @@
       "anchor": "fn-7"
     },
     {
-      "id": 195,
+      "id": 197,
       "type": "footnote",
       "marker": "8",
       "page": 12,
@@ -21991,7 +22127,7 @@
       "anchor": "fn-8"
     },
     {
-      "id": 196,
+      "id": 198,
       "type": "footnote",
       "marker": "9",
       "page": 12,
@@ -22010,7 +22146,7 @@
       "anchor": "fn-9"
     },
     {
-      "id": 197,
+      "id": 199,
       "type": "paragraph",
       "in_abstract": false,
       "page": 13,
@@ -22568,7 +22704,7 @@
       ]
     },
     {
-      "id": 198,
+      "id": 200,
       "type": "paragraph",
       "in_abstract": false,
       "page": 14,
@@ -23094,7 +23230,7 @@
       ]
     },
     {
-      "id": 199,
+      "id": 201,
       "type": "paragraph",
       "in_abstract": false,
       "page": 15,
@@ -23164,7 +23300,7 @@
       ]
     },
     {
-      "id": 200,
+      "id": 202,
       "type": "footnote",
       "marker": "a",
       "page": 15,
@@ -23183,7 +23319,7 @@
       "anchor": "fn-a"
     },
     {
-      "id": 201,
+      "id": 203,
       "type": "footnote",
       "marker": "b",
       "page": 15,
@@ -23202,7 +23338,7 @@
       "anchor": "fn-b"
     },
     {
-      "id": 202,
+      "id": 204,
       "type": "footnote",
       "marker": "c",
       "page": 15,

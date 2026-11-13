@@ -20,7 +20,7 @@ use crate::model::FloatKind;
 use crate::model::Line;
 use crate::model::Loc;
 use crate::model::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Value of [`LineGlyph::script`] for a superscript glyph.
 const SUPERSCRIPT: i8 = 1;
@@ -524,18 +524,21 @@ fn slug_marker(marker: &str) -> String {
 /// Links the cross-references in every block (except equations, titles and
 /// headings) and the footnote marks in every non-footnote block.
 fn link_blocks(blocks: &mut [Block], anchors: &HashSet<String>, cfg: &AssembleConfig) {
-    // Footnote marks in the running text.
-    let fn_markers: HashMap<String, String> = blocks
+    // Footnote marks in the running text. A paper may number its notes
+    // more than once (a report and its appendix), so a mark goes to the
+    // note with that mark nearest after it: on its page, else the next.
+    let notes: Vec<(String, usize, usize, String)> = blocks
         .iter()
-        .filter_map(|block| match (&block.kind, &block.anchor) {
+        .enumerate()
+        .filter_map(|(idx, block)| match (&block.kind, &block.anchor) {
             (BlockKind::Footnote { marker }, Some(anchor)) if marker.chars().all(|ch| ch.is_ascii_digit()) => {
-                Some((marker.clone(), anchor.clone()))
+                Some((marker.clone(), block.page, idx, anchor.clone()))
             }
             _ => None,
         })
         .collect();
 
-    for block in blocks.iter_mut() {
+    for (idx, block) in blocks.iter_mut().enumerate() {
         let linkable = !matches!(
             block.kind,
             BlockKind::Equation { .. } | BlockKind::Title | BlockKind::Heading { .. }
@@ -544,7 +547,17 @@ fn link_blocks(blocks: &mut [Block], anchors: &HashSet<String>, cfg: &AssembleCo
             link_cross_references(block, anchors);
         }
         if !matches!(block.kind, BlockKind::Footnote { .. }) {
-            link_footnote_marks(&mut block.spans, &fn_markers, cfg);
+            let page = block.page;
+            let note_for = |mark: &str| {
+                notes
+                    .iter()
+                    .filter(|(marker, ..)| marker == mark)
+                    .min_by_key(|(_, note_page, note_idx, _)| {
+                        (*note_page < page, note_page.abs_diff(page), note_idx.abs_diff(idx))
+                    })
+                    .map(|(.., anchor)| anchor.clone())
+            };
+            link_footnote_marks(&mut block.spans, &note_for, cfg);
         }
     }
 }
@@ -571,13 +584,13 @@ fn link_cross_references(block: &mut Block, anchors: &HashSet<String>) {
 }
 
 /// Links superscript numbers in the running text to the footnote with that
-/// mark (`fn_markers`: mark → anchor), unless they look like exponents.
-fn link_footnote_marks(spans: &mut [Span], fn_markers: &HashMap<String, String>, cfg: &AssembleConfig) {
+/// mark (`note_for`: mark → anchor), unless they look like exponents.
+fn link_footnote_marks(spans: &mut [Span], note_for: &dyn Fn(&str) -> Option<String>, cfg: &AssembleConfig) {
     for i in 0..spans.len() {
         let span = &spans[i];
         if span.style & SUP != 0 && span.style & MATH == 0 && span.href.is_none() {
             let exponent = is_exponent(spans, i, cfg);
-            if let (Some(anchor), false) = (fn_markers.get(span.text.trim()), exponent) {
+            if let (false, Some(anchor)) = (exponent, note_for(span.text.trim())) {
                 spans[i].href = Some(format!("#{anchor}"));
             }
         }

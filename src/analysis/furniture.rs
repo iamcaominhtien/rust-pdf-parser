@@ -35,6 +35,12 @@ pub struct FurnitureConfig {
     /// A line whose top edge is below this fraction of the page height is
     /// in the foot band, where running feet and page numbers are looked for.
     pub foot_band_ratio: f32,
+    /// A horizontal rule at least this fraction of the page wide, outside
+    /// the main text ...
+    pub head_rule_min_width_ratio: f32,
+    /// ... and at most this far (in points) from a removed running head or
+    /// foot, belongs to it and is removed too.
+    pub head_rule_max_gap_pt: f32,
     /// Shortest normalised text (in bytes, after digits and whitespace are folded) of
     /// a line that is counted as a possible running head. Shorter texts
     /// (a lone page number, "#") repeat by chance.
@@ -83,6 +89,8 @@ impl Default for FurnitureConfig {
         Self {
             head_band_ratio: 0.11,
             foot_band_ratio: 0.89,
+            head_rule_min_width_ratio: 0.4,
+            head_rule_max_gap_pt: 12.0,
             repeat_min_text_bytes: 3,
             short_doc_max_pages_count: 5,
             short_doc_min_repeat_count: 2,
@@ -268,7 +276,31 @@ fn remove_page_furniture(page: &mut PageData, repeats: &RepeatCounts, cfg: &Furn
         }
     }
     page.lines = kept;
+    drop_head_rules(page, &removed, &body, cfg);
     removed
+}
+
+/// Removes the rules that underline a running head (or top a running foot):
+/// long horizontal rules next to a removed line and outside the main text.
+/// Left on the page, such a rule joins the figure below it and makes the
+/// figure as wide as the page.
+fn drop_head_rules(page: &mut PageData, removed: &[Line], body: &BodyExtent, cfg: &FurnitureConfig) {
+    let width = page.width;
+    page.paths.retain(|path| {
+        let rule = &path.bbox;
+        let head_rule = path.is_hrule()
+            && rule.width() >= cfg.head_rule_min_width_ratio * width
+            && (rule.y1 <= body.top || rule.y0 >= body.bottom)
+            && removed.iter().any(|line| {
+                let gap = if rule.cy() > line.bbox.cy() {
+                    rule.y0 - line.bbox.y1
+                } else {
+                    line.bbox.y0 - rule.y1
+                };
+                gap <= cfg.head_rule_max_gap_pt && rule.x_overlap(&line.bbox) > 0.0
+            });
+        !head_rule
+    });
 }
 
 /// Extent of the main text: the long lines that are not running heads. When

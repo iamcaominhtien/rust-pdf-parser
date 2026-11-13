@@ -1,82 +1,87 @@
 # CLAUDE.md
 
-`paper2html`: CLI và thư viện Rust chuyển PDF bài báo arXiv sang HTML, với 4 chế độ:
+`paper2html`: a Rust CLI and library that converts arXiv PDF papers to HTML, in 4 modes:
 
-- `hard`: bản sao từng trang, có lớp chữ chọn được.
-- `hard-95`: như `hard`, nhưng toàn bộ chữ là HTML thật đặt đúng vị trí như trong PDF.
-- `medium`: giữ bố cục trang và cột, chữ được dàn lại.
-- `friendly`: bài viết một cột, có chế độ cuộn, chế độ sách và giao diện điện thoại.
+- `hard`: a copy of every page, with a selectable text layer.
+- `hard-95`: like `hard`, but all text is real HTML text placed as in the PDF.
+- `medium`: page and column layout kept, text reflowed.
+- `friendly`: a single-column article, with a scroll view, a book view and a phone layout.
 
-Đọc trước khi sửa code:
+Read before changing code:
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): pipeline, module, quy ước code.
-- [CONTRIBUTING.md](CONTRIBUTING.md): commit message.
-- [README.md](README.md), mục "Kiểm thử".
+- [ARCHITECTURE.md](ARCHITECTURE.md): pipeline, modules, coding conventions.
+- [CONTRIBUTING.md](CONTRIBUTING.md): commit messages.
+- [README.md](README.md), the "Testing" section.
 
-## Lệnh
+## Commands
 
 ```bash
 cargo build --release
-./target/release/paper2html convert <file.pdf | arXiv id> -m friendly -o out/x.friendly.html   # hoặc --all -o out/dir
-./target/release/paper2html inspect <file.pdf>        # xem cấu trúc nhận được, để gỡ lỗi
-scripts/fetch-test-pdfs.sh                            # tải 7 bài test (một lần)
-cargo test --release                                  # test đơn vị + 8 bài thật + snapshot
-P2H_UPDATE_SNAPSHOTS=1 cargo test --release --test real_papers   # khi CỐ Ý đổi đầu ra
-P2H_PRINT_METRICS=1 cargo test --release --test real_papers -- --nocapture  # in số đo từng bài
-cargo fmt --check && cargo clippy --all-targets -- -D warnings      # cổng lint của CI
-node tests/browser/check-friendly.js out/*.friendly.html             # kiểm tra trình duyệt
+./target/release/paper2html convert <file.pdf | arXiv id> -m friendly -o out/x.friendly.html   # or --all -o out/dir
+./target/release/paper2html inspect <file.pdf>        # print the detected structure, for debugging
+scripts/fetch-test-pdfs.sh                            # download the 7 test papers (once)
+cargo test --release                                  # unit tests + 8 real papers + snapshots
+P2H_UPDATE_SNAPSHOTS=1 cargo test --release --test real_papers   # when output changes ON PURPOSE
+P2H_PRINT_METRICS=1 cargo test --release --test real_papers -- --nocapture  # print each paper's metrics
+cargo fmt --check && cargo clippy --all-targets -- -D warnings      # the CI lint gate
+node tests/browser/check-friendly.js out/*.friendly.html             # browser checks
 node tests/browser/check-hard95.js out/*.hard-95.html
 node tests/browser/check-stable.js out/*.medium.html out/*.friendly.html
 ```
 
-Chromium và Playwright có sẵn trong môi trường cloud. Không chạy `playwright install`.
+Chromium and Playwright are preinstalled in the cloud environment. Do not run
+`playwright install`.
 
-## Hook tự động (`.claude/settings.json`)
+## Automatic hooks (`.claude/settings.json`)
 
-- **Sau mỗi lần Edit/Write** (`.claude/hooks/after-edit.sh`):
-  - `.rs`: chạy `rustfmt`.
-  - `.js`: chạy `node --check`.
-  - `.json`: kiểm tra JSON hợp lệ.
-  - `.sh`: chạy `bash -n`.
+- **After each Edit/Write** (`.claude/hooks/after-edit.sh`):
+  - `.rs`: runs `rustfmt`.
+  - `.js`: runs `node --check`.
+  - `.json`: checks that the JSON is valid.
+  - `.sh`: runs `bash -n`.
 
-  Nếu có lỗi (cú pháp, rustfmt thất bại), lỗi được báo ngay để sửa.
-- **Khi kết thúc lượt** (`.claude/hooks/on-stop.sh`): chỉ chạy nếu lượt đó có sửa file `.rs`.
-  1. Chạy `cargo fmt`, rồi `cargo clippy --fix`, rồi `cargo clippy --all-targets -- -D warnings`.
-  2. Cảnh báo clippy không tự sửa được sẽ được gửi lại cho Claude để sửa nốt (một lần mỗi lượt).
+  Errors (syntax errors, rustfmt failures) are reported back at once so they can be fixed.
+- **At the end of a turn** (`.claude/hooks/on-stop.sh`): runs only if the turn changed a `.rs`
+  file.
+  1. Runs `cargo fmt`, then `cargo clippy --fix`, then `cargo clippy --all-targets -- -D warnings`.
+  2. Warnings that clippy cannot fix itself are sent back to Claude to finish (once per turn).
 
-Hook không chạy test vì test chậm. Hãy tự chạy `cargo test --release` trước khi commit.
+The hooks do not run the tests, which are slow. Run `cargo test --release` yourself before
+committing.
 
-## Quy trình khi sửa phần phân tích (`src/analysis`)
+## Workflow for changes to the analysis (`src/analysis`)
 
-- Ngưỡng mới phải là trường có doc trong struct config của giai đoạn đó (`src/config.rs`). Tên
-  trường có hậu tố đơn vị: `_em`, `_pt` hoặc `_ratio`. Không viết số "thần kỳ" trong code.
-- Một luật sửa được bài này rất dễ làm hỏng bài khác. Sau mỗi thay đổi:
-  1. Chạy lại test và xem snapshot nào đổi.
-  2. So chữ đầu ra trước và sau trên càng nhiều bài càng tốt (8 bài test, cộng các bài đa dạng
-     khác nếu có).
-- Snapshot (`tests/data/snapshots/*.txt`) là mã băm của HTML từng chế độ.
-  - Đổi CSS, JS hay asset của renderer cũng làm đổi snapshot, vì chúng được nhúng bằng
-    `include_str!`.
-  - Cập nhật snapshot chỉ khi thay đổi đầu ra là cố ý, và commit cùng với code.
-- Các mốc trong `tests/real_papers.rs` (số đoạn bị đứt, số từ còn gạch nối, số ký tự còn sót...)
-  có ý nghĩa: tốt hơn thì siết mốc lại, tệ hơn là regression.
-- Test cho một lỗi cụ thể đặt trong `tests/real_papers.rs` và đặt tên theo hành vi, ví dụ
-  `ligo_radical_is_a_square_root`.
+- A new threshold must be a documented field in that stage's config struct (`src/config.rs`). The
+  field name ends with its unit: `_em`, `_pt` or `_ratio`. No magic numbers in code.
+- A rule that fixes one paper easily breaks another. After each change:
+  1. Run the tests again and see which snapshots changed.
+  2. Compare the output text before and after on as many papers as you can (the 8 test papers,
+     plus other varied papers if you have them).
+- Snapshots (`tests/data/snapshots/*.txt`) are hashes of each mode's HTML.
+  - Changing the renderer's CSS, JS or assets also changes the snapshots, because they are
+    embedded with `include_str!`.
+  - Update the snapshots only when the output change is intended, and commit them with the code.
+- The limits in `tests/real_papers.rs` (broken paragraphs, words still hyphenated, leftover
+  characters, ...) matter: when a number gets better, tighten the limit; when it gets worse, it is
+  a regression.
+- A test for a specific bug goes in `tests/real_papers.rs` and is named after the behaviour, for
+  example `ligo_radical_is_a_square_root`.
 
-## JS và CSS của renderer
+## Renderer JS and CSS
 
-- `src/render/friendly/{friendly.js,book.js,friendly.css}` và `src/render/hard95/` được viết gọn
-  có chủ ý. Không chạy prettier hay format lại toàn file: diff sẽ rất lớn và mọi snapshot đều đổi.
-- Chế độ sách (`book.js`) đo bố cục bằng CSS columns. Mọi thay đổi về ngắt trang phải chạy lại
-  `check-friendly.js`; script này kiểm tra trang gần trống, chú thích tách khỏi hình và heading mồ
-  côi.
+- `src/render/friendly/{friendly.js,book.js,friendly.css}` and `src/render/hard95/` are written
+  compactly on purpose. Do not run prettier or reformat whole files: the diff would be huge and
+  every snapshot would change.
+- The book view (`book.js`) measures layout with CSS columns. Any change to page breaking must be
+  followed by `check-friendly.js`, which checks for near-empty pages, captions apart from their
+  figures, and orphaned headings.
 
-## Ràng buộc
+## Constraints
 
-- **PDF:** chỉ bài LIGO (`tests/data/1602.03837v1.pdf`, CC BY 4.0) được commit. Các bài arXiv khác
-  không được phân phối lại: tải bằng `scripts/fetch-test-pdfs.sh` và giữ ngoài git
-  (`.gitignore` đã có `*.pdf`).
-- **Clippy:** CI dùng clippy mới hơn bản local, nên có thể báo thêm lint (ví dụ
-  `needless_bool`). Xem log CI nếu job "fmt + clippy" đỏ.
-- **Commit:** theo Conventional Commits (`fix(tables): ...`, `feat: ...`), tiếng Anh, thể mệnh
-  lệnh.
+- **PDFs:** only the LIGO paper (`tests/data/1602.03837v1.pdf`, CC BY 4.0) is committed. Other
+  arXiv papers may not be redistributed: download them with `scripts/fetch-test-pdfs.sh` and keep
+  them out of git (`.gitignore` already has `*.pdf`).
+- **Clippy:** CI uses a newer clippy than the local one, so it can report extra lints (for example
+  `needless_bool`). Check the CI log if the "fmt + clippy" job fails.
+- **Commits:** Conventional Commits (`fix(tables): ...`, `feat: ...`), in English, imperative
+  mood.

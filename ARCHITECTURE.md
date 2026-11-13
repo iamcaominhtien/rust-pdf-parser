@@ -1,101 +1,104 @@
-# Kiến trúc
+# Architecture
 
-`paper2html` là một **pipeline**: PDF đi qua một chuỗi giai đoạn, mỗi giai đoạn nhận một dạng dữ
-liệu rõ ràng và trả ra dạng tiếp theo. Phần phân tích (PDF → `Document`) và phần xuất (`Document`
-→ HTML) gặp nhau ở đúng một chỗ: mô hình `Document` trong `model`.
+`paper2html` is a **pipeline**: a PDF passes through a chain of stages. Each stage takes one clearly
+defined form of data and returns the next. The analysis side (PDF → `Document`) and the output side
+(`Document` → HTML) meet at exactly one place: the `Document` model in `model`.
 
 ```
  PDF bytes
     │
-    ▼  backend/          Adapter quanh thư viện hayro: thứ duy nhất biết đến hayro
- RawPage[] + FontInfo[]  (ký tự, ảnh, nét vẽ của từng trang; bảng font)
+    ▼  backend/          Adapter around the hayro library: the only code that knows about hayro
+ RawPage[] + FontInfo[]  (characters, images, strokes of each page; font table)
     │
-    ▼  analysis/pipeline.rs   một hàm, đọc từ trên xuống là thấy toàn bộ luồng
-    │   page        PageData, thống kê cỡ chữ/khoảng dòng của tài liệu
-    │   lines       ký tự → dòng (chỉ số trên/dưới, dấu, chữ xoay)
-    │   furniture   bỏ header/footer/số trang lặp lại
-    │   floats      hình, bảng, thuật toán + chú thích
-    │   tables      lưới hàng/cột của bảng
-    │   order       thứ tự đọc (cột, vùng)
-    │   blocks      dòng → khối thô (đoạn, công thức, chú thích chân trang)
-    │   semantics/  phân loại (tiêu đề, tác giả, heading, …), nối đoạn,
-    │               liên kết tham chiếu, dựng Document
+    ▼  analysis/pipeline.rs   one function; read it top to bottom to see the whole flow
+    │   page        PageData, document-wide font size / line spacing statistics
+    │   lines       characters → lines (superscript/subscript, accents, rotated text)
+    │   furniture   remove repeated headers/footers/page numbers
+    │   floats      figures, tables, algorithms + captions
+    │   tables      row/column grid of tables
+    │   order       reading order (columns, regions)
+    │   blocks      lines → raw blocks (paragraphs, equations, footnotes)
+    │   semantics/  classification (title, authors, headings, …), paragraph joining,
+    │               reference linking, building the Document
     ▼
- Document (model)       ranh giới cố định giữa phân tích và xuất HTML
+ Document (model)       fixed boundary between analysis and HTML output
     │
-    ▼  render/        trait Renderer: mỗi chế độ một implementation
- hard │ hard-95 │ medium │ friendly        dùng chung: assets, escape, flow, table
+    ▼  render/        trait Renderer: one implementation per mode
+ hard │ hard-95 │ medium │ friendly        shared: assets, escape, flow, table
 ```
 
-## Module
+## Modules
 
-| Module | Vai trò |
+| Module | Role |
 | --- | --- |
-| `lib.rs` | API công khai: `Paper`, `convert`, các kiểu Options, `model` |
-| `main.rs` | CLI: chỉ đọc tham số rồi gọi API |
-| `paper.rs` | `Paper`: nạp PDF, chạy phân tích, xuất HTML |
-| `config.rs` | `AnalyzeOptions` và `LayoutConfig` (mọi ngưỡng của thuật toán) |
-| `source/` | Nguồn PDF: `arxiv` (nhận dạng mã, tải, cache) |
-| `backend/` | Adapter quanh hayro: đọc trang (`extract`), nhận font (`fonts`), vẽ trang/vùng (`render`) |
-| `common/` | Dùng chung, không phụ thuộc module nào khác: hình học, kiểu chữ, xử lý chữ, chạy song song |
-| `analysis/` | Các giai đoạn phân tích, điều phối bởi `analysis/pipeline.rs` |
-| `model/` | `Document` và các kiểu con: dữ liệu ra của phân tích, dữ liệu vào của xuất HTML, cũng là JSON |
-| `render/` | Xuất HTML: `Renderer` cho từng chế độ, kho ảnh `assets`, phần HTML dùng chung |
+| `lib.rs` | Public API: `Paper`, `convert`, the Options types, `model` |
+| `main.rs` | CLI: only reads the arguments, then calls the API |
+| `paper.rs` | `Paper`: loads the PDF, runs the analysis, outputs HTML |
+| `config.rs` | `AnalyzeOptions` and `LayoutConfig` (every threshold of the algorithm) |
+| `source/` | PDF sources: `arxiv` (ID recognition, download, cache) |
+| `backend/` | Adapter around hayro: reads pages (`extract`), recognizes fonts (`fonts`), draws pages/regions (`render`) |
+| `common/` | Shared code with no dependency on any other module: geometry, text styles, text handling, parallel execution |
+| `analysis/` | The analysis stages, orchestrated by `analysis/pipeline.rs` |
+| `model/` | `Document` and its sub-types: the output of analysis, the input of HTML output, and also JSON |
+| `render/` | HTML output: a `Renderer` for each mode, the `assets` image store, shared HTML parts |
 
-Hướng phụ thuộc chỉ đi một chiều:
+Dependencies run in one direction only:
 
 ```
 main → paper → analysis → backend → common
               → render  → model   → common
 ```
 
-`render` không biết gì về `analysis` ngoài `Analysis`/`Document`, còn `analysis` không biết gì về
-HTML.
+`render` knows nothing about `analysis` except `Analysis`/`Document`, and `analysis` knows nothing
+about HTML.
 
-## Pattern
+## Patterns
 
-| Pattern | Ở đâu | Để làm gì |
+| Pattern | Where | Purpose |
 | --- | --- | --- |
-| Pipeline | `analysis/pipeline.rs` | Thấy toàn bộ luồng ở một chỗ; mỗi giai đoạn test được riêng |
-| Configuration Object | `config::LayoutConfig`, mỗi giai đoạn một struct con | Mọi ngưỡng có tên, có doc, có đơn vị, nằm ở một chỗ |
-| Rules (chuỗi quy tắc) | Phân loại khối trong `analysis/blocks` và `analysis/semantics` | Mỗi quy tắc là một hàm nhỏ; thêm/sửa một quy tắc không đụng quy tắc khác |
-| Strategy | `render::Renderer` | Bốn chế độ chung một giao diện; thêm chế độ = thêm một module |
-| Adapter | `backend/` | Chỉ một chỗ phụ thuộc vào hayro |
-| Builder | `analysis/semantics/text.rs` (`TextBuilder`), dựng `Document` | Dựng dữ liệu phức tạp từng bước |
+| Pipeline | `analysis/pipeline.rs` | See the whole flow in one place; test each stage on its own |
+| Configuration Object | `config::LayoutConfig`, one sub-struct per stage | Every threshold has a name, a doc, a unit, and lives in one place |
+| Rules (chain of rules) | Block classification in `analysis/blocks` and `analysis/semantics` | Each rule is a small function; adding or changing a rule does not touch the others |
+| Strategy | `render::Renderer` | The four modes share one interface; adding a mode = adding a module |
+| Adapter | `backend/` | Only one place depends on hayro |
+| Builder | `analysis/semantics/text.rs` (`TextBuilder`), builds the `Document` | Build complex data step by step |
 
-Không dùng cây kế thừa hay Visitor: `enum` + `match` là cách tự nhiên của Rust cho các loại khối.
+No inheritance trees and no Visitor: `enum` + `match` is the natural Rust way to handle block kinds.
 
-## Quy ước code
+## Code conventions
 
-**Thứ tự trong một file:** doc của module (`//!`) → `use` → hằng số và regex → kiểu dữ liệu (kèm
-`impl`) → hàm public → hàm phụ private → `#[cfg(test)] mod tests`.
+**Order within a file:** module doc (`//!`) → `use` → constants and regexes → data types (with
+`impl`) → public functions → private helper functions → `#[cfg(test)] mod tests`.
 
-**Ngưỡng và hằng số.**
-- Ngưỡng của thuật toán (con số do lựa chọn mà có, ví dụ "khoảng cách quá 1,45 lần cỡ chữ thì
-  tách") là một trường có doc trong struct config của giai đoạn đó, tên có đơn vị:
-  `_em` (bội của cỡ chữ), `_pt` (point PDF), `_ratio` (tỉ lệ 0–1).
-- Hằng số không phải ngưỡng (đơn vị, kích thước bộ đệm) là `const` có doc ở đầu file.
-- Những con số mang nghĩa toán học hiển nhiên (`0.5` lấy trung điểm, `2.0` gấp đôi, `100.0` ra
-  phần trăm) để nguyên.
-- Thứ dùng ở nhiều module (cờ kiểu chữ, regex nhận chú thích) nằm trong `common/`.
+**Thresholds and constants.**
+- A threshold of the algorithm (a number that exists by choice, for example "split when the gap is
+  more than 1.45 times the font size") is a documented field in that stage's config struct, with a
+  name that carries its unit:
+  `_em` (multiple of the font size), `_pt` (PDF point), `_ratio` (ratio 0–1).
+- A constant that is not a threshold (a unit, a buffer size) is a documented `const` at the top of
+  the file.
+- Numbers with an obvious mathematical meaning (`0.5` for the midpoint, `2.0` for doubling, `100.0`
+  for percent) stay as they are.
+- Anything used in several modules (text style flags, caption-matching regexes) lives in `common/`.
 
-**Hàm.** Tối đa khoảng 80 dòng; dài hơn thì tách thành các bước có tên. Mỗi hàm làm một việc nói
-được bằng một câu.
+**Functions.** At most about 80 lines; split longer ones into named steps. Each function does one
+thing that you can say in one sentence.
 
-**Tên.** Tên có nghĩa (`line`, `block`, `line_idx`), không dùng một chữ cái, trừ chỉ số vòng lặp
-ngắn (`i`, `j`, `k`), toạ độ (`x`, `y`), số lượng (`n`) và cặp so sánh `|a, b|` trong `sort_by`.
+**Names.** Use meaningful names (`line`, `block`, `line_idx`). Do not use single letters, except
+short loop indices (`i`, `j`, `k`), coordinates (`x`, `y`), counts (`n`) and the comparison pair
+`|a, b|` in `sort_by`.
 
-**Doc.** Mọi item (module, kiểu, trường, hàm, hằng số) có doc `///`. Doc nói *làm gì* và *vì sao*,
-không lặp lại code. Với hàm không tầm thường, nêu ý nghĩa tham số, giá trị trả về và các trường hợp
-đặc biệt (khi nào trả `None`, khi nào panic).
+**Docs.** Every item (module, type, field, function, constant) has a `///` doc. The doc says *what*
+it does and *why*, and does not repeat the code. For a non-trivial function, state the meaning of the
+parameters, the return value and the special cases (when it returns `None`, when it panics).
 
-**Hiển thị.** Chỉ những gì thuộc API công khai mới là `pub`; phần nội bộ là `pub(crate)` hoặc
-private.
+**Visibility.** Only what belongs to the public API is `pub`; internals are `pub(crate)` or private.
 
-Các quy ước này được CI kiểm tra (`clippy.toml`, lint trong `lib.rs`).
+CI checks these conventions (`clippy.toml`, lints in `lib.rs`).
 
-## Đảm bảo không đổi hành vi
+## Guarantee of unchanged behavior
 
-Mọi thay đổi cấu trúc phải giữ nguyên đầu ra. `tests/real_papers.rs` so mã băm đầu ra của 8 bài thật
-ở cả bốn chế độ và JSON với `tests/data/snapshots`; lệch một ký tự là test đỏ. Khi cố ý đổi đầu ra,
-chạy `P2H_UPDATE_SNAPSHOTS=1 cargo test --test real_papers` và commit snapshot cùng thay đổi.
+Every structural change must keep the output the same. `tests/real_papers.rs` compares the output
+hashes of 8 real papers, in all four modes and in JSON, with `tests/data/snapshots`; one character of
+difference turns the test red. When you change the output on purpose, run
+`P2H_UPDATE_SNAPSHOTS=1 cargo test --test real_papers` and commit the snapshots with the change.

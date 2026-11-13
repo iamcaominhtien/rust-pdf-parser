@@ -1,54 +1,55 @@
-# Đóng góp
+# Contributing
 
-Cấu trúc code và quy ước viết code: xem [ARCHITECTURE.md](ARCHITECTURE.md). Cách chạy test: xem
-mục "Kiểm thử" trong [README.md](README.md).
+Code structure and coding conventions: see [ARCHITECTURE.md](ARCHITECTURE.md). How to run the
+tests: see the "Testing" section of [README.md](README.md).
 
-## Commit message: Conventional Commits
+## Commit messages: Conventional Commits
 
-Dòng đầu của commit theo dạng `<loại>: <mô tả>` (tiếng Anh, thể mệnh lệnh). Loại commit quyết
-định phiên bản tiếp theo và nhóm trong `CHANGELOG.md`:
+The first line of a commit has the form `<type>: <description>` (in English, imperative mood).
+The type decides the next version and the group in `CHANGELOG.md`:
 
-| Loại | Dùng khi | Tăng phiên bản (khi còn 0.x) | Nhóm trong changelog |
+| Type | Use for | Version bump (while 0.x) | Changelog group |
 | --- | --- | --- | --- |
-| `feat` | Thêm tính năng | minor: 0.1.0 → 0.2.0 | Added |
-| `fix` | Sửa lỗi | patch: 0.1.0 → 0.1.1 | Fixed |
-| `perf` | Tăng tốc, giảm bộ nhớ | patch | Performance |
-| `refactor` | Sắp xếp lại code, không đổi hành vi | patch | Changed |
-| `docs` | Tài liệu | patch | Documentation |
-| `test` | Test | patch | Tests |
-| `ci`, `build` | CI, build, dependency | patch | Build and CI |
-| `chore` | Việc vặt khác | patch | Other |
+| `feat` | A new feature | minor: 0.1.0 → 0.2.0 | Added |
+| `fix` | A bug fix | patch: 0.1.0 → 0.1.1 | Fixed |
+| `perf` | Faster, less memory | patch | Performance |
+| `refactor` | Reorganised code, same behaviour | patch | Changed |
+| `docs` | Documentation | patch | Documentation |
+| `test` | Tests | patch | Tests |
+| `ci`, `build` | CI, build, dependencies | patch | Build and CI |
+| `chore` | Other chores | patch | Other |
 
-- Thay đổi phá vỡ tương thích (đổi tham số CLI, đổi định dạng JSON đầu ra, đổi API công khai):
-  thêm `!` sau loại (`feat!: ...`) hoặc dòng `BREAKING CHANGE: ...` trong phần thân.
-- Có thể ghi phạm vi trong ngoặc: `fix(tables): keep header rows at the top of a page`.
-- Ví dụ: `feat: add a batch command`, `perf: keep embedded JPEGs instead of re-encoding them`.
+- Breaking changes (a changed CLI option, a changed JSON output format, a changed public API):
+  add `!` after the type (`feat!: ...`) or a `BREAKING CHANGE: ...` line in the body.
+- A scope may go in parentheses: `fix(tables): keep header rows at the top of a page`.
+- Examples: `feat: add a batch command`, `perf: keep embedded JPEGs instead of re-encoding them`.
 
-Commit cũ trước khi có quy ước này dùng dạng "Add ...", "Fix ...". Changelog vẫn xếp chúng vào
-đúng nhóm.
+Older commits from before this convention use the form "Add ...", "Fix ...". The changelog still
+puts them in the right group.
 
-## Phát hành
+## Releases
 
-Phát hành tự động bằng [release-plz](https://release-plz.dev) (`release-plz.toml`,
+Releases are automated with [release-plz](https://release-plz.dev) (`release-plz.toml`,
 `.github/workflows/release.yml`):
 
-1. Mỗi lần `main` có commit mới, bot mở hoặc cập nhật một **release PR** tên
-   `chore: release vX.Y.Z`. PR này tăng phiên bản trong `Cargo.toml` theo các commit kể từ lần
-   phát hành trước, và thêm mục mới vào `CHANGELOG.md`. Nội dung changelog trong PR sửa tay được
-   trước khi merge.
-2. Khi muốn phát hành, **merge release PR**. Workflow tạo tag `vX.Y.Z` và GitHub Release với nội
-   dung changelog, rồi build file chạy cho Linux (x86_64, aarch64), macOS (Apple Silicon, Intel) và
-   Windows (x86_64), kèm mã sha256, đính vào release.
+1. Each time `main` gets new commits, the bot opens or updates a **release PR** named
+   `chore: release vX.Y.Z`. This PR bumps the version in `Cargo.toml` according to the commits
+   since the last release, and adds a new entry to `CHANGELOG.md`. The changelog text in the PR
+   can be edited by hand before merging.
+2. To release, **merge the release PR**. The workflow creates the tag `vX.Y.Z` and a GitHub
+   Release with the changelog text, then builds binaries for Linux (x86_64, aarch64), macOS
+   (Apple Silicon, Intel) and Windows (x86_64), with sha256 checksums, and attaches them to the
+   release.
 
-Không đăng lên crates.io: phiên bản xác định từ tag git (`git_only = true`).
+Nothing is published to crates.io: the version comes from git tags (`git_only = true`).
 
-### Thiết lập một lần trên GitHub
+### One-time setup on GitHub
 
-- **Settings → Actions → General → Workflow permissions:** chọn "Read and write permissions" và
-  bật "Allow GitHub Actions to create and approve pull requests". Không bật thì bot không mở được
-  release PR.
-- **Tuỳ chọn:** tạo secret `RELEASE_PLZ_TOKEN` (fine-grained personal access token của repo, quyền
-  Contents và Pull requests: read and write). Nếu không có, workflow dùng token mặc định của GitHub
-  Actions; khi đó CI **không tự chạy trên release PR** (giới hạn của GitHub với PR do token mặc
-  định mở). Release PR chỉ sửa `Cargo.toml` và `CHANGELOG.md`, và CI vẫn chạy lại trên `main` sau
-  khi merge.
+- **Settings → Actions → General → Workflow permissions:** choose "Read and write permissions"
+  and enable "Allow GitHub Actions to create and approve pull requests". Without this, the bot
+  cannot open the release PR.
+- **Optional:** create a `RELEASE_PLZ_TOKEN` secret (a fine-grained personal access token for the
+  repository, with Contents and Pull requests: read and write). Without it, the workflow uses
+  GitHub Actions' default token; CI then **does not run on the release PR by itself** (a GitHub
+  limitation for PRs opened with the default token). The release PR only changes `Cargo.toml` and
+  `CHANGELOG.md`, and CI still runs again on `main` after the merge.

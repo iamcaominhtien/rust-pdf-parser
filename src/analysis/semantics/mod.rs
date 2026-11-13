@@ -72,6 +72,7 @@ pub(crate) mod references;
 pub(crate) mod text;
 
 pub use body::BodyConfig;
+pub use front_matter::FrontMatterConfig;
 pub use references::ReferencesConfig;
 
 pub(crate) use assemble::build_document;
@@ -110,6 +111,8 @@ pub struct SemanticsConfig {
     /// Fewest distinct capital sizes for small caps (full capitals plus the
     /// reduced ones).
     pub small_caps_min_sizes_count: usize,
+    /// Classification of the title, authors, notes and abstract.
+    pub front_matter: FrontMatterConfig,
     /// Classification of headings, paragraphs, list items and references.
     pub body: BodyConfig,
     /// Splitting bibliography blocks into one entry each.
@@ -123,6 +126,7 @@ impl Default for SemanticsConfig {
             small_caps_min_letters_count: 4,
             small_caps_size_tolerance_pt: 0.2,
             small_caps_min_sizes_count: 2,
+            front_matter: FrontMatterConfig::default(),
             body: BodyConfig::default(),
             references: ReferencesConfig::default(),
         }

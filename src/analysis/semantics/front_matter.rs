@@ -1,4 +1,17 @@
 //! Front matter: title, authors, notes and the abstract.
+//!
+//! Works on the first page that has text: the title is the run of largest
+//! text in its upper part; text above it is a note; the author block runs
+//! from the title to the abstract, the first section heading or the first
+//! piece of running prose. The author block is re-ordered as a grid of
+//! "cards" (one per author or affiliation group), and an abstract without a
+//! heading is recognised when prose ends the author block.
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 use super::patterns::*;
 use super::*;
@@ -10,6 +23,135 @@ use crate::model::Line;
 use crate::model::Loc;
 use std::collections::{HashMap, HashSet};
 
+/// Zone given to the re-ordered author cards: a value no layout zone has,
+/// so that the cards form a zone of their own.
+const AUTHOR_ZONE: usize = usize::MAX / 2;
+
+/// Tuning parameters of front-matter classification. Part of [`SemanticsConfig`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FrontMatterConfig {
+    /// The title starts in the upper part of the page: its top must be above
+    /// this fraction of the page height.
+    pub title_max_top_ratio: f32,
+    /// Fewest characters of a block that may set the title size (shorter
+    /// ones are stray symbols or logos).
+    pub title_min_chars_count: usize,
+    /// The largest text must exceed the body size by at least this much
+    /// (points) to be a title; otherwise the page has no title and no front
+    /// matter is classified.
+    pub title_min_size_above_body_pt: f32,
+    /// Blocks within this distance (points) below the title size belong to
+    /// the title (a title in two sizes, or with a subtitle).
+    pub title_size_tolerance_pt: f32,
+    /// Share of bold glyphs from which a numbered line counts as bold, as a
+    /// section heading that ends the author block.
+    pub section_bold_min_ratio: f32,
+    /// A numbered line at least this much larger than the body text
+    /// (points) is a section heading.
+    pub section_min_size_above_body_pt: f32,
+    /// A numbered line with a larger share of capitals is a section heading.
+    pub section_min_upper_ratio: f32,
+    /// Section headings are shorter than this (characters); longer numbered
+    /// text is an affiliation or a footnote.
+    pub section_max_chars_count: usize,
+    /// Fewest characters of a line of running prose.
+    pub prose_line_min_chars_count: usize,
+    /// A prose line ends within this distance (points) of the block's right
+    /// edge (justified text).
+    pub prose_right_tolerance_pt: f32,
+    /// A prose line starts within this distance (multiple of its font size)
+    /// of the block's left edge (allowing for a paragraph indent).
+    pub prose_left_tolerance_em: f32,
+    /// Fewest lines of a block of running prose.
+    pub prose_min_lines_count: usize,
+    /// Fewest full (justified) lines of a block of running prose.
+    pub prose_min_full_lines_count: usize,
+    /// An abstract without a heading must end at most this many pages after
+    /// the first page.
+    pub abstract_max_page_offset_count: usize,
+    /// The heading that ends an abstract without a heading is shorter than
+    /// this (characters).
+    pub abstract_heading_max_chars_count: usize,
+    /// Most text blocks of an abstract without a heading; more prose before
+    /// the first heading is the body itself.
+    pub abstract_max_blocks_count: usize,
+    /// Author blocks laid out beside the stop block must end at least this
+    /// far (points) above it.
+    pub author_stop_margin_pt: f32,
+    /// Author blocks laid out beside the title column may start this far
+    /// (points) above the bottom of the title.
+    pub author_title_margin_pt: f32,
+    /// Lines of the same author card are at most this far apart vertically
+    /// (multiple of the larger font size); the clustering stops looking
+    /// further down beyond it.
+    pub card_max_gap_em: f32,
+    /// Lines whose baselines differ by less than this (points) are on the
+    /// same row and belong to different cards.
+    pub card_same_row_tolerance_pt: f32,
+    /// Lines of the same card overlap horizontally by at least this
+    /// fraction of the narrower one.
+    pub card_min_x_overlap_ratio: f32,
+    /// Cards on the same row overlap vertically by at least this fraction
+    /// of the lower one's height (or the row's).
+    pub card_row_min_y_overlap_ratio: f32,
+    /// A zone shared with the author grid is made single-column when it has
+    /// at most this many other nodes (typically the "Abstract" heading).
+    pub author_zone_max_others_count: usize,
+}
+
+impl Default for FrontMatterConfig {
+    fn default() -> Self {
+        Self {
+            title_max_top_ratio: 0.65,
+            title_min_chars_count: 4,
+            title_min_size_above_body_pt: 1.4,
+            title_size_tolerance_pt: 0.6,
+            section_bold_min_ratio: 0.6,
+            section_min_size_above_body_pt: 0.5,
+            section_min_upper_ratio: 0.8,
+            section_max_chars_count: 80,
+            prose_line_min_chars_count: 40,
+            prose_right_tolerance_pt: 1.5,
+            prose_left_tolerance_em: 2.0,
+            prose_min_lines_count: 4,
+            prose_min_full_lines_count: 3,
+            abstract_max_page_offset_count: 1,
+            abstract_heading_max_chars_count: 80,
+            abstract_max_blocks_count: 3,
+            author_stop_margin_pt: 1.0,
+            author_title_margin_pt: 2.0,
+            card_max_gap_em: 0.9,
+            card_same_row_tolerance_pt: 2.0,
+            card_min_x_overlap_ratio: 0.5,
+            card_row_min_y_overlap_ratio: 0.4,
+            author_zone_max_others_count: 3,
+        }
+    }
+}
+
+/// One group of author lines (a name with its affiliation and e-mail),
+/// placed as a unit.
+struct AuthorCard {
+    /// Bounding box of the lines.
+    bbox: Rect,
+    /// The lines, top to bottom.
+    lines: Vec<Line>,
+}
+
+/// Where the author block ends.
+struct AuthorEnd {
+    /// Index of the first node after the author block (the stop node, or
+    /// the first node of the next page).
+    end: usize,
+    /// The block was ended by running prose rather than by an abstract or a
+    /// section heading.
+    stopped_by_prose: bool,
+}
+
+/// Classifies the front matter of the first page with text: marks notes,
+/// title and authors (replacing the author nodes by re-ordered cards), and
+/// an abstract without a heading. Does nothing when no text is large enough
+/// to be a title.
 pub(crate) fn classify_front_matter(
     nodes: &mut Vec<Node>,
     pages: &[PageData],
@@ -17,207 +159,259 @@ pub(crate) fn classify_front_matter(
     fonts: &[FontInfo],
     cfg: &SemanticsConfig,
 ) {
-    let Some(first_page) = nodes.iter().find(|n| n.text_block().is_some()).map(|n| n.loc.page) else {
+    let front = &cfg.front_matter;
+    let Some(first_page) = nodes
+        .iter()
+        .find(|node| node.text_block().is_some())
+        .map(|node| node.loc.page)
+    else {
         return;
     };
     let page_h = pages[first_page].height;
-    let on_first = |n: &Node| n.loc.page == first_page;
+    let Some((title_start, title_end)) = find_title(nodes, first_page, page_h, stats, front) else {
+        return;
+    };
+    for node in nodes[..title_start]
+        .iter_mut()
+        .filter(|node| node.loc.page == first_page)
+    {
+        if node.text_block().is_some() {
+            node.class = Class::Note;
+        }
+    }
+    for node in &mut nodes[title_start..=title_end] {
+        node.class = Class::Title;
+    }
 
+    // Authors: everything up to the abstract or the first section.
+    let author_end = find_author_end(nodes, title_end, first_page, stats, fonts, cfg);
+    let end = author_end.end;
+    // An abstract without a heading (journal layouts): the prose that ended
+    // the author block, up to the first heading.
+    if author_end.stopped_by_prose {
+        mark_unheaded_abstract(nodes, end, first_page, front);
+    }
+    let author_idx = author_indices(nodes, (title_start, title_end), end, first_page, front);
+    if author_idx.is_empty() {
+        return;
+    }
+    let author_zones: HashSet<usize> = author_idx.iter().map(|&idx| nodes[idx].loc.zone).collect();
+    replace_author_nodes(nodes, &author_idx, front);
+    flatten_author_zones(nodes, &author_zones, first_page, front);
+}
+
+/// The range of node indices (inclusive) of the title: the consecutive
+/// nodes on the first page, in its upper part, whose size is close to the
+/// largest size found there. Returns `None` when the largest text is not
+/// clearly larger than the body text.
+fn find_title(
+    nodes: &[Node],
+    first_page: usize,
+    page_h: f32,
+    stats: &DocStats,
+    cfg: &FrontMatterConfig,
+) -> Option<(usize, usize)> {
+    let on_first = |node: &&Node| node.loc.page == first_page;
     // Title: the largest text in the upper part of the first page.
-    let mut tsize = 0.0f32;
-    for n in nodes.iter().filter(|n| on_first(n)) {
-        if let Some(t) = n.text_block()
-            && t.bbox.y0 < 0.65 * page_h
-            && block_text(&t.lines).chars().count() >= 4
+    let mut title_size = 0.0f32;
+    for node in nodes.iter().filter(on_first) {
+        if let Some(block) = node.text_block()
+            && block.bbox.y0 < cfg.title_max_top_ratio * page_h
+            && block_text(&block.lines).chars().count() >= cfg.title_min_chars_count
         {
-            tsize = tsize.max(block_size(&t.lines));
+            title_size = title_size.max(block_size(&block.lines));
         }
     }
     let mut title_range: Option<(usize, usize)> = None;
-    if tsize >= stats.body_size + 1.4 {
-        for (i, n) in nodes.iter().enumerate() {
-            if !on_first(n) {
+    if title_size >= stats.body_size + cfg.title_min_size_above_body_pt {
+        for (idx, node) in nodes.iter().enumerate() {
+            if !on_first(&node) {
                 continue;
             }
-            let is_title = n
-                .text_block()
-                .is_some_and(|t| block_size(&t.lines) >= tsize - 0.6 && t.bbox.y0 < 0.65 * page_h);
+            let is_title = node.text_block().is_some_and(|block| {
+                block_size(&block.lines) >= title_size - cfg.title_size_tolerance_pt
+                    && block.bbox.y0 < cfg.title_max_top_ratio * page_h
+            });
             match (&mut title_range, is_title) {
-                (None, true) => title_range = Some((i, i)),
-                (Some((_, e)), true) if *e + 1 == i => *e = i,
+                (None, true) => title_range = Some((idx, idx)),
+                (Some((_, range_end)), true) if *range_end + 1 == idx => *range_end = idx,
                 _ => {}
             }
         }
     }
-    let Some((ts, te)) = title_range else { return };
-    for n in nodes[..ts].iter_mut().filter(|n| n.loc.page == first_page) {
-        if n.text_block().is_some() {
-            n.class = Class::Note;
-        }
-    }
-    for n in &mut nodes[ts..=te] {
-        n.class = Class::Title;
-    }
+    title_range
+}
 
-    // Authors: everything up to the abstract or the first section.
-    let mut stopped_by_prose = false;
-    let mut end = te + 1;
+/// Finds where the author block after the title ends: at the first text
+/// block on the first page that starts the abstract, is a section heading,
+/// or is running prose; at the end of the first page otherwise.
+fn find_author_end(
+    nodes: &[Node],
+    title_end: usize,
+    first_page: usize,
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    cfg: &SemanticsConfig,
+) -> AuthorEnd {
+    let mut end = title_end + 1;
     while end < nodes.len() && nodes[end].loc.page == first_page {
-        let n = &nodes[end];
-        if let Some(t) = n.text_block() {
-            let text = block_text(&t.lines);
+        if let Some(block) = nodes[end].text_block() {
+            let text = block_text(&block.lines);
             let trimmed = text.trim();
-            let is_abstract = trimmed.eq_ignore_ascii_case("abstract") || ABSTRACT_INLINE.is_match(trimmed);
-            let bold = frac(&t.lines, fonts, |f| f.bold) >= 0.6;
-            let is_section = (HEADING_NUM.is_match(trimmed) || HEADING_ROMAN.is_match(trimmed))
-                && (bold || block_size(&t.lines) > stats.body_size + 0.5 || upper_ratio(trimmed, cfg) > 0.8)
-                && trimmed.chars().count() < 80;
-            // Running prose: several justified lines.
-            let full = t
-                .lines
-                .iter()
-                .filter(|l| {
-                    l.char_count() >= 40
-                        && (l.bbox.x1 - t.right).abs() < 1.5
-                        && (l.bbox.x0 - t.left).abs() < 2.0 * l.size
-                })
-                .count();
-            let prose = t.lines.len() >= 4 && full >= 3;
+            let is_abstract = is_abstract_start(trimmed);
+            let is_section = is_section_start(block, trimmed, stats, fonts, cfg);
+            let prose = is_running_prose(block, &cfg.front_matter);
             if is_abstract || is_section || prose {
-                stopped_by_prose = prose && !is_abstract && !is_section;
-                break;
+                return AuthorEnd {
+                    end,
+                    stopped_by_prose: prose && !is_abstract && !is_section,
+                };
             }
         }
         end += 1;
     }
-    // Author blocks are laid out as a grid of small centred groups, which
-    // the column analysis cannot order. Re-cluster their lines into one
-    // "card" per group and order the cards row by row.
-    // An abstract without a heading (journal layouts): the prose that ended
-    // the author block, up to the first heading.
-    if stopped_by_prose {
-        let next_heading = nodes[end..].iter().position(|n| {
-            n.loc.page > first_page + 1
-                || n.text_block().is_some_and(|t| {
-                    let text = block_text(&t.lines);
-                    let text = text.trim();
-                    text.chars().count() < 80
-                        && (HEADING_NUM.is_match(text) || HEADING_ROMAN.is_match(text) || KNOWN_HEADINGS.is_match(text))
-                })
-        });
-        if let Some(k) = next_heading {
-            let texts = nodes[end..end + k].iter().filter(|n| n.text_block().is_some()).count();
-            if nodes[end + k].loc.page <= first_page + 1 && texts <= 3 {
-                for n in nodes[end..end + k].iter_mut().filter(|n| n.text_block().is_some()) {
-                    n.class = Class::Paragraph { in_abstract: true };
-                }
-            }
+    AuthorEnd {
+        end,
+        stopped_by_prose: false,
+    }
+}
+
+/// "Abstract" as a heading, or an inline "Abstract—" label.
+fn is_abstract_start(trimmed: &str) -> bool {
+    trimmed.eq_ignore_ascii_case("abstract") || ABSTRACT_INLINE.is_match(trimmed)
+}
+
+/// A numbered section heading ("1 Introduction", "I. INTRODUCTION") that is
+/// bold, larger than the body text or in capitals, and short.
+fn is_section_start(
+    block: &TextBlock,
+    trimmed: &str,
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    cfg: &SemanticsConfig,
+) -> bool {
+    let front = &cfg.front_matter;
+    let bold = frac(&block.lines, fonts, |font| font.bold) >= front.section_bold_min_ratio;
+    (HEADING_NUM.is_match(trimmed) || HEADING_ROMAN.is_match(trimmed))
+        && (bold
+            || block_size(&block.lines) > stats.body_size + front.section_min_size_above_body_pt
+            || upper_ratio(trimmed, cfg) > front.section_min_upper_ratio)
+        && trimmed.chars().count() < front.section_max_chars_count
+}
+
+/// Running prose: several justified lines.
+fn is_running_prose(block: &TextBlock, cfg: &FrontMatterConfig) -> bool {
+    let full = block
+        .lines
+        .iter()
+        .filter(|line| {
+            line.char_count() >= cfg.prose_line_min_chars_count
+                && (line.bbox.x1 - block.right).abs() < cfg.prose_right_tolerance_pt
+                && (line.bbox.x0 - block.left).abs() < cfg.prose_left_tolerance_em * line.size
+        })
+        .count();
+    block.lines.len() >= cfg.prose_min_lines_count && full >= cfg.prose_min_full_lines_count
+}
+
+/// Marks the text nodes from `start` up to the first heading as abstract
+/// paragraphs, if that heading is found on the first pages and only a few
+/// text blocks precede it. Leaves everything unchanged otherwise.
+fn mark_unheaded_abstract(nodes: &mut [Node], start: usize, first_page: usize, cfg: &FrontMatterConfig) {
+    let last_page = first_page + cfg.abstract_max_page_offset_count;
+    let next_heading = nodes[start..].iter().position(|node| {
+        node.loc.page > last_page
+            || node.text_block().is_some_and(|block| {
+                let text = block_text(&block.lines);
+                let text = text.trim();
+                text.chars().count() < cfg.abstract_heading_max_chars_count
+                    && (HEADING_NUM.is_match(text) || HEADING_ROMAN.is_match(text) || KNOWN_HEADINGS.is_match(text))
+            })
+    });
+    let Some(len) = next_heading else { return };
+    let abstract_nodes = start..start + len;
+    let texts = nodes[abstract_nodes.clone()]
+        .iter()
+        .filter(|node| node.text_block().is_some())
+        .count();
+    if nodes[start + len].loc.page <= last_page && texts <= cfg.abstract_max_blocks_count {
+        for node in nodes[abstract_nodes]
+            .iter_mut()
+            .filter(|node| node.text_block().is_some())
+        {
+            node.class = Class::Paragraph { in_abstract: true };
         }
     }
+}
 
-    // Besides the nodes before the stop, anything that lies between the
-    // title and the stop geometrically belongs to the author block (the
-    // column analysis may have ordered a second author column later).
-    let title_bottom = nodes[ts..=te]
+/// Indices of the unclassified text nodes of the author block: those
+/// between the title and `end`, plus those that lie geometrically between
+/// the title and the stop block (the column analysis may have ordered a
+/// second author column later).
+fn author_indices(
+    nodes: &[Node],
+    (title_start, title_end): (usize, usize),
+    end: usize,
+    first_page: usize,
+    cfg: &FrontMatterConfig,
+) -> Vec<usize> {
+    let title_bottom = nodes[title_start..=title_end]
         .iter()
-        .filter_map(|n| n.text_block())
-        .map(|t| t.bbox.y1)
+        .filter_map(|node| node.text_block())
+        .map(|block| block.bbox.y1)
         .fold(0.0, f32::max);
     let stop_y = nodes
         .get(end)
-        .filter(|n| n.loc.page == first_page)
-        .and_then(|n| n.text_block())
-        .map(|t| t.bbox.y0)
+        .filter(|node| node.loc.page == first_page)
+        .and_then(|node| node.text_block())
+        .map(|block| block.bbox.y0)
         .unwrap_or(f32::INFINITY);
-    let author_idx: Vec<usize> = (te + 1..nodes.len())
-        .filter(|&i| {
-            let n = &nodes[i];
-            let Some(t) = n.text_block() else { return false };
-            n.loc.page == first_page
-                && n.class == Class::Unknown
-                && (i < end || (stop_y.is_finite() && t.bbox.y1 <= stop_y - 1.0 && t.bbox.y0 >= title_bottom - 2.0))
+    (title_end + 1..nodes.len())
+        .filter(|&idx| {
+            let node = &nodes[idx];
+            let Some(block) = node.text_block() else { return false };
+            node.loc.page == first_page
+                && node.class == Class::Unknown
+                && (idx < end
+                    || (stop_y.is_finite()
+                        && block.bbox.y1 <= stop_y - cfg.author_stop_margin_pt
+                        && block.bbox.y0 >= title_bottom - cfg.author_title_margin_pt))
         })
-        .collect();
-    if author_idx.is_empty() {
-        return;
-    }
-    let author_zones: HashSet<usize> = author_idx.iter().map(|&i| nodes[i].loc.zone).collect();
+        .collect()
+}
+
+/// Replaces the author nodes at `author_idx` (sorted, non-empty) by one
+/// [`Class::Authors`] node per card, ordered row by row, inserted where the
+/// first author node was. Other nodes in between (floats etc.) are kept.
+fn replace_author_nodes(nodes: &mut Vec<Node>, author_idx: &[usize], cfg: &FrontMatterConfig) {
+    // Author blocks are laid out as a grid of small centred groups, which
+    // the column analysis cannot order. Re-cluster their lines into one
+    // "card" per group and order the cards row by row.
     let mut lines: Vec<Line> = Vec::new();
-    for &i in &author_idx {
-        lines.extend(nodes[i].text_block().unwrap().lines.iter().cloned());
+    for &idx in author_idx {
+        lines.extend(nodes[idx].text_block().unwrap().lines.iter().cloned());
     }
     lines.sort_by(|a, b| a.baseline.total_cmp(&b.baseline).then(a.bbox.x0.total_cmp(&b.bbox.x0)));
-    let mut parent: Vec<usize> = (0..lines.len()).collect();
-    fn find(p: &mut [usize], i: usize) -> usize {
-        let mut r = i;
-        while p[r] != r {
-            r = p[r];
-        }
-        p[i] = r;
-        r
-    }
-    for i in 0..lines.len() {
-        for j in i + 1..lines.len() {
-            let (a, b) = (&lines[i], &lines[j]);
-            let gap = b.bbox.y0 - a.bbox.y1;
-            if gap > 0.9 * a.size.max(b.size) {
-                break;
-            }
-            let same_row = (a.baseline - b.baseline).abs() < 2.0;
-            if !same_row && a.bbox.x_overlap(&b.bbox) >= 0.5 * a.bbox.width().min(b.bbox.width()) {
-                let (ra, rb) = (find(&mut parent, i), find(&mut parent, j));
-                if ra != rb {
-                    parent[rb] = ra;
-                }
-            }
-        }
-    }
-    let mut cards: Vec<(Rect, Vec<Line>)> = Vec::new();
-    let mut card_of: HashMap<usize, usize> = HashMap::new();
-    for (i, line) in lines.iter().enumerate() {
-        let r = find(&mut parent, i);
-        let ci = *card_of.entry(r).or_insert_with(|| {
-            cards.push((Rect::EMPTY, Vec::new()));
-            cards.len() - 1
-        });
-        cards[ci].0 = cards[ci].0.union(&line.bbox);
-        cards[ci].1.push(line.clone());
-    }
-    // Rows of cards.
-    cards.sort_by(|a, b| a.0.y0.total_cmp(&b.0.y0));
-    let mut ordered: Vec<(Rect, Vec<Line>)> = Vec::new();
-    let mut row: Vec<(Rect, Vec<Line>)> = Vec::new();
-    let mut row_box = Rect::EMPTY;
-    for c in cards {
-        if !row.is_empty() && row_box.y_overlap(&c.0) < 0.4 * row_box.height().min(c.0.height()) {
-            row.sort_by(|a, b| a.0.x0.total_cmp(&b.0.x0));
-            ordered.append(&mut row);
-            row_box = Rect::EMPTY;
-        }
-        row_box = row_box.union(&c.0);
-        row.push(c);
-    }
-    row.sort_by(|a, b| a.0.x0.total_cmp(&b.0.x0));
-    ordered.append(&mut row);
+    let ordered = order_cards(cluster_cards(&lines, cfg), cfg);
 
+    let template = &nodes[author_idx[0]];
     let template_loc = Loc {
         zone_cols: 1,
         col: 0,
-        zone: usize::MAX / 2,
-        ..nodes[author_idx[0]].loc
+        zone: AUTHOR_ZONE,
+        ..template.loc
     };
-    let (leaf_left, leaf_right) = (nodes[author_idx[0]].leaf_left, nodes[author_idx[0]].leaf_right);
+    let (leaf_left, leaf_right) = (template.leaf_left, template.leaf_right);
     let new_nodes: Vec<Node> = ordered
         .into_iter()
-        .map(|(bbox, lines)| Node {
+        .map(|card| Node {
             kind: NodeKind::Text(TextBlock {
-                lines,
+                lines: card.lines,
                 loc: template_loc,
-                left: bbox.x0,
-                right: bbox.x1,
+                left: card.bbox.x0,
+                right: card.bbox.x1,
                 centered: true,
                 gap_before: f32::INFINITY,
-                bbox,
+                bbox: card.bbox,
             }),
             loc: template_loc,
             class: Class::Authors,
@@ -230,27 +424,108 @@ pub(crate) fn classify_front_matter(
     // Replace the old author nodes (keeping floats etc. in between).
     let first = author_idx[0];
     let drop: HashSet<usize> = author_idx.iter().copied().collect();
-    let mut i = 0;
+    let mut idx = 0;
     nodes.retain(|_| {
-        let keep = !drop.contains(&i);
-        i += 1;
+        let keep = !drop.contains(&idx);
+        idx += 1;
         keep
     });
     nodes.splice(first..first, new_nodes);
+}
 
-    // Whatever else shared a zone with the author grid (typically the
-    // "Abstract" heading) is not really part of a multi-column zone.
-    for z in author_zones {
+/// Groups author lines (sorted by baseline, then left edge) into cards:
+/// lines on different rows that overlap horizontally and are close
+/// vertically belong together (transitively). Cards are returned in the
+/// order of their first line.
+fn cluster_cards(lines: &[Line], cfg: &FrontMatterConfig) -> Vec<AuthorCard> {
+    let mut parent: Vec<usize> = (0..lines.len()).collect();
+    for i in 0..lines.len() {
+        for j in i + 1..lines.len() {
+            let (upper, lower) = (&lines[i], &lines[j]);
+            let gap = lower.bbox.y0 - upper.bbox.y1;
+            if gap > cfg.card_max_gap_em * upper.size.max(lower.size) {
+                break;
+            }
+            let same_row = (upper.baseline - lower.baseline).abs() < cfg.card_same_row_tolerance_pt;
+            if !same_row
+                && upper.bbox.x_overlap(&lower.bbox)
+                    >= cfg.card_min_x_overlap_ratio * upper.bbox.width().min(lower.bbox.width())
+            {
+                let (root_a, root_b) = (find_root(&mut parent, i), find_root(&mut parent, j));
+                if root_a != root_b {
+                    parent[root_b] = root_a;
+                }
+            }
+        }
+    }
+    let mut cards: Vec<AuthorCard> = Vec::new();
+    let mut card_of: HashMap<usize, usize> = HashMap::new();
+    for (i, line) in lines.iter().enumerate() {
+        let root = find_root(&mut parent, i);
+        let card_idx = *card_of.entry(root).or_insert_with(|| {
+            cards.push(AuthorCard {
+                bbox: Rect::EMPTY,
+                lines: Vec::new(),
+            });
+            cards.len() - 1
+        });
+        cards[card_idx].bbox = cards[card_idx].bbox.union(&line.bbox);
+        cards[card_idx].lines.push(line.clone());
+    }
+    cards
+}
+
+/// Root of `i` in the union-find forest `parent`; points `i` directly at
+/// the root on the way.
+fn find_root(parent: &mut [usize], i: usize) -> usize {
+    let mut root = i;
+    while parent[root] != root {
+        root = parent[root];
+    }
+    parent[i] = root;
+    root
+}
+
+/// Orders cards in reading order: rows of vertically overlapping cards, top
+/// to bottom, and left to right within a row.
+fn order_cards(mut cards: Vec<AuthorCard>, cfg: &FrontMatterConfig) -> Vec<AuthorCard> {
+    // Rows of cards.
+    cards.sort_by(|a, b| a.bbox.y0.total_cmp(&b.bbox.y0));
+    let mut ordered: Vec<AuthorCard> = Vec::new();
+    let mut row: Vec<AuthorCard> = Vec::new();
+    let mut row_box = Rect::EMPTY;
+    for card in cards {
+        if !row.is_empty()
+            && row_box.y_overlap(&card.bbox)
+                < cfg.card_row_min_y_overlap_ratio * row_box.height().min(card.bbox.height())
+        {
+            row.sort_by(|a, b| a.bbox.x0.total_cmp(&b.bbox.x0));
+            ordered.append(&mut row);
+            row_box = Rect::EMPTY;
+        }
+        row_box = row_box.union(&card.bbox);
+        row.push(card);
+    }
+    row.sort_by(|a, b| a.bbox.x0.total_cmp(&b.bbox.x0));
+    ordered.append(&mut row);
+    ordered
+}
+
+/// Makes the few other nodes that shared a layout zone with the author
+/// grid (typically the "Abstract" heading) single-column: they are not
+/// really part of a multi-column zone.
+fn flatten_author_zones(nodes: &mut [Node], author_zones: &HashSet<usize>, first_page: usize, cfg: &FrontMatterConfig) {
+    for &zone in author_zones {
         let others: Vec<usize> = nodes
             .iter()
             .enumerate()
-            .filter(|(_, n)| n.loc.page == first_page && n.loc.zone == z && n.class != Class::Authors)
-            .map(|(i, _)| i)
+            .filter(|(_, node)| node.loc.page == first_page && node.loc.zone == zone && node.class != Class::Authors)
+            .map(|(idx, _)| idx)
             .collect();
-        if others.len() <= 3 {
-            for i in others {
-                nodes[i].loc.zone_cols = 1;
-                nodes[i].loc.col = 0;
+        if others.len() <= cfg.author_zone_max_others_count {
+            for idx in others {
+                nodes[idx].loc.zone_cols = 1;
+                nodes[idx].loc.col = 0;
             }
         }
     }

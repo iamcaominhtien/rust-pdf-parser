@@ -72,6 +72,7 @@ pub(crate) mod references;
 pub(crate) mod text;
 
 pub use body::BodyConfig;
+pub use references::ReferencesConfig;
 
 pub(crate) use assemble::build_document;
 pub(crate) use body::classify_body;
@@ -111,6 +112,8 @@ pub struct SemanticsConfig {
     pub small_caps_min_sizes_count: usize,
     /// Classification of headings, paragraphs, list items and references.
     pub body: BodyConfig,
+    /// Splitting bibliography blocks into one entry each.
+    pub references: ReferencesConfig,
 }
 
 impl Default for SemanticsConfig {
@@ -121,6 +124,7 @@ impl Default for SemanticsConfig {
             small_caps_size_tolerance_pt: 0.2,
             small_caps_min_sizes_count: 2,
             body: BodyConfig::default(),
+            references: ReferencesConfig::default(),
         }
     }
 }

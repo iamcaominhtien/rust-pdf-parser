@@ -1577,10 +1577,22 @@ fn place_floating_labels(
         let ruled = |k: usize| k == 0 || k == n_rows || rule_above[k][col] > 0;
         let group_start = (0..=pos).rev().find(|&k| ruled(k)).unwrap_or(0);
         let group_end = (pos..=n_rows).find(|&k| ruled(k)).unwrap_or(n_rows);
+        // A row-spanning cell from an earlier row that covers `col` in `row`.
+        let spanning = |rows: &[Vec<GridCell>], row: usize| {
+            (0..row).rev().find_map(|start| {
+                rows[start]
+                    .iter()
+                    .position(|other| {
+                        other.col <= col && col < other.col + other.colspan && start + other.rowspan > row
+                    })
+                    .map(|index| (start, index))
+            })
+        };
         let free = |row: usize| {
             !grid_rows[row]
                 .iter()
                 .any(|other| other.col <= col && col < other.col + other.colspan)
+                && spanning(grid_rows, row).is_none()
         };
         if group_end - group_start >= 2 && (group_start..group_end).all(free) {
             cell.rowspan = group_end - group_start;
@@ -1593,6 +1605,12 @@ fn place_floating_labels(
             } else {
                 pos - 1
             };
+            // A second line of a label already spanning these rows
+            // ("RoBERTa base" / "LoRA"): part of that label.
+            if let Some((start, index)) = spanning(grid_rows, near) {
+                grid_rows[start][index].lines.extend(cell.lines);
+                continue;
+            }
             let target = [near, pos.min(n_rows - 1), pos - 1]
                 .into_iter()
                 .find(|&row| free(row))?;

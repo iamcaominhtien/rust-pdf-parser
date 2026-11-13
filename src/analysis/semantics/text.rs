@@ -476,7 +476,8 @@ pub(crate) fn url_continues(text: &str, next: &str) -> bool {
         // not with a word of the text ("arXiv preprint").
         Some('.') => {
             let token = next.split_whitespace().next().unwrap_or("");
-            (first.is_lowercase() || first.is_ascii_digit()) && !token.chars().any(char::is_uppercase)
+            let host = token.split('/').next().unwrap_or("");
+            (first.is_lowercase() || first.is_ascii_digit()) && !host.chars().any(char::is_uppercase)
         }
         _ => false,
     }
@@ -648,6 +649,7 @@ mod tests {
             &vocab
         ));
         assert!(url_continues("see http:", "//arxiv.org/abs/1804.08838"));
+        assert!(url_continues("https://aclanthology.", "org/N19-1246"));
         assert!(!url_continues(
             "URL http://arxiv.org/abs/2104.08691.",
             "arXiv: 2104.08691."

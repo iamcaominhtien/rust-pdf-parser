@@ -18,6 +18,11 @@ use std::sync::LazyLock;
 /// "e2014-12").
 static PAGE_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z]?\d{2,}-\d{1,4}$").unwrap());
 
+/// The foot a preprint class prints on its first page: "Preprint submitted
+/// to Physics Letters B" (elsarticle), "Preprint. Under review." (NeurIPS).
+static PREPRINT_FOOT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?i:preprint submitted to\b|preprint\. under review)").unwrap());
+
 /// A line that is nothing but a page number: arabic or roman, optionally
 /// "page N", "N of M" or "N/M", with up to three decorating non-word
 /// characters on each side ("- 3 -", "[iv]").
@@ -345,6 +350,7 @@ fn body_extent(page: &PageData, repeats: &RepeatCounts, cfg: &FurnitureConfig) -
         .lines
         .iter()
         .filter(|line| line.char_count() >= cfg.body_line_min_glyphs_count && !is_repeated(line))
+        .filter(|line| !PREPRINT_FOOT.is_match(line.text().trim()))
         .filter(|line| {
             !id_rows
                 .iter()
@@ -459,7 +465,10 @@ fn mark_running_heads(
         .lines
         .iter()
         .zip(&dropped)
-        .filter(|(line, is_dropped)| **is_dropped && PAGE_ID.is_match(line.text().trim()))
+        .filter(|(line, is_dropped)| {
+            let text = line.text();
+            **is_dropped && (PAGE_ID.is_match(text.trim()) || PREPRINT_FOOT.is_match(text.trim()))
+        })
         .map(|(line, _)| line.baseline)
         .collect();
     let with_mates: Vec<bool> = page
@@ -468,10 +477,9 @@ fn mark_running_heads(
         .enumerate()
         .map(|(i, line)| {
             dropped[i]
-                || (band(page, line, cfg).is_some()
-                    && id_rows
-                        .iter()
-                        .any(|&row| (row - line.baseline).abs() <= cfg.crowded_min_distance_pt))
+                || id_rows
+                    .iter()
+                    .any(|&row| (row - line.baseline).abs() <= cfg.crowded_min_distance_pt)
         })
         .collect();
     for (flag, keep_out) in drop.iter_mut().zip(drop_apart(page, &with_mates, cfg)) {
@@ -517,11 +525,14 @@ fn is_furniture_candidate(
         // below the head band or above the foot band: there it must be the
         // page's own number, on the first or last line of the page.
         None => {
-            is_page_no
+            (is_page_no
                 && outside
                 && is_own_number(page, &text, repeats.number_offset)
                 && is_extreme_line(page, line, cfg)
-                && alone_on_row(page, line, cfg)
+                && alone_on_row(page, line, cfg))
+                || (PREPRINT_FOOT.is_match(text.trim())
+                    && outside
+                    && line.bbox.y0 >= body.bottom - cfg.body_edge_tolerance_pt)
         }
     }
 }

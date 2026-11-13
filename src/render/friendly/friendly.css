@@ -230,12 +230,11 @@ pre.listing.hl .tok-dec,[data-code-hl="on"] pre.listing .tok-dec{color:var(--hl-
 .algo strong{font-weight:600}
 
 /* ---------- Tables: booktabs ---------- */
-.tbl-wrap{overflow-x:auto;max-width:100%;
-  background:
-    linear-gradient(to right,var(--paper) 30%,transparent) left/2rem 100% no-repeat local,
-    linear-gradient(to left,var(--paper) 30%,transparent) right/2rem 100% no-repeat local,
-    linear-gradient(to right,color-mix(in srgb,var(--ink) 16%,transparent),transparent) left/10px 100% no-repeat scroll,
-    linear-gradient(to left,color-mix(in srgb,var(--ink) 16%,transparent),transparent) right/10px 100% no-repeat scroll}
+.tbl-wrap{overflow-x:auto;max-width:100%;scrollbar-width:thin}
+/* A box that scrolls sideways fades the edge that has more behind it (data-more, set by the script). */
+:is(.eq-body,.tbl-wrap)[data-more="r"]{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 2.25rem),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 2.25rem),transparent)}
+:is(.eq-body,.tbl-wrap)[data-more="l"]{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 2.25rem),transparent);mask-image:linear-gradient(to left,#000 calc(100% - 2.25rem),transparent)}
+:is(.eq-body,.tbl-wrap)[data-more="both"]{-webkit-mask-image:linear-gradient(to right,transparent,#000 2.25rem,#000 calc(100% - 2.25rem),transparent);mask-image:linear-gradient(to right,transparent,#000 2.25rem,#000 calc(100% - 2.25rem),transparent)}
 table.tbl{border-collapse:collapse;margin:0 auto;font-family:var(--sans);font-size:var(--fs-tbl);line-height:var(--lh-tbl);
   font-variant-numeric:tabular-nums lining-nums;color:var(--ink)}
 .tbl th,.tbl td{padding:.36em .86em;vertical-align:baseline;font-weight:400;text-align:left}
@@ -369,6 +368,8 @@ article>*{grid-column:text;min-width:0}
 .bk-window figure>figcaption:first-child{break-after:avoid}
 .bk-window figure>figcaption:last-child{break-before:avoid}
 .bk-window figure.bk-split>.tbl-wrap{overflow:visible}
+/* A table too tall for a page and too wide for the column cannot be split: it stays whole and scrolls. */
+.bk-window figure.bk-box>.tbl-wrap{overflow:auto}
 .bk-window figure.bk-split tr:first-child{break-before:avoid}
 .bk-probe{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;font-size:var(--bk-fs);line-height:var(--bk-lh)}
 .bk-window p{orphans:2;widows:2;margin-bottom:var(--s3)}
@@ -377,7 +378,9 @@ article>*{grid-column:text;min-width:0}
 .bk-window .hang .secno{display:inline;width:auto;margin:0 .45em 0 0}
 /* A picture is sized by the script to the room of its page; the rest of them fit the column. */
 .bk-window figure img[data-bkw]{width:var(--bk-w)!important;max-width:100%!important;height:auto}
-.bk-window .plate img,.bk-window .tbl-wrap>img{max-width:100%;max-height:var(--th);object-fit:contain}
+.bk-window .plate img{max-width:100%;max-height:var(--th);object-fit:contain}
+/* A picture of a table keeps at least 70% of its size on the page, the box scrolls for the rest. */
+.bk-window .tbl-wrap>img,.bk-window figure .tbl-wrap>img[data-bkw]{max-width:none!important;max-height:var(--th);object-fit:contain}
 .bk-window pre.listing{max-height:calc(var(--th) - 5rem);overflow:auto}
 .bk-window aside.footnote.side{position:relative;grid-column:auto;width:auto;top:auto!important}
 .bk-window .colophon{margin-top:var(--s5);break-before:avoid}
@@ -435,7 +438,8 @@ nav.toc .pg:empty{display:none}
   aside.footnote.side{position:static;width:auto;font-size:var(--fs-note)}
   h2,h3,h4{break-after:avoid}
   figure,.eq,table.tbl,ol.refs li{break-inside:avoid}
-  .tbl-wrap{overflow:visible;background:none}
+  .tbl-wrap{overflow:visible;-webkit-mask-image:none!important;mask-image:none!important}
+  .eq-body{-webkit-mask-image:none!important;mask-image:none!important}
   table.tbl{font-size:8.5pt}
   .plate{border:0;padding:0}
   .plate img{mix-blend-mode:normal!important}

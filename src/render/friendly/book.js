@@ -124,7 +124,7 @@
     var art=win.firstElementChild;art.style.setProperty('--bk-x','0px');
     // A page cannot scroll sideways: wide tables shrink further than in the scroll view.
     if(P.fitTables)P.fitTables(art,0.55);
-    fitFloats(art);fillGaps(art);keepHeads(art);if(observer)observer.takeRecords();
+    fitFloats(art);fillGaps(art);keepHeads(art);if(P.cues)P.cues(art);if(observer)observer.takeRecords();
     pages=Math.max(1,Math.round((art.scrollWidth+(step-g.tw))/step));
     // Entries of a bibliography that were mistaken for headings do not head a page.
     heads=[].filter.call(art.querySelectorAll('h2,h3,h4'),function(h){return !/^\[\d+\]/.test(h.textContent.trim());}).map(function(h){
@@ -155,17 +155,22 @@
   }
   function scale(root,base,k){
     [].forEach.call(root.querySelectorAll('img'),function(im,i){
-      if(base.w[i]){im.setAttribute('data-bkw','');im.style.setProperty('--bk-w',(base.w[i]*k).toFixed(1)+'px');}});
+      if(base.w[i]){im.setAttribute('data-bkw','');im.style.setProperty('--bk-w',Math.max(base.w[i]*k,base.lo[i]||0).toFixed(1)+'px');}});
     [].forEach.call(root.querySelectorAll('.tbl-wrap>table'),function(t,i){t.style.fontSize=(base.f[i]*k).toFixed(2)+'%';});
     [].forEach.call(root.querySelectorAll('.algo'),function(a){a.style.zoom=k<1?k.toFixed(3):'';});
   }
   // The sizes of the float before it is scaled, and the smallest scale that still reads.
   function baseOf(fig){
-    var box=probeBox(),c=fig.cloneNode(true),base={w:[],f:[],min:1};
+    var box=probeBox(),c=fig.cloneNode(true),base={w:[],lo:[],f:[],min:1};
     box.textContent='';box.appendChild(c);
     [].forEach.call(c.querySelectorAll('img'),function(im){
       var r=im.getBoundingClientRect(),cs=getComputedStyle(im.parentNode),room=im.parentNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
-      base.w.push(Math.min(r.width,room)||0);base.min=Math.min(base.min,.15);});
+      base.w.push(Math.min(r.width,room)||0);base.min=Math.min(base.min,.15);
+      // A picture of a table is not shrunk below 70% of its size: it scrolls instead.
+      var em=/em$/.test(im.style.width)&&im.parentNode.classList.contains('tbl-wrap')?parseFloat(im.style.width)*parseFloat(getComputedStyle(im).fontSize):0;
+      base.lo.push(em?Math.min(.7*em,r.width):0);
+      // It may be wider than the column: its box then has a scroll bar under it, which takes room.
+      if(em&&.7*em>room+1)base.wide=true;});
     [].forEach.call(c.querySelectorAll('.tbl-wrap>table'),function(t){base.f.push(parseFloat(t.style.fontSize)||100);base.min=Math.min(base.min,.5);});
     if(c.querySelector('.algo'))base.min=Math.min(base.min,.6);
     base.scalable=base.w.length||base.f.length||!!c.querySelector('.algo');
@@ -181,7 +186,7 @@
   function clearFloats(art){
     [].forEach.call(art.querySelectorAll('img[data-bkw]'),function(im){im.removeAttribute('data-bkw');im.style.removeProperty('--bk-w');});
     [].forEach.call(art.querySelectorAll('.algo'),function(a){a.style.zoom='';});
-    [].forEach.call(art.querySelectorAll('figure.float'),function(f){f.classList.remove('bk-split');f._bk=null;f._k=1;f._moves=0;});
+    [].forEach.call(art.querySelectorAll('figure.float'),function(f){f.classList.remove('bk-split','bk-box');var w=f.querySelector('.tbl-wrap');if(w)w.style.maxHeight='';f._bk=null;f._k=1;f._moves=0;});
   }
   // The room a float has on a page of its own: the page less the headings
   // before it, which must not be left at the foot of the page before.
@@ -190,13 +195,29 @@
     while(p&&/^H[2-5]$/.test(p.tagName)){sum+=p.getBoundingClientRect().height;p=p.previousElementSibling;}
     return sum?room-sum-parseFloat(getComputedStyle(fig).marginTop):room;
   }
+  // A float too tall for a page splits after its first rows, unless it is
+  // also wider than the column: a box that scrolls cannot be split, so such
+  // a table stays whole in a box that scrolls both ways.
+  function split(f){
+    var wrap=f.querySelector('.tbl-wrap');
+    f.classList.add('bk-split');
+    var inner=wrap&&wrap.querySelector('table,img');
+    if(!inner||inner.offsetWidth<=g.tw+1)return;
+    f.classList.remove('bk-split');f.classList.add('bk-box');
+    // Its caption (and the gap) laid out alone: what the box leaves of the page.
+    var box=probeBox(),c=f.cloneNode(true),cw=c.querySelector('.tbl-wrap');
+    cw.parentNode.removeChild(cw);box.textContent='';box.appendChild(c);
+    var extra=c.getBoundingClientRect().height;box.textContent='';
+    wrap.style.maxHeight=Math.max(120,pageRoom(f)-extra-g.fs-2*parseFloat(getComputedStyle(f).marginBottom)-20)+'px';
+    f.style.display='none';void f.offsetHeight;f.style.display='';
+  }
   function fitFloats(art){
     restoreFloats();clearFloats(art);
     [].forEach.call(art.querySelectorAll('figure.float'),function(f){
-      var base=baseOf(f);f._bk=base;if(!base.scalable){if(floatH(f,base,null)>g.th)f.classList.add('bk-split');return;}
-      var room=pageRoom(f),k=solve(f,base,room,base.min,1);
-      if(!k&&room<g.th-1){room=g.th-1;k=solve(f,base,room,base.min,1);}
-      if(!k){scale(f,base,base.min);f._k=base.min;f.classList.add('bk-split');return;}
+      var base=baseOf(f);f._bk=base;if(!base.scalable){if(floatH(f,base,null)>g.th)split(f);return;}
+      var bar=base.wide?20:0,room=pageRoom(f)-bar,k=solve(f,base,room,base.min,1);
+      if(!k&&room<g.th-1-bar){room=g.th-1-bar;k=solve(f,base,room,base.min,1);}
+      if(!k){scale(f,base,base.min);f._k=base.min;split(f);return;}
       scale(f,base,k);f._k=k;
     });
   }
@@ -232,7 +253,7 @@
       });
       var changed=false;
       todo.forEach(function(t){
-        var f=t[0],k=f._k>GAP_MIN?solve(f,f._bk,t[1],GAP_MIN,f._k):0;
+        var f=t[0],k=f._k>GAP_MIN?solve(f,f._bk,t[1]-(f._bk.wide?20:0),GAP_MIN,f._k):0;
         if(k){if(k<f._k){scale(f,f._bk,k);f._k=k;changed=true;}}
         else if((f._moves=(f._moves||0)+1)<=6&&t[2]>=g.th*0.35&&sendOn(f,t[2]))changed=true;
       });

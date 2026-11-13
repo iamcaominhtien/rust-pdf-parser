@@ -14,6 +14,11 @@
 //    images have loaded, the recorded page sound plays (and not when it is
 //    switched off), the article returns to the scroll view,
 //    and a translated (longer) text is paginated again;
+//  - wide equations, tables and pictures of tables are never cut off: on a
+//    phone and in the book view each is inside its column or in a box that
+//    scrolls sideways, fades at the cut edge and reaches the end; an equation
+//    number stays beside its picture; no picture of an equation or a table is
+//    shrunk below 70%;
 //  - book view layout: a figure or table is on one page with its caption
 //    (except one too long for a page, which may split), no heading ends a
 //    page, and no page is more than 60% empty (except before a heading, or
@@ -179,7 +184,7 @@ function layoutProblems() {
   art.querySelectorAll('figure.float').forEach((f) => {
     const cap = f.querySelector('figcaption');
     const body = f.querySelector('.plate,.tbl-wrap,.algo,img');
-    if (!cap || !body || f.classList.contains('bk-split')) return;
+    if (!cap || !body || f.classList.contains('bk-split') || f.classList.contains('bk-box')) return;
     const cols = new Set([...cap.getClientRects()].map((r) => col(r.left)));
     body.querySelectorAll('img,tr,.ln').forEach((e) => {
       for (const r of e.getClientRects()) if (r.height) cols.add(col(r.left));
@@ -194,6 +199,94 @@ function layoutProblems() {
     if (rs.length && nr && !/^H[2-4]$/.test(next.tagName) && col(nr.left) > col(rs[rs.length - 1].left)) orphans.push(h.textContent.slice(0, 30));
   });
   return { empty, apart, orphans };
+}
+
+// Wide content is never cut silently: every equation picture, table and
+// picture of a table is inside its column, or inside a box that scrolls
+// sideways (and is itself inside the column). An equation keeps its number
+// beside the picture, and is not shrunk below 70% of its size. Runs in the
+// scroll view or the book view, whichever is showing.
+function clipProblems() {
+  const book = document.documentElement.getAttribute('data-view') === 'book';
+  const art = book ? document.querySelector('.bk-window > article') : document.getElementById('article');
+  const box = art.getBoundingClientRect();
+  let step = 0;
+  let tw = 0;
+  if (book) {
+    const cs = getComputedStyle(art);
+    tw = parseFloat(cs.columnWidth);
+    step = tw + parseFloat(cs.columnGap);
+  }
+  // The right edge of the column (or of the viewport) that holds x.
+  const limit = (x) => (book ? box.left + Math.max(0, Math.floor((x - box.left + 2) / step)) * step + tw : Math.min(box.right, innerWidth));
+  const scrolls = (e) => {
+    for (let n = e.parentElement; n && n !== art; n = n.parentElement) {
+      const o = getComputedStyle(n).overflowX;
+      if (o === 'auto' || o === 'scroll') return n;
+    }
+    return null;
+  };
+  const name = (e) => (e.closest('[id]') ? e.closest('[id]').id : '') + ' ' + e.tagName.toLowerCase();
+  const clipped = [];
+  const uncued = [];
+  const numbers = [];
+  const small = [];
+  art.querySelectorAll('.eq-body img, .tbl-wrap table, .tbl-wrap > img').forEach((e) => {
+    const r = e.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const holder = scrolls(e);
+    const hr = holder ? holder.getBoundingClientRect() : r;
+    if (hr.right > limit(hr.left + 1) + 1 || hr.left < box.left - 1) clipped.push(`${name(e)} ${Math.round(hr.right - limit(hr.left + 1))}px`);
+    if (holder && holder.scrollWidth > holder.clientWidth + 1) {
+      // The box shows that there is more (a faded edge) and can be scrolled to the end.
+      if (getComputedStyle(holder).maskImage === 'none' && getComputedStyle(holder).webkitMaskImage === 'none') uncued.push(name(e));
+      const before = holder.scrollLeft;
+      holder.scrollLeft = holder.scrollWidth;
+      if (holder.scrollLeft <= before) clipped.push(`${name(e)} does not scroll`);
+      holder.scrollLeft = before;
+    }
+    if (e.tagName === 'IMG') {
+      const own = parseFloat(e.style.width);
+      const full = e.style.width.endsWith('em') ? own * parseFloat(getComputedStyle(e).fontSize) : 0;
+      if (full && r.width < full * 0.69) small.push(`${name(e)} ${Math.round((r.width / full) * 100)}%`);
+    }
+    const eq = e.closest('.eq');
+    if (eq) {
+      const no = eq.querySelector('.eqno');
+      const body = eq.querySelector('.eq-body').getBoundingClientRect();
+      if (no) {
+        const nr = no.getBoundingClientRect();
+        const mid = (nr.top + nr.bottom) / 2;
+        if (nr.left < body.right - 1 || mid < body.top - 1 || mid > body.bottom + 1 || nr.right > limit(nr.left) + 1) numbers.push(name(e));
+      }
+    }
+  });
+  return { clipped, uncued, numbers, small };
+}
+
+// Clipped content on a phone, in the scroll view and in the book view.
+async function phoneClips(browser, file) {
+  const result = {};
+  for (const view of ['scroll', 'book']) {
+    const { context, page } = await open(browser, file, { viewport: { width: 390, height: 844 } });
+    await page.evaluate(async () => {
+      const imgs = [...document.images];
+      imgs.forEach((img) => (img.loading = 'eager'));
+      await Promise.all(imgs.map((img) => (img.complete ? 0 : new Promise((r) => (img.onload = img.onerror = r)))));
+    });
+    if (view === 'book') {
+      await page.evaluate(() => document.querySelector('[data-view-pick="book"]').click());
+      await page.waitForTimeout(800);
+      await page
+        .waitForFunction(() => [...document.querySelectorAll('.bk-window img')].every((img) => img.complete), null, { timeout: 10000 })
+        .catch(() => {});
+      await page.waitForTimeout(500);
+    }
+    await page.waitForTimeout(300);
+    result[view] = await page.evaluate(clipProblems);
+    await context.close();
+  }
+  return result;
 }
 
 async function book(browser, file) {
@@ -215,6 +308,7 @@ async function book(browser, file) {
   });
   const state = await page.evaluate(() => window.p2hBook.state());
   const layout = await page.evaluate(layoutProblems);
+  layout.clips = await page.evaluate(clipProblems);
   const first = await page.textContent('.bk-count');
   await page.evaluate(() => document.querySelector('.bk-row .bk-nav.next').click());
   await page.waitForTimeout(150);
@@ -256,6 +350,7 @@ async function book(browser, file) {
     const toc = await contents(browser, file);
     const side = await sidenotes(browser, file);
     const bk = await book(browser, file);
+    const clips = await phoneClips(browser, file);
     const snd = await pageSound(browser, file);
     console.log(
       `${file}: overflow 320px ${narrow}px, 390px ${phone}px; theme ${theme.chosen[0]}; ` +
@@ -279,6 +374,12 @@ async function book(browser, file) {
     if (bk.layout.apart.length) fail(file, `caption apart from its figure or table: ${bk.layout.apart.join(', ')}`);
     if (bk.layout.orphans.length) fail(file, `heading at the foot of a page: ${bk.layout.orphans.join(', ')}`);
     if (bk.layout.empty.length) fail(file, `pages more than 60% empty: ${bk.layout.empty.join(', ')}`);
+    for (const [where, c] of [['phone', clips.scroll], ['phone book', clips.book], ['book', bk.layout.clips]]) {
+      if (c.clipped.length) fail(file, `${where}: wide content cut off without a scroll box: ${c.clipped.join(', ')}`);
+      if (c.uncued.length) fail(file, `${where}: scroll box without a fade at its cut edge: ${c.uncued.join(', ')}`);
+      if (c.numbers.length) fail(file, `${where}: equation number not beside its picture: ${c.numbers.join(', ')}`);
+      if (c.small.length) fail(file, `${where}: equation or table picture below 70%: ${c.small.join(', ')}`);
+    }
     if (!bk.midTurn) fail(file, 'the page turn is not animated');
     if (bk.first === bk.second || bk.second === bk.third) fail(file, `pages do not turn: ${bk.first}, ${bk.second}, ${bk.third}`);
     if (!(bk.translated.pages > bk.state.pages)) fail(file, 'longer text was not paginated again');

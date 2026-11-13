@@ -107,11 +107,43 @@ pub(crate) fn render_flow(blocks: &[&Block], images: &mut ImageStore<'_>, ctx: &
             open_group(want, blocks, block_idx, &mut out);
             group = want;
         }
+        // In the friendly mode an equation whose number was read as a
+        // paragraph of its own ("(2)") takes that number back.
+        if ctx.offprint
+            && let BlockKind::Equation { image, number: None } = &block.kind
+            && let Some(number) = blocks.get(block_idx + 1).and_then(|next| stray_equation_number(next))
+        {
+            out.push_str(&equation_html(
+                block,
+                image,
+                &Some(number),
+                &id_attr(block),
+                images,
+                ctx,
+            ));
+            block_idx += 2;
+            continue;
+        }
         block_html(block, images, ctx, &mut out);
         block_idx += 1;
     }
     close_group(group, &mut out);
     out
+}
+
+/// The equation number written as a paragraph of its own: a paragraph whose
+/// whole text is a number in parentheses, "(2)" or "(2.1)".
+fn stray_equation_number(block: &Block) -> Option<String> {
+    if !matches!(block.kind, BlockKind::Paragraph { in_abstract: false }) {
+        return None;
+    }
+    let text = plain(&block.spans);
+    let text = text.trim();
+    let inner = text.strip_prefix('(')?.strip_suffix(')')?;
+    let digits = inner
+        .split('.')
+        .all(|part| !part.is_empty() && part.len() <= 3 && part.bytes().all(|b| b.is_ascii_digit()));
+    digits.then(|| text.to_string())
 }
 
 /// The end of the run of code paragraphs starting at `blocks[start]`, when

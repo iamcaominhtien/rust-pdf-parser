@@ -155,9 +155,21 @@
   if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(placeSidenotes);
   placeSidenotes();
 
-  // Equations wider than the column scroll; show where they are clipped.
-  function clipped(){doc.querySelectorAll('.eq-body').forEach(function(b){b.classList.toggle('is-clipped',b.scrollWidth>b.clientWidth+1);});}
-  addEventListener('resize',clipped);addEventListener('load',clipped);clipped();
+  // Equations and tables wider than their column scroll sideways: data-more
+  // says on which side there is more (the CSS fades that edge), and is-clipped
+  // that the box scrolls at all. Shared with the book view (book.js).
+  function cue(box){
+    var wide=box.scrollWidth>box.clientWidth+1&&getComputedStyle(box).overflowX!=='visible';
+    var l=wide&&box.scrollLeft>1,r=wide&&box.scrollLeft+box.clientWidth<box.scrollWidth-1,v=l&&r?'both':l?'l':r?'r':'';
+    if(v)box.setAttribute('data-more',v);else box.removeAttribute('data-more');
+    box.classList.toggle('is-clipped',wide);
+  }
+  function cues(scope){[].forEach.call((scope||doc).querySelectorAll('.eq-body,.tbl-wrap'),cue);}
+  doc.addEventListener('scroll',function(e){var t=e.target;if(t&&t.matches&&t.matches('.eq-body,.tbl-wrap'))cue(t);},true);
+  doc.addEventListener('load',function(e){if(e.target&&e.target.tagName==='IMG'&&e.target.closest('.eq-body,.tbl-wrap'))cue(e.target.closest('.eq-body,.tbl-wrap'));},true);
+  addEventListener('resize',function(){cues();});addEventListener('load',function(){cues();});
+  if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(function(){cues();});
+  cues();
 
   // Code: copy the lines (numbers are CSS, never copied) and switch colour.
   function say(text){if(live){live.textContent=text;setTimeout(function(){if(live.textContent===text)live.textContent='';},2000);}}
@@ -225,9 +237,10 @@
         if(next>=k-0.005)break;k=next;t.style.fontSize=(rel*k*100).toFixed(2)+'%';
       }
     });
+    cues(scope||article);
   }
   function fitScroll(){if(root.getAttribute('data-view')!=='book')fitTables(article,0.8);}
   addEventListener('resize',fitScroll);fitScroll();
   if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(fitScroll);
-  window.p2h={markFor:markFor,store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll,fitTables:fitTables,fitScroll:fitScroll};
+  window.p2h={markFor:markFor,store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll,fitTables:fitTables,cues:cues,fitScroll:fitScroll};
 })();

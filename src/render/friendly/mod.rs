@@ -12,11 +12,15 @@ const CSS: &str = include_str!("friendly.css");
 /// Script of the mode (theme, contents, running head, cross references,
 /// footnotes in the margin, figure lightbox), embedded at the end of the page.
 const JS: &str = include_str!("friendly.js");
+/// Script of the book view (pagination, page turning, its sound),
+/// embedded after the main script.
+const BOOK_JS: &str = include_str!("book.js");
 /// Script run in the `<head>` before the first paint: applies the stored
 /// theme and contents state so the page does not flash.
 const HEAD_JS: &str = "(function(){var r=document.documentElement;try{var t=localStorage.getItem('p2h-theme');\
 if(t==='light')t='paper';if(t==='paper'||t==='white'||t==='dark')r.setAttribute('data-theme',t);\
-if(localStorage.getItem('p2h-toc')==='hidden')r.setAttribute('data-toc','hidden');}catch(e){}})();";
+if(localStorage.getItem('p2h-toc')==='hidden')r.setAttribute('data-toc','hidden');\
+if(localStorage.getItem('p2h-view')==='book')r.setAttribute('data-view','book');}catch(e){}})();";
 
 /// Literata, upright, variable weight (subset; see `fonts/README.md`).
 const LITERATA_ROMAN: &[u8] = include_bytes!("fonts/literata-roman.woff2");
@@ -177,6 +181,8 @@ impl Page<'_> {
 <div class="sr" id="live" aria-live="polite"></div>
 <script>
 {JS}</script>
+<script>
+{BOOK_JS}</script>
 </body>
 </html>
 "#,
@@ -230,6 +236,10 @@ fn topbar(doc: &Document, title: &str) -> String {
         .collect();
     format!(
         "<header class=\"topbar\">{toggle}<div class=\"rh\"><span class=\"rh-title\">{}</span><span class=\"rh-sec\"></span></div>{source}\
+<div class=\"seg view\" role=\"group\" aria-label=\"View\"><button type=\"button\" data-view-pick=\"scroll\" aria-pressed=\"true\">Scroll</button>\
+<button type=\"button\" data-view-pick=\"book\" aria-pressed=\"false\">Book</button></div>\
+<button class=\"btn view-btn\" type=\"button\" aria-label=\"Book view\" aria-pressed=\"false\">\
+<svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M8 3.5C6.5 2.5 4 2.25 1.75 2.75v9.5C4 11.75 6.5 12 8 13c1.5-1 4-1.25 6.25-.75v-9.5C12 2.25 9.5 2.5 8 3.5zM8 3.5V13\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linejoin=\"round\"/></svg></button>\
 <div class=\"seg theme\" role=\"group\" aria-label=\"Theme\">{seg}</div>\
 <button class=\"btn theme-btn\" type=\"button\" aria-label=\"Theme\" aria-expanded=\"false\" aria-controls=\"theme-menu\">\
 <svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M8 2a6 6 0 0 1 0 12z\" fill=\"currentColor\"/></svg></button>\

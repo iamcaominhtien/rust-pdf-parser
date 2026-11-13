@@ -4,6 +4,7 @@
   function store(k,v){try{localStorage.setItem(k,v);}catch(e){}}
   function stored(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function wide(){return matchMedia('(min-width:1100px)').matches;}
+  function book(){return root.getAttribute('data-view')==='book';}
 
   // Theme: Paper (default) / White / Dark. Nothing stored: the system decides
   // (Dark when it is dark) and changes follow it live.
@@ -32,7 +33,7 @@
   // drawer below 1100px (closed on every load).
   var toc=doc.getElementById('toc'),toggle=doc.getElementById('toc-toggle'),drawer=doc.getElementById('toc-drawer');
   var layout=doc.querySelector('.layout');
-  function syncToggle(){if(toggle)toggle.setAttribute('aria-expanded',wide()&&root.getAttribute('data-toc')!=='hidden'?'true':'false');}
+  function syncToggle(){if(toggle)toggle.setAttribute('aria-expanded',wide()&&!book()&&root.getAttribute('data-toc')!=='hidden'?'true':'false');}
   // The first block that starts below the running head (else the one
   // crossing it) and its position, to keep it in place when lines rewrap.
   function anchorBlock(){
@@ -57,7 +58,7 @@
   }
   if(!toc&&toggle)toggle.hidden=true;
   if(toggle&&toc)toggle.addEventListener('click',function(){
-    if(!wide()){openDrawer();return;}
+    if(!wide()||book()){openDrawer();return;}
     var keep=anchorBlock(),hidden=root.getAttribute('data-toc')==='hidden';
     if(hidden)root.removeAttribute('data-toc');else root.setAttribute('data-toc','hidden');
     store('p2h-toc',hidden?'shown':'hidden');syncToggle();
@@ -79,6 +80,7 @@
   var heads=[].slice.call(article.querySelectorAll('h2[id],h3[id],h4[id]')).filter(function(h){return links[h.id];});
   var cur=null,ticking=false;
   function onScroll(){
+    if(book())return;
     var max=root.scrollHeight-root.clientHeight;bar.style.width=(max>0?root.scrollTop/max*100:0)+'%';
     var y=110,best=null;
     for(var i=0;i<heads.length;i++){if(heads[i].getBoundingClientRect().top<=y)best=heads[i];else break;}
@@ -125,7 +127,7 @@
     var p=note.previousElementSibling;while(p&&p.classList.contains('footnote'))p=p.previousElementSibling;return p;
   }
   function placeSidenotes(){
-    var notes=article.querySelectorAll('aside.footnote'),side=matchMedia('(min-width:1440px)').matches,bottom=0;
+    var notes=article.querySelectorAll('aside.footnote'),side=matchMedia('(min-width:1440px)').matches&&!book(),bottom=0;
     notes.forEach(function(n){n.classList.remove('side');n.style.top='';});
     if(!side)return;
     var placed=[];
@@ -192,4 +194,6 @@
     lb.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
   }
   if(live)live.textContent='';
+  // Shared with the book view (book.js).
+  window.p2h={store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll};
 })();

@@ -2,42 +2,24 @@
 //! original (vector SVG or PNG) and overlaid with an invisible, selectable
 //! text layer whose DOM is organised by logical block, so that the text of a
 //! paragraph is contiguous even though it is positioned line by line.
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 use super::*;
 use crate::model::Line;
 
+/// Style sheet of the mode, embedded in the page.
 const CSS: &str = include_str!("hard.css");
+/// Script of the mode (zoom, line widths), embedded in the page.
 const JS: &str = include_str!("hard.js");
 
-fn line_span(line: &Line, text: &str, pw: f32, ph: f32) -> String {
-    if text.trim().is_empty() {
-        return String::new();
-    }
-    let top = (line.baseline - 0.8 * line.size) / ph * 100.0;
-    format!(
-        "<span class=\"l\" style=\"left:{:.3}%;top:{:.3}%;font-size:{:.3}cqw\" data-w=\"{:.3}\">{}</span>",
-        line.bbox.x0 / pw * 100.0,
-        top,
-        line.size / pw * 100.0,
-        line.bbox.width() / pw * 100.0,
-        esc(text)
-    )
-}
-
-fn kind_name(kind: &BlockKind) -> &'static str {
-    match kind {
-        BlockKind::Title => "title",
-        BlockKind::Authors => "authors",
-        BlockKind::Note => "note",
-        BlockKind::Heading { .. } => "heading",
-        BlockKind::Paragraph { .. } => "paragraph",
-        BlockKind::ListItem { .. } => "list-item",
-        BlockKind::Equation { .. } => "equation",
-        BlockKind::Figure { .. } => "caption",
-        BlockKind::Footnote { .. } => "footnote",
-        BlockKind::Reference { .. } => "reference",
-    }
-}
+/// Distance of the baseline below the top of an invisible text line, in em:
+/// the line box is placed so that its text covers the glyphs of the picture.
+const LINE_BASELINE_EM: f32 = 0.8;
 
 /// The `hard` mode: facsimile pages with an invisible text layer.
 pub(crate) struct Hard;
@@ -48,84 +30,16 @@ impl Renderer for Hard {
     }
 }
 
+/// Writes the whole document in hard mode. The page pictures are requested
+/// from `images`, one per page in page order.
 pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String {
     let doc = &analysis.doc;
     let title = doc_title(doc);
     let mut pages = String::new();
-    for (pi, p) in doc.pages.iter().enumerate() {
-        let (pw, ph) = (p.width, p.height);
-        let mut layer = String::new();
-        for b in &doc.blocks {
-            // A block may continue onto this page from an earlier one.
-            if !b.lines.iter().any(|l| l.page == pi) {
-                continue;
-            }
-            let cont = b.lines.first().is_some_and(|l| l.page != pi);
-            let mut spans = String::new();
-            for (li, l) in b.lines.iter().enumerate() {
-                if l.page != pi {
-                    continue;
-                }
-                let fallback;
-                let text = match b.line_texts.get(li) {
-                    Some(t) => t.as_str(),
-                    None => {
-                        fallback = l.text();
-                        fallback.as_str()
-                    }
-                };
-                spans.push_str(&line_span(l, text, pw, ph));
-            }
-            layer.push_str(&format!(
-                "<div class=\"b\" data-kind=\"{}\" data-block=\"{}\"{}>{}</div>\n",
-                kind_name(&b.kind),
-                b.id,
-                if cont { " data-continued=\"1\"" } else { "" },
-                spans
-            ));
-        }
-        // Text inside figures and tables, running heads, equation numbers.
-        let mut spans = String::new();
-        for b in doc.blocks.iter().filter(|b| b.inner_lines.iter().any(|l| l.page == pi)) {
-            for l in b.inner_lines.iter().filter(|l| l.page == pi) {
-                spans.push_str(&line_span(l, &format!("{} ", l.text()), pw, ph));
-            }
-        }
-        if !spans.is_empty() {
-            layer.push_str(&format!("<div class=\"b\" data-kind=\"figure-text\">{spans}</div>\n"));
-        }
-        if let Some(loose) = analysis.loose.get(pi) {
-            let mut spans = String::new();
-            for l in loose {
-                spans.push_str(&line_span(&l.line, &format!("{} ", l.line.text()), pw, ph));
-            }
-            if !spans.is_empty() {
-                layer.push_str(&format!(
-                    "<div class=\"b\" data-kind=\"page-furniture\">{spans}</div>\n"
-                ));
-            }
-        }
-        let bg = format!(
-            "<img class=\"bg\" src=\"{}\" alt=\"Page {}\" width=\"{pw}\" height=\"{ph}\" loading=\"lazy\" decoding=\"async\">",
-            images.page(pi),
-            pi + 1
-        );
-        pages.push_str(&format!(
-            "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{pw};--ph:{ph};aspect-ratio:{pw}/{ph}\">\n{bg}\n<div class=\"tl\">\n{layer}</div>\n</section>\n",
-            n = pi + 1,
-        ));
+    for (page_idx, page) in doc.pages.iter().enumerate() {
+        pages.push_str(&page_html(analysis, page_idx, page, images));
     }
-    let source = doc
-        .meta
-        .arxiv_id
-        .as_ref()
-        .map(|id| {
-            format!(
-                "<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>",
-                esc(id)
-            )
-        })
-        .unwrap_or_default();
+    let source = arxiv_abs_link(doc);
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -148,5 +62,109 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
 "#,
         title = esc(&title),
         n = doc.pages.len(),
+    )
+}
+
+/// One page: its picture and the text layer over it.
+fn page_html(analysis: &Analysis, page_idx: usize, page: &PageInfo, images: &mut ImageStore<'_>) -> String {
+    let doc = &analysis.doc;
+    let (pw, ph) = (page.width, page.height);
+    let mut layer = String::new();
+    for block in &doc.blocks {
+        block_layer(block, page_idx, pw, ph, &mut layer);
+    }
+    figure_text_layer(doc, page_idx, pw, ph, &mut layer);
+    if let Some(loose) = analysis.loose.get(page_idx) {
+        let mut spans = String::new();
+        for loose_line in loose {
+            spans.push_str(&line_span(
+                &loose_line.line,
+                &format!("{} ", loose_line.line.text()),
+                pw,
+                ph,
+            ));
+        }
+        if !spans.is_empty() {
+            layer.push_str(&format!(
+                "<div class=\"b\" data-kind=\"page-furniture\">{spans}</div>\n"
+            ));
+        }
+    }
+    let bg = format!(
+        "<img class=\"bg\" src=\"{}\" alt=\"Page {}\" width=\"{pw}\" height=\"{ph}\" loading=\"lazy\" decoding=\"async\">",
+        images.page(page_idx),
+        page_idx + 1
+    );
+    format!(
+        "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{pw};--ph:{ph};aspect-ratio:{pw}/{ph}\">\n{bg}\n<div class=\"tl\">\n{layer}</div>\n</section>\n",
+        n = page_idx + 1,
+    )
+}
+
+/// Writes the lines of `block` that are on page `page_idx` as one element of
+/// the text layer, or nothing when the block has no line there. A block that
+/// started on an earlier page is marked as continued.
+fn block_layer(block: &Block, page_idx: usize, pw: f32, ph: f32, layer: &mut String) {
+    // A block may continue onto this page from an earlier one.
+    if !block.lines.iter().any(|line| line.page == page_idx) {
+        return;
+    }
+    let cont = block.lines.first().is_some_and(|line| line.page != page_idx);
+    let mut spans = String::new();
+    for (line_idx, line) in block.lines.iter().enumerate() {
+        if line.page != page_idx {
+            continue;
+        }
+        let fallback;
+        let text = match block.line_texts.get(line_idx) {
+            Some(text) => text.as_str(),
+            None => {
+                fallback = line.text();
+                fallback.as_str()
+            }
+        };
+        spans.push_str(&line_span(line, text, pw, ph));
+    }
+    layer.push_str(&format!(
+        "<div class=\"b\" data-kind=\"{}\" data-block=\"{}\"{}>{}</div>\n",
+        kind_name(&block.kind),
+        block.id,
+        if cont { " data-continued=\"1\"" } else { "" },
+        spans
+    ));
+}
+
+/// Writes the text inside figures and tables (also running heads and
+/// equation numbers) on page `page_idx` as one element of the text layer.
+fn figure_text_layer(doc: &Document, page_idx: usize, pw: f32, ph: f32, layer: &mut String) {
+    let mut spans = String::new();
+    for block in doc
+        .blocks
+        .iter()
+        .filter(|block| block.inner_lines.iter().any(|line| line.page == page_idx))
+    {
+        for line in block.inner_lines.iter().filter(|line| line.page == page_idx) {
+            spans.push_str(&line_span(line, &format!("{} ", line.text()), pw, ph));
+        }
+    }
+    if !spans.is_empty() {
+        layer.push_str(&format!("<div class=\"b\" data-kind=\"figure-text\">{spans}</div>\n"));
+    }
+}
+
+/// One invisible line of the text layer, positioned in percent of the page
+/// size (`pw` x `ph` points). Returns an empty string for blank text.
+fn line_span(line: &Line, text: &str, pw: f32, ph: f32) -> String {
+    if text.trim().is_empty() {
+        return String::new();
+    }
+    let top = (line.baseline - LINE_BASELINE_EM * line.size) / ph * 100.0;
+    format!(
+        "<span class=\"l\" style=\"left:{:.3}%;top:{:.3}%;font-size:{:.3}cqw\" data-w=\"{:.3}\">{}</span>",
+        line.bbox.x0 / pw * 100.0,
+        top,
+        line.size / pw * 100.0,
+        line.bbox.width() / pw * 100.0,
+        esc(text)
     )
 }

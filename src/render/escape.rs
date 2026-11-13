@@ -143,3 +143,35 @@ pub(crate) fn figure_alt(block: &Block, label: &Option<String>) -> String {
     }
     alt
 }
+
+/// The `data-kind` value of a block in the text layers of the facsimile
+/// modes (`paragraph`, `heading`, ...; a figure block is its `caption`).
+pub(crate) fn kind_name(kind: &BlockKind) -> &'static str {
+    match kind {
+        BlockKind::Title => "title",
+        BlockKind::Authors => "authors",
+        BlockKind::Note => "note",
+        BlockKind::Heading { .. } => "heading",
+        BlockKind::Paragraph { .. } => "paragraph",
+        BlockKind::ListItem { .. } => "list-item",
+        BlockKind::Equation { .. } => "equation",
+        BlockKind::Figure { .. } => "caption",
+        BlockKind::Footnote { .. } => "footnote",
+        BlockKind::Reference { .. } => "reference",
+    }
+}
+
+/// A link to the arXiv abstract page of the paper for the top bar, or an
+/// empty string when the paper has no arXiv identifier.
+pub(crate) fn arxiv_abs_link(doc: &Document) -> String {
+    doc.meta
+        .arxiv_id
+        .as_ref()
+        .map(|id| {
+            format!(
+                "<a href=\"https://arxiv.org/abs/{0}\" target=\"_blank\" rel=\"noopener noreferrer\">arXiv:{0}</a>",
+                esc(id)
+            )
+        })
+        .unwrap_or_default()
+}

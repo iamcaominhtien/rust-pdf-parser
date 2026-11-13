@@ -86,6 +86,9 @@ pub struct FurnitureConfig {
     /// non-candidate line crowds a candidate, making it content: a normal
     /// line pitch is about 1.2 font sizes.
     pub crowded_max_distance_em: f32,
+    /// A number followed on its row, within this many font sizes, by text
+    /// that is not furniture is a heading's number, not a page number.
+    pub heading_number_max_gap_em: f32,
 }
 
 impl Default for FurnitureConfig {
@@ -108,6 +111,7 @@ impl Default for FurnitureConfig {
             page_number_max_glyphs_count: 12,
             crowded_min_distance_pt: 2.0,
             crowded_max_distance_em: 1.45,
+            heading_number_max_gap_em: 3.0,
         }
     }
 }
@@ -401,11 +405,29 @@ fn mark_running_heads(
     cfg: &FurnitureConfig,
     drop: &mut [bool],
 ) {
-    let candidate: Vec<bool> = page
+    let mut candidate: Vec<bool> = page
         .lines
         .iter()
         .map(|line| is_furniture_candidate(page, line, body, repeats, cfg))
         .collect();
+    // A number right before other text on its row is the number of a
+    // heading at the top of the page ("1   Introduction"), not a page number.
+    let heading_numbers: Vec<bool> = page
+        .lines
+        .iter()
+        .map(|line| {
+            PAGE_NUMBER.is_match(line.text().trim())
+                && page.lines.iter().zip(&candidate).any(|(other, &other_candidate)| {
+                    !other_candidate
+                        && (other.baseline - line.baseline).abs() <= cfg.crowded_min_distance_pt
+                        && other.bbox.x0 >= line.bbox.x1
+                        && other.bbox.x0 - line.bbox.x1 <= cfg.heading_number_max_gap_em * line.size
+                })
+        })
+        .collect();
+    for (flag, numbered) in candidate.iter_mut().zip(heading_numbers) {
+        *flag &= !numbered;
+    }
     let dropped = drop_apart(page, &candidate, cfg);
     // The other pieces of the row of a dropped page id (see `body_extent`)
     // are furniture too.

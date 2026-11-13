@@ -514,43 +514,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "1",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "2",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[1,2]",
           "style": 0,
           "color": [
             46,
@@ -563,25 +527,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "3",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[3]",
           "style": 0,
           "color": [
             46,
@@ -612,25 +558,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "4",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[4] ",
           "style": 0,
           "color": [
             46,
@@ -643,43 +571,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "5",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "6",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[5,6]",
           "style": 0,
           "color": [
             46,
@@ -692,25 +584,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "7",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[7]",
           "style": 0,
           "color": [
             46,
@@ -723,43 +597,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "8",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "10",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[8–10]",
           "style": 0,
           "color": [
             46,
@@ -772,25 +610,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "11",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[11] ",
           "style": 0,
           "color": [
             46,
@@ -803,43 +623,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "12",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "13",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[12,13]",
           "style": 0,
           "color": [
             46,
@@ -852,43 +636,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "14",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "16",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[14–16]",
           "style": 0,
           "color": [
             46,
@@ -901,43 +649,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "17",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "19",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[17–19]",
           "style": 0,
           "color": [
             46,
@@ -1034,25 +746,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "20",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[20] ",
           "style": 0,
           "color": [
             46,
@@ -1065,25 +759,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "21",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[21] ",
           "style": 0,
           "color": [
             46,
@@ -1096,25 +772,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "22",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[22]",
           "style": 0,
           "color": [
             46,
@@ -1145,25 +803,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "23",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[23]",
           "style": 0,
           "color": [
             46,
@@ -1176,25 +816,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "24",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[24]",
           "style": 0,
           "color": [
             46,
@@ -1207,25 +829,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "25",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[25] ",
           "style": 0,
           "color": [
             46,
@@ -1238,25 +842,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "26",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[26]",
           "style": 0,
           "color": [
             46,
@@ -1269,25 +855,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "27",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[27]",
           "style": 0,
           "color": [
             46,
@@ -1300,25 +868,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "28",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[28]",
           "style": 0,
           "color": [
             46,
@@ -1331,43 +881,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "29",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "32",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[29–32]",
           "style": 0,
           "color": [
             46,
@@ -1380,43 +894,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "33",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "36",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[33–36]",
           "style": 0,
           "color": [
             46,
@@ -1480,12 +958,18 @@
       },
       "spans": [
         {
-          "text": "On September 14, 2015 at 09:50:45 UTC, the LIGO Hanford, WA, and Livingston, LA, observatories detected the coincident signal GW150914 shown in Fig. ",
+          "text": "On September 14, 2015 at 09:50:45 UTC, the LIGO Hanford, WA, and Livingston, LA, observatories detected the coincident signal GW150914 shown in ",
           "style": 0
+        },
+        {
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-1"
         },
         {
           "text": "1",
           "style": 0,
+          "href": "#fig-1",
           "color": [
             46,
             48,
@@ -1497,25 +981,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "41",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[41] ",
           "style": 0,
           "color": [
             46,
@@ -1528,25 +994,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "43",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[43]",
           "style": 0,
           "color": [
             46,
@@ -1559,25 +1007,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "44",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[44] ",
           "style": 0,
           "color": [
             46,
@@ -1590,25 +1020,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "45",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[45]",
           "style": 0,
           "color": [
             46,
@@ -1646,11 +1058,26 @@
       },
       "spans": [
         {
-          "text": "FIG. 1. The gravitational-wave event GW150914 observed by the LIGO Hanford (H1, left column panels) and Livingston (L1, right column panels) detectors. Times are shown relative to September 14, 2015 at 09:50:45 UTC. For visualization, all time series are filtered with a 35–350 Hz bandpass filter to suppress large fluctuations outside the detectors’ most sensitive frequency band, and band-reject filters to remove the strong instrumental spectral lines seen in the Fig. ",
+          "text": "FIG. 1. The gravitational-wave event GW150914 observed by the LIGO Hanford (H1, left column panels) and Livingston (L1, right column panels) detectors. Times are shown relative to September 14, 2015 at 09:50:45 UTC. For visualization, all time series are filtered with a 35–350 Hz bandpass filter to suppress large fluctuations outside the detectors’ most sensitive frequency band, and band-reject filters to remove the strong instrumental spectral lines seen in the ",
           "style": 0
         },
         {
-          "text": "3 ",
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-3"
+        },
+        {
+          "text": "3",
+          "style": 0,
+          "href": "#fig-3",
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": " ",
           "style": 0,
           "color": [
             46,
@@ -1723,43 +1150,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "37",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "38",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[37,38] ",
           "style": 0,
           "color": [
             46,
@@ -1772,25 +1163,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "15",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[15]",
           "style": 0,
           "color": [
             46,
@@ -1803,25 +1176,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "39",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[39]",
           "style": 0,
           "color": [
             46,
@@ -1834,43 +1189,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "40",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "41",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[40,41]",
           "style": 0,
           "color": [
             46,
@@ -1883,25 +1202,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "39",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[39]",
           "style": 0,
           "color": [
             46,
@@ -1930,25 +1231,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "42",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[42] ",
           "style": 0,
           "color": [
             46,
@@ -1989,43 +1272,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "39",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "46",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[39,46]",
           "style": 0,
           "color": [
             46,
@@ -2080,25 +1327,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "11",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[11]",
           "style": 0,
           "color": [
             46,
@@ -2198,12 +1427,18 @@
           "style": 2
         },
         {
-          "text": "_ from the data in Fig. ",
+          "text": "_ from the data in ",
           "style": 0
+        },
+        {
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-1"
         },
         {
           "text": "1",
           "style": 0,
+          "href": "#fig-1",
           "color": [
             46,
             48,
@@ -2279,11 +1514,26 @@
           "style": 16
         },
         {
-          "text": "≳ 210 km. To reach an orbital frequency of 75 Hz (half the gravitational-wave frequency) the objects must have been very close and very compact; equal Newtonian point masses orbiting at this frequency would be only ≃350 km apart. A pair of neutron stars, while compact, would not have the required mass, while a black hole neutron star binary with the deduced chirp mass would have a very large total mass, and would thus merge at much lower frequency. This leaves black holes as the only known objects compact enough to reach an orbital frequency of 75 Hz without contact. Furthermore, the decay of the waveform after it peaks is consistent with the damped oscillations of a black hole relaxing to a final stationary Kerr configuration. Below, we present a general-relativistic analysis of GW150914; Fig. ",
+          "text": "≳ 210 km. To reach an orbital frequency of 75 Hz (half the gravitational-wave frequency) the objects must have been very close and very compact; equal Newtonian point masses orbiting at this frequency would be only ≃350 km apart. A pair of neutron stars, while compact, would not have the required mass, while a black hole neutron star binary with the deduced chirp mass would have a very large total mass, and would thus merge at much lower frequency. This leaves black holes as the only known objects compact enough to reach an orbital frequency of 75 Hz without contact. Furthermore, the decay of the waveform after it peaks is consistent with the damped oscillations of a black hole relaxing to a final stationary Kerr configuration. Below, we present a general-relativistic analysis of GW150914; ",
           "style": 0
         },
         {
-          "text": "2 ",
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-2"
+        },
+        {
+          "text": "2",
+          "style": 0,
+          "href": "#fig-2",
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": " ",
           "style": 0,
           "color": [
             46,
@@ -2333,7 +1583,7 @@
           "style": 0
         },
         {
-          "text": "[",
+          "text": "[33]",
           "style": 0,
           "color": [
             46,
@@ -2342,30 +1592,18 @@
           ]
         },
         {
-          "text": "33",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ", a modified Michelson interferometer (see Fig. ",
+          "text": ", a modified Michelson interferometer (see ",
           "style": 0
+        },
+        {
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-3"
         },
         {
           "text": "3",
           "style": 0,
+          "href": "#fig-3",
           "color": [
             46,
             48,
@@ -2522,12 +1760,18 @@
           "style": 2
         },
         {
-          "text": "Estimated gravitational-wave strain amplitude from GW150914 projected onto H1. This shows the full bandwidth of the waveforms, without the filtering used for Fig. ",
+          "text": "Estimated gravitational-wave strain amplitude from GW150914 projected onto H1. This shows the full bandwidth of the waveforms, without the filtering used for ",
           "style": 0
+        },
+        {
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-1"
         },
         {
           "text": "1",
           "style": 0,
+          "href": "#fig-1",
           "color": [
             46,
             48,
@@ -2632,12 +1876,18 @@
           "style": 2
         },
         {
-          "text": "is the total mass (value from Table ",
+          "text": "is the total mass (value from ",
           "style": 0
+        },
+        {
+          "text": "Table ",
+          "style": 0,
+          "href": "#tab-I"
         },
         {
           "text": "I",
           "style": 0,
+          "href": "#tab-I",
           "color": [
             46,
             48,
@@ -2668,25 +1918,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "48",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[48]",
           "style": 0,
           "color": [
             46,
@@ -2699,43 +1931,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "49",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "50",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[49,50]",
           "style": 0,
           "color": [
             46,
@@ -2748,43 +1944,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "51",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "52",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[51,52]",
           "style": 0,
           "color": [
             46,
@@ -2797,43 +1957,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "53",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "54",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[53,54]",
           "style": 0,
           "color": [
             46,
@@ -2846,25 +1970,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "55",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[55]",
           "style": 0,
           "color": [
             46,
@@ -2922,25 +2028,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "47",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[47]",
           "style": 0,
           "color": [
             46,
@@ -2980,25 +2068,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "56",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[56]",
           "style": 0,
           "color": [
             46,
@@ -3011,25 +2081,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "57",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[57]",
           "style": 0,
           "color": [
             46,
@@ -3042,43 +2094,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "58",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "59",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[58,59]",
           "style": 0,
           "color": [
             46,
@@ -3091,25 +2107,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "60",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[60]",
           "style": 0,
           "color": [
             46,
@@ -3158,25 +2156,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "61",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[61] ",
           "style": 0,
           "color": [
             46,
@@ -3189,25 +2169,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "62",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[62]",
           "style": 0,
           "color": [
             46,
@@ -3220,25 +2182,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "63",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[63]",
           "style": 0,
           "color": [
             46,
@@ -3251,25 +2195,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "64",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[64]",
           "style": 0,
           "color": [
             46,
@@ -3300,25 +2226,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "65",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[65]",
           "style": 0,
           "color": [
             46,
@@ -3339,25 +2247,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "66",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[66]",
           "style": 0,
           "color": [
             46,
@@ -3388,25 +2278,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "67",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[67]",
           "style": 0,
           "color": [
             46,
@@ -3419,25 +2291,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "68",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[68]",
           "style": 0,
           "color": [
             46,
@@ -3487,43 +2341,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "69",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "70",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[69,70]",
           "style": 0,
           "color": [
             46,
@@ -3554,25 +2372,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "69",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[69]",
           "style": 0,
           "color": [
             46,
@@ -3603,25 +2403,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "69",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[69]",
           "style": 0,
           "color": [
             46,
@@ -3725,25 +2507,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "71",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[71]",
           "style": 0,
           "color": [
             46,
@@ -3793,43 +2557,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "43",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "72",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[43,72]",
           "style": 0,
           "color": [
             46,
@@ -4010,25 +2738,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "41",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[41]",
           "style": 0,
           "color": [
             46,
@@ -4083,11 +2793,26 @@
           "style": 16
         },
         {
-          "text": "of observing one or more noise events as strong as GW150914 during the analysis time, equivalent to 4.6σ. The left panel of Fig. ",
+          "text": "of observing one or more noise events as strong as GW150914 during the analysis time, equivalent to 4.6σ. The left panel of ",
           "style": 0
         },
         {
-          "text": "4 ",
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-4"
+        },
+        {
+          "text": "4",
+          "style": 0,
+          "href": "#fig-4",
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": " ",
           "style": 0,
           "color": [
             46,
@@ -4130,11 +2855,26 @@
           "style": 8
         },
         {
-          "text": "C3 class. The left panel of Fig. ",
+          "text": "C3 class. The left panel of ",
           "style": 0
         },
         {
-          "text": "4 ",
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-4"
+        },
+        {
+          "text": "4",
+          "style": 0,
+          "href": "#fig-4",
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": " ",
           "style": 0,
           "color": [
             46,
@@ -4243,25 +2983,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "41",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[41]",
           "style": 0,
           "color": [
             46,
@@ -4274,25 +2996,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "73",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[73] ",
           "style": 0,
           "color": [
             46,
@@ -4305,25 +3009,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "74",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[74] ",
           "style": 0,
           "color": [
             46,
@@ -4397,25 +3083,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "44",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[44]",
           "style": 0,
           "color": [
             46,
@@ -4440,25 +3108,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "75",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[75]",
           "style": 0,
           "color": [
             46,
@@ -4471,43 +3121,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "11",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "76",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[11,76] ",
           "style": 0,
           "color": [
             46,
@@ -4520,43 +3134,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "77",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "78",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[77,78] ",
           "style": 0,
           "color": [
             46,
@@ -4569,25 +3147,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "44",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[44]",
           "style": 0,
           "color": [
             46,
@@ -4650,43 +3210,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "79",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "81",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[79–81]",
           "style": 0,
           "color": [
             46,
@@ -4711,25 +3235,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "82",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[82]",
           "style": 0,
           "color": [
             46,
@@ -4856,43 +3362,7 @@
           "style": 16
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "83",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "84",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[83,84]",
           "style": 0,
           "color": [
             46,
@@ -4913,25 +3383,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "45",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[45]",
           "style": 0,
           "color": [
             46,
@@ -4984,11 +3436,26 @@
       },
       "spans": [
         {
-          "text": "To account for the search background noise varying across the target signal space, candidate and background events are divided into three search classes based on template length. The right panel of Fig. ",
+          "text": "To account for the search background noise varying across the target signal space, candidate and background events are divided into three search classes based on template length. The right panel of ",
           "style": 0
         },
         {
-          "text": "4 ",
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-4"
+        },
+        {
+          "text": "4",
+          "style": 0,
+          "href": "#fig-4",
+          "color": [
+            46,
+            48,
+            146
+          ]
+        },
+        {
+          "text": " ",
           "style": 0,
           "color": [
             46,
@@ -5047,43 +3514,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "85",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "86",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[85,86]",
           "style": 0,
           "color": [
             46,
@@ -5137,25 +3568,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "90",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[90]",
           "style": 0,
           "color": [
             46,
@@ -5168,25 +3581,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "91",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[91]",
           "style": 0,
           "color": [
             46,
@@ -5616,12 +4011,18 @@
       },
       "spans": [
         {
-          "text": "When an event is confidently identified as a real gravitational-wave signal, as for GW150914, the background used to determine the significance of other events is reestimated without the contribution of this event. This is the background distribution shown as a purple line in the right panel of Fig. ",
+          "text": "When an event is confidently identified as a real gravitational-wave signal, as for GW150914, the background used to determine the significance of other events is reestimated without the contribution of this event. This is the background distribution shown as a purple line in the right panel of ",
           "style": 0
+        },
+        {
+          "text": "Fig. ",
+          "style": 0,
+          "href": "#fig-4"
         },
         {
           "text": "4",
           "style": 0,
+          "href": "#fig-4",
           "color": [
             46,
             48,
@@ -5633,25 +4034,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "44",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[44]",
           "style": 0,
           "color": [
             46,
@@ -5701,79 +4084,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "77",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "78",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "87",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "88",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[77,78,87,88]",
           "style": 0,
           "color": [
             46,
@@ -5786,7 +4097,7 @@
           "style": 0
         },
         {
-          "text": "[",
+          "text": "[89]",
           "style": 0,
           "color": [
             46,
@@ -5795,30 +4106,18 @@
           ]
         },
         {
-          "text": "89",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ". The initial and final masses, final spin, distance, and redshift of the source are shown in Table ",
+          "text": ". The initial and final masses, final spin, distance, and redshift of the source are shown in ",
           "style": 0
+        },
+        {
+          "text": "Table ",
+          "style": 0,
+          "href": "#tab-I"
         },
         {
           "text": "I",
           "style": 0,
+          "href": "#tab-I",
           "color": [
             46,
             48,
@@ -5838,25 +4137,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "39",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[39]",
           "style": 0,
           "color": [
             46,
@@ -5887,43 +4168,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "92",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "93",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[92,93]",
           "style": 0,
           "color": [
             46,
@@ -5936,25 +4181,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "39",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[39]",
           "style": 0,
           "color": [
             46,
@@ -6125,25 +4352,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "94",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[94]",
           "style": 0,
           "color": [
             46,
@@ -6156,25 +4365,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "92",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[92]",
           "style": 0,
           "color": [
             46,
@@ -6225,43 +4416,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "95",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "96",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[95,96] ",
           "style": 0,
           "color": [
             46,
@@ -6274,25 +4429,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "94",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[94] ",
           "style": 0,
           "color": [
             46,
@@ -6323,25 +4460,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "97",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[97]",
           "style": 0,
           "color": [
             46,
@@ -6410,43 +4529,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "98",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "99",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[98,99] ",
           "style": 0,
           "color": [
             46,
@@ -6459,25 +4542,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "100",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[100] ",
           "style": 0,
           "color": [
             46,
@@ -6490,25 +4555,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "101",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[101]",
           "style": 0,
           "color": [
             46,
@@ -6551,43 +4598,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "102",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "104",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[102–104] ",
           "style": 0,
           "color": [
             46,
@@ -6600,43 +4611,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "105",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "107",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[105–107]",
           "style": 0,
           "color": [
             46,
@@ -6657,43 +4632,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "108",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": ",",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "109",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[108,109]",
           "style": 0,
           "color": [
             46,
@@ -6706,25 +4645,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "110",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[110]",
           "style": 0,
           "color": [
             46,
@@ -6771,43 +4692,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "111",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "–",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "113",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[111–113]",
           "style": 0,
           "color": [
             46,
@@ -6820,25 +4705,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "114",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[114]",
           "style": 0,
           "color": [
             46,
@@ -6869,25 +4736,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "115",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[115]",
           "style": 0,
           "color": [
             46,
@@ -6937,25 +4786,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "116",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[116]",
           "style": 0,
           "color": [
             46,
@@ -6968,25 +4799,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "117",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "]",
+          "text": "[117]",
           "style": 0,
           "color": [
             46,
@@ -6999,25 +4812,7 @@
           "style": 0
         },
         {
-          "text": "[",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "118",
-          "style": 0,
-          "color": [
-            46,
-            48,
-            146
-          ]
-        },
-        {
-          "text": "] ",
+          "text": "[118] ",
           "style": 0,
           "color": [
             46,
@@ -7118,15 +4913,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "1",
-          "style": 0
-        },
-        {
-          "text": "] A. Einstein, Sitzungsber. K. Preuss. Akad. Wiss. ",
+          "text": "[1] A. Einstein, Sitzungsber. K. Preuss. Akad. Wiss. ",
           "style": 0
         },
         {
@@ -7152,15 +4939,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "2",
-          "style": 0
-        },
-        {
-          "text": "] A. Einstein, Sitzungsber. K. Preuss. Akad. Wiss. ",
+          "text": "[2] A. Einstein, Sitzungsber. K. Preuss. Akad. Wiss. ",
           "style": 0
         },
         {
@@ -7186,15 +4965,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "3",
-          "style": 0
-        },
-        {
-          "text": "] P. R. Saulson, ",
+          "text": "[3] P. R. Saulson, ",
           "style": 0
         },
         {
@@ -7243,15 +5014,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "4",
-          "style": 0
-        },
-        {
-          "text": "] K. Schwarzschild, Sitzungsber. K. Preuss. Akad. Wiss. ",
+          "text": "[4] K. Schwarzschild, Sitzungsber. K. Preuss. Akad. Wiss. ",
           "style": 0
         },
         {
@@ -7277,15 +5040,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "5",
-          "style": 0
-        },
-        {
-          "text": "] D. Finkelstein, ",
+          "text": "[5] D. Finkelstein, ",
           "style": 0
         },
         {
@@ -7334,15 +5089,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "6",
-          "style": 0
-        },
-        {
-          "text": "] M. D. Kruskal, ",
+          "text": "[6] M. D. Kruskal, ",
           "style": 0
         },
         {
@@ -7391,15 +5138,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "7",
-          "style": 0
-        },
-        {
-          "text": "] R. P. Kerr, ",
+          "text": "[7] R. P. Kerr, ",
           "style": 0
         },
         {
@@ -7448,15 +5187,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "8",
-          "style": 0
-        },
-        {
-          "text": "] C. V. Vishveshwara, ",
+          "text": "[8] C. V. Vishveshwara, ",
           "style": 0
         },
         {
@@ -7487,15 +5218,7 @@
           ]
         },
         {
-          "text": ". [",
-          "style": 0
-        },
-        {
-          "text": "9",
-          "style": 0
-        },
-        {
-          "text": "] W. H. Press, ",
+          "text": ". [9] W. H. Press, ",
           "style": 0
         },
         {
@@ -7544,15 +5267,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "10",
-          "style": 0
-        },
-        {
-          "text": "] S. Chandrasekhar and S. L. Detweiler, ",
+          "text": "[10] S. Chandrasekhar and S. L. Detweiler, ",
           "style": 0
         },
         {
@@ -7601,15 +5316,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "11",
-          "style": 0
-        },
-        {
-          "text": "] L. Blanchet, T. Damour, B. R. Iyer, C. M. Will, and A. G. Wiseman, ",
+          "text": "[11] L. Blanchet, T. Damour, B. R. Iyer, C. M. Will, and A. G. Wiseman, ",
           "style": 0
         },
         {
@@ -7658,15 +5365,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "12",
-          "style": 0
-        },
-        {
-          "text": "] L. Blanchet, ",
+          "text": "[12] L. Blanchet, ",
           "style": 0
         },
         {
@@ -7715,15 +5414,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "13",
-          "style": 0
-        },
-        {
-          "text": "] A. Buonanno and T. Damour, ",
+          "text": "[13] A. Buonanno and T. Damour, ",
           "style": 0
         },
         {
@@ -7772,15 +5463,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "14",
-          "style": 0
-        },
-        {
-          "text": "] F. Pretorius, ",
+          "text": "[14] F. Pretorius, ",
           "style": 0
         },
         {
@@ -7829,15 +5512,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "15",
-          "style": 0
-        },
-        {
-          "text": "] M. Campanelli, C. O. Lousto, P. Marronetti, and Y. Zlochower, ",
+          "text": "[15] M. Campanelli, C. O. Lousto, P. Marronetti, and Y. Zlochower, ",
           "style": 0
         },
         {
@@ -7886,15 +5561,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "16",
-          "style": 0
-        },
-        {
-          "text": "] J. G. Baker, J. Centrella, D.-I. Choi, M. Koppitz, and J. van Meter, ",
+          "text": "[16] J. G. Baker, J. Centrella, D.-I. Choi, M. Koppitz, and J. van Meter, ",
           "style": 0
         },
         {
@@ -7943,15 +5610,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "17",
-          "style": 0
-        },
-        {
-          "text": "] B. L. Webster and P. Murdin, ",
+          "text": "[17] B. L. Webster and P. Murdin, ",
           "style": 0
         },
         {
@@ -8000,15 +5659,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "18",
-          "style": 0
-        },
-        {
-          "text": "] C. T. Bolton, ",
+          "text": "[18] C. T. Bolton, ",
           "style": 0
         },
         {
@@ -8057,15 +5708,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "19",
-          "style": 0
-        },
-        {
-          "text": "] J. Casares and P. G. Jonker, ",
+          "text": "[19] J. Casares and P. G. Jonker, ",
           "style": 0
         },
         {
@@ -8114,15 +5757,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "20",
-          "style": 0
-        },
-        {
-          "text": "] R. A. Hulse and J. H. Taylor, ",
+          "text": "[20] R. A. Hulse and J. H. Taylor, ",
           "style": 0
         },
         {
@@ -8171,15 +5806,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "21",
-          "style": 0
-        },
-        {
-          "text": "] J. H. Taylor and J. M. Weisberg, ",
+          "text": "[21] J. H. Taylor and J. M. Weisberg, ",
           "style": 0
         },
         {
@@ -8228,15 +5855,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "22",
-          "style": 0
-        },
-        {
-          "text": "] W. Press and K. Thorne, ",
+          "text": "[22] W. Press and K. Thorne, ",
           "style": 0
         },
         {
@@ -8285,15 +5904,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "23",
-          "style": 0
-        },
-        {
-          "text": "] J. Weber, ",
+          "text": "[23] J. Weber, ",
           "style": 0
         },
         {
@@ -8342,15 +5953,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "24",
-          "style": 0
-        },
-        {
-          "text": "] P. Astone ",
+          "text": "[24] P. Astone ",
           "style": 0
         },
         {
@@ -8407,15 +6010,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "25",
-          "style": 0
-        },
-        {
-          "text": "] M. E. Gertsenshtein and V. I. Pustovoit, Sov. Phys. JETP ",
+          "text": "[25] M. E. Gertsenshtein and V. I. Pustovoit, Sov. Phys. JETP ",
           "style": 0
         },
         {
@@ -8441,15 +6036,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "26",
-          "style": 0
-        },
-        {
-          "text": "] G. E. Moss, L. R. Miller, and R. L. Forward, ",
+          "text": "[26] G. E. Moss, L. R. Miller, and R. L. Forward, ",
           "style": 0
         },
         {
@@ -8498,15 +6085,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "27",
-          "style": 0
-        },
-        {
-          "text": "] R. Weiss, Electromagnetically coupled broadband gravitational antenna, Quarterly Report of the Research Laboratory for Electronics, MIT Report No. 105, 1972, ",
+          "text": "[27] R. Weiss, Electromagnetically coupled broadband gravitational antenna, Quarterly Report of the Research Laboratory for Electronics, MIT Report No. 105, 1972, ",
           "style": 0
         },
         {
@@ -8538,15 +6117,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "28",
-          "style": 0
-        },
-        {
-          "text": "] R. W. P. Drever, in ",
+          "text": "[28] R. W. P. Drever, in ",
           "style": 0
         },
         {
@@ -8572,15 +6143,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "29",
-          "style": 0
-        },
-        {
-          "text": "] R. W. P. Drever, F. J. Raab, K. S. Thorne, R. Vogt, and R. Weiss, Laser Interferometer Gravitational-wave Observatory (LIGO) Technical Report, 1989, ",
+          "text": "[29] R. W. P. Drever, F. J. Raab, K. S. Thorne, R. Vogt, and R. Weiss, Laser Interferometer Gravitational-wave Observatory (LIGO) Technical Report, 1989, ",
           "style": 0
         },
         {
@@ -8612,15 +6175,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "30",
-          "style": 0
-        },
-        {
-          "text": "] A. Abramovici ",
+          "text": "[30] A. Abramovici ",
           "style": 0
         },
         {
@@ -8677,15 +6232,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "31",
-          "style": 0
-        },
-        {
-          "text": "] A. Brillet, A. Giazotto ",
+          "text": "[31] A. Brillet, A. Giazotto ",
           "style": 0
         },
         {
@@ -8725,15 +6272,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "32",
-          "style": 0
-        },
-        {
-          "text": "] J. Hough ",
+          "text": "[32] J. Hough ",
           "style": 0
         },
         {
@@ -8782,15 +6321,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "33",
-          "style": 0
-        },
-        {
-          "text": "] J. Aasi ",
+          "text": "[33] J. Aasi ",
           "style": 0
         },
         {
@@ -8829,15 +6360,7 @@
           ]
         },
         {
-          "text": ". [",
-          "style": 0
-        },
-        {
-          "text": "34",
-          "style": 0
-        },
-        {
-          "text": "] F. Acernese ",
+          "text": ". [34] F. Acernese ",
           "style": 0
         },
         {
@@ -8917,15 +6440,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "35",
-          "style": 0
-        },
-        {
-          "text": "] C. Affeldt ",
+          "text": "[35] C. Affeldt ",
           "style": 0
         },
         {
@@ -8982,15 +6497,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "36",
-          "style": 0
-        },
-        {
-          "text": "] Y. Aso, Y. Michimura, K. Somiya, M. Ando, O. Miyakawa, T. Sekiguchi, D. Tatsumi, and H. Yamamoto, ",
+          "text": "[36] Y. Aso, Y. Michimura, K. Somiya, M. Ando, O. Miyakawa, T. Sekiguchi, D. Tatsumi, and H. Yamamoto, ",
           "style": 0
         },
         {
@@ -9039,15 +6546,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "37",
-          "style": 0
-        },
-        {
-          "text": "] The waveform shown is SXS:BBH:0305, available for download at ",
+          "text": "[37] The waveform shown is SXS:BBH:0305, available for download at ",
           "style": 0
         },
         {
@@ -9079,15 +6578,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "38",
-          "style": 0
-        },
-        {
-          "text": "] A. H. Mroué ",
+          "text": "[38] A. H. Mroué ",
           "style": 0
         },
         {
@@ -9144,15 +6635,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "39",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[39] B. Abbott ",
           "style": 0
         },
         {
@@ -9192,15 +6675,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "40",
-          "style": 0
-        },
-        {
-          "text": "] N. J. Cornish and T. B. Littenberg, ",
+          "text": "[40] N. J. Cornish and T. B. Littenberg, ",
           "style": 0
         },
         {
@@ -9249,15 +6724,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "41",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[41] B. Abbott ",
           "style": 0
         },
         {
@@ -9297,15 +6764,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "42",
-          "style": 0
-        },
-        {
-          "text": "] S. Chatterji, L. Blackburn, G. Martin, and E. Katsavounidis, ",
+          "text": "[42] S. Chatterji, L. Blackburn, G. Martin, and E. Katsavounidis, ",
           "style": 0
         },
         {
@@ -9354,15 +6813,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "43",
-          "style": 0
-        },
-        {
-          "text": "] S. Klimenko ",
+          "text": "[43] S. Klimenko ",
           "style": 0
         },
         {
@@ -9397,15 +6848,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "44",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[44] B. Abbott ",
           "style": 0
         },
         {
@@ -9445,15 +6888,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "45",
-          "style": 0
-        },
-        {
-          "text": "] S. A. Usman ",
+          "text": "[45] S. A. Usman ",
           "style": 0
         },
         {
@@ -9488,15 +6923,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "46",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[46] B. Abbott ",
           "style": 0
         },
         {
@@ -9536,15 +6963,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "47",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[47] B. Abbott ",
           "style": 0
         },
         {
@@ -9584,15 +7003,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "48",
-          "style": 0
-        },
-        {
-          "text": "] R. W. P. Drever, ",
+          "text": "[48] R. W. P. Drever, ",
           "style": 0
         },
         {
@@ -9618,15 +7029,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "49",
-          "style": 0
-        },
-        {
-          "text": "] R. W. P. Drever ",
+          "text": "[49] R. W. P. Drever ",
           "style": 0
         },
         {
@@ -9660,15 +7063,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "50",
-          "style": 0
-        },
-        {
-          "text": "] R. Schilling (unpublished).",
+          "text": "[50] R. Schilling (unpublished).",
           "style": 0
         }
       ]
@@ -9686,15 +7081,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "51",
-          "style": 0
-        },
-        {
-          "text": "] B. J. Meers, ",
+          "text": "[51] B. J. Meers, ",
           "style": 0
         },
         {
@@ -9743,15 +7130,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "52",
-          "style": 0
-        },
-        {
-          "text": "] J. Mizuno, K. A. Strain, P. G. Nelson, J. M. Chen, R. Schilling, A. Rüdiger, W. Winkler, and K. Danzmann, ",
+          "text": "[52] J. Mizuno, K. A. Strain, P. G. Nelson, J. M. Chen, R. Schilling, A. Rüdiger, W. Winkler, and K. Danzmann, ",
           "style": 0
         },
         {
@@ -9800,15 +7179,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "53",
-          "style": 0
-        },
-        {
-          "text": "] P. Kwee ",
+          "text": "[53] P. Kwee ",
           "style": 0
         },
         {
@@ -9865,15 +7236,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "54",
-          "style": 0
-        },
-        {
-          "text": "] C. L. Mueller ",
+          "text": "[54] C. L. Mueller ",
           "style": 0
         },
         {
@@ -9912,15 +7275,7 @@
           ]
         },
         {
-          "text": ". [",
-          "style": 0
-        },
-        {
-          "text": "55",
-          "style": 0
-        },
-        {
-          "text": "] T. T. Fricke ",
+          "text": ". [55] T. T. Fricke ",
           "style": 0
         },
         {
@@ -10000,15 +7355,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "56",
-          "style": 0
-        },
-        {
-          "text": "] S. M. Aston ",
+          "text": "[56] S. M. Aston ",
           "style": 0
         },
         {
@@ -10065,15 +7412,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "57",
-          "style": 0
-        },
-        {
-          "text": "] F. Matichard ",
+          "text": "[57] F. Matichard ",
           "style": 0
         },
         {
@@ -10130,15 +7469,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "58",
-          "style": 0
-        },
-        {
-          "text": "] G. M. Harry ",
+          "text": "[58] G. M. Harry ",
           "style": 0
         },
         {
@@ -10195,15 +7526,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "59",
-          "style": 0
-        },
-        {
-          "text": "] M. Granata ",
+          "text": "[59] M. Granata ",
           "style": 0
         },
         {
@@ -10242,15 +7565,7 @@
           ]
         },
         {
-          "text": ". [",
-          "style": 0
-        },
-        {
-          "text": "60",
-          "style": 0
-        },
-        {
-          "text": "] A. V. Cumming ",
+          "text": ". [60] A. V. Cumming ",
           "style": 0
         },
         {
@@ -10330,15 +7645,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "61",
-          "style": 0
-        },
-        {
-          "text": "] A. Staley ",
+          "text": "[61] A. Staley ",
           "style": 0
         },
         {
@@ -10395,15 +7702,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "62",
-          "style": 0
-        },
-        {
-          "text": "] L. Barsotti, M. Evans, and P. Fritschel, ",
+          "text": "[62] L. Barsotti, M. Evans, and P. Fritschel, ",
           "style": 0
         },
         {
@@ -10452,15 +7751,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "63",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[63] B. Abbott ",
           "style": 0
         },
         {
@@ -10500,15 +7791,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "64",
-          "style": 0
-        },
-        {
-          "text": "] E. Goetz ",
+          "text": "[64] E. Goetz ",
           "style": 0
         },
         {
@@ -10573,15 +7856,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "65",
-          "style": 0
-        },
-        {
-          "text": "] A. Effler, R. M. S. Schofield, V. V. Frolov, G. González, K. Kawabe, J. R. Smith, J. Birch, and R. McCarthy, ",
+          "text": "[65] A. Effler, R. M. S. Schofield, V. V. Frolov, G. González, K. Kawabe, J. R. Smith, J. Birch, and R. McCarthy, ",
           "style": 0
         },
         {
@@ -10630,15 +7905,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "66",
-          "style": 0
-        },
-        {
-          "text": "] I. Bartos, R. Bork, M. Factourovich, J. Heefner, S. Márka, Z. Márka, Z. Raics, P. Schwinberg, and D. Sigg, ",
+          "text": "[66] I. Bartos, R. Bork, M. Factourovich, J. Heefner, S. Márka, Z. Márka, Z. Raics, P. Schwinberg, and D. Sigg, ",
           "style": 0
         },
         {
@@ -10687,15 +7954,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "67",
-          "style": 0
-        },
-        {
-          "text": "] J. Aasi ",
+          "text": "[67] J. Aasi ",
           "style": 0
         },
         {
@@ -10734,15 +7993,7 @@
           ]
         },
         {
-          "text": ". [",
-          "style": 0
-        },
-        {
-          "text": "68",
-          "style": 0
-        },
-        {
-          "text": "] J. Aasi ",
+          "text": ". [68] J. Aasi ",
           "style": 0
         },
         {
@@ -10799,15 +8050,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "69",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[69] B. Abbott ",
           "style": 0
         },
         {
@@ -10847,15 +8090,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "70",
-          "style": 0
-        },
-        {
-          "text": "] L. Nuttall ",
+          "text": "[70] L. Nuttall ",
           "style": 0
         },
         {
@@ -10912,15 +8147,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "71",
-          "style": 0
-        },
-        {
-          "text": "] L. Lyons, ",
+          "text": "[71] L. Lyons, ",
           "style": 0
         },
         {
@@ -10969,15 +8196,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "72",
-          "style": 0
-        },
-        {
-          "text": "] S. Klimenko, I. Yakushin, A. Mercer, and G. Mitselmakher, ",
+          "text": "[72] S. Klimenko, I. Yakushin, A. Mercer, and G. Mitselmakher, ",
           "style": 0
         },
         {
@@ -11026,15 +8245,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "73",
-          "style": 0
-        },
-        {
-          "text": "] R. Lynch, S. Vitale, R. Essick, E. Katsavounidis, and F. Robinet, ",
+          "text": "[73] R. Lynch, S. Vitale, R. Essick, E. Katsavounidis, and F. Robinet, ",
           "style": 0
         },
         {
@@ -11061,15 +8272,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "74",
-          "style": 0
-        },
-        {
-          "text": "] J. Kanner, T. B. Littenberg, N. Cornish, M. Millhouse, E. Xhakaj, F. Salemi, M. Drago, G. Vedovato, and S. Klimenko, ",
+          "text": "[74] J. Kanner, T. B. Littenberg, N. Cornish, M. Millhouse, E. Xhakaj, F. Salemi, M. Drago, G. Vedovato, and S. Klimenko, ",
           "style": 0
         },
         {
@@ -11118,15 +8321,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "75",
-          "style": 0
-        },
-        {
-          "text": "] A. Buonanno and T. Damour, ",
+          "text": "[75] A. Buonanno and T. Damour, ",
           "style": 0
         },
         {
@@ -11175,15 +8370,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "76",
-          "style": 0
-        },
-        {
-          "text": "] L. Blanchet, T. Damour, G. Esposito-Farèse, and B. R. Iyer, ",
+          "text": "[76] L. Blanchet, T. Damour, G. Esposito-Farèse, and B. R. Iyer, ",
           "style": 0
         },
         {
@@ -11232,15 +8419,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "77",
-          "style": 0
-        },
-        {
-          "text": "] A. Taracchini ",
+          "text": "[77] A. Taracchini ",
           "style": 0
         },
         {
@@ -11279,15 +8458,7 @@
           ]
         },
         {
-          "text": ". [",
-          "style": 0
-        },
-        {
-          "text": "78",
-          "style": 0
-        },
-        {
-          "text": "] M. Pürrer, ",
+          "text": ". [78] M. Pürrer, ",
           "style": 0
         },
         {
@@ -11359,15 +8530,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "79",
-          "style": 0
-        },
-        {
-          "text": "] B. Allen, W. G. Anderson, P. R. Brady, D. A. Brown, and J. D. E. Creighton, ",
+          "text": "[79] B. Allen, W. G. Anderson, P. R. Brady, D. A. Brown, and J. D. E. Creighton, ",
           "style": 0
         },
         {
@@ -11416,15 +8579,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "80",
-          "style": 0
-        },
-        {
-          "text": "] B. S. Sathyaprakash and S. V. Dhurandhar, ",
+          "text": "[80] B. S. Sathyaprakash and S. V. Dhurandhar, ",
           "style": 0
         },
         {
@@ -11473,15 +8628,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "81",
-          "style": 0
-        },
-        {
-          "text": "] B. J. Owen and B. S. Sathyaprakash, ",
+          "text": "[81] B. J. Owen and B. S. Sathyaprakash, ",
           "style": 0
         },
         {
@@ -11530,15 +8677,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "82",
-          "style": 0
-        },
-        {
-          "text": "] B. Allen, ",
+          "text": "[82] B. Allen, ",
           "style": 0
         },
         {
@@ -11587,15 +8726,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "83",
-          "style": 0
-        },
-        {
-          "text": "] J. Abadie ",
+          "text": "[83] J. Abadie ",
           "style": 0
         },
         {
@@ -11652,15 +8783,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "84",
-          "style": 0
-        },
-        {
-          "text": "] S. Babak ",
+          "text": "[84] S. Babak ",
           "style": 0
         },
         {
@@ -11717,15 +8840,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "85",
-          "style": 0
-        },
-        {
-          "text": "] K. Cannon ",
+          "text": "[85] K. Cannon ",
           "style": 0
         },
         {
@@ -11782,15 +8897,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "86",
-          "style": 0
-        },
-        {
-          "text": "] S. Privitera, S. R. P. Mohapatra, P. Ajith, K. Cannon, N. Fotopoulos, M. A. Frei, C. Hanna, A. J. Weinstein, and J. T. Whelan, ",
+          "text": "[86] S. Privitera, S. R. P. Mohapatra, P. Ajith, K. Cannon, N. Fotopoulos, M. A. Frei, C. Hanna, A. J. Weinstein, and J. T. Whelan, ",
           "style": 0
         },
         {
@@ -11839,15 +8946,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "87",
-          "style": 0
-        },
-        {
-          "text": "] M. Hannam, P. Schmidt, A. Bohé, L. Haegel, S. Husa, F. Ohme, G. Pratten, and M. Pürrer, ",
+          "text": "[87] M. Hannam, P. Schmidt, A. Bohé, L. Haegel, S. Husa, F. Ohme, G. Pratten, and M. Pürrer, ",
           "style": 0
         },
         {
@@ -11896,15 +8995,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "88",
-          "style": 0
-        },
-        {
-          "text": "] S. Khan, S. Husa, M. Hannam, F. Ohme, M. Pürrer, X. Jiménez Forteza, and A. Bohé, ",
+          "text": "[88] S. Khan, S. Husa, M. Hannam, F. Ohme, M. Pürrer, X. Jiménez Forteza, and A. Bohé, ",
           "style": 0
         },
         {
@@ -11953,15 +9044,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "89",
-          "style": 0
-        },
-        {
-          "text": "] J. Veitch ",
+          "text": "[89] J. Veitch ",
           "style": 0
         },
         {
@@ -12018,15 +9101,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "90",
-          "style": 0
-        },
-        {
-          "text": "] A. Krolak and B. F. Schutz, ",
+          "text": "[90] A. Krolak and B. F. Schutz, ",
           "style": 0
         },
         {
@@ -12075,15 +9150,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "91",
-          "style": 0
-        },
-        {
-          "text": "] P. A. R. Ade ",
+          "text": "[91] P. A. R. Ade ",
           "style": 0
         },
         {
@@ -12118,15 +9185,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "92",
-          "style": 0
-        },
-        {
-          "text": "] J. Healy, C. O. Lousto, and Y. Zlochower, ",
+          "text": "[92] J. Healy, C. O. Lousto, and Y. Zlochower, ",
           "style": 0
         },
         {
@@ -12175,15 +9234,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "93",
-          "style": 0
-        },
-        {
-          "text": "] S. Husa, S. Khan, M. Hannam, M. Pürrer, F. Ohme, X. Jiménez Forteza, and A. Bohé, ",
+          "text": "[93] S. Husa, S. Khan, M. Hannam, M. Pürrer, F. Ohme, X. Jiménez Forteza, and A. Bohé, ",
           "style": 0
         },
         {
@@ -12232,15 +9283,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "94",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[94] B. Abbott ",
           "style": 0
         },
         {
@@ -12280,15 +9323,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "95",
-          "style": 0
-        },
-        {
-          "text": "] C. K. Mishra, K. G. Arun, B. R. Iyer, and B. S. Sathyaprakash, ",
+          "text": "[95] C. K. Mishra, K. G. Arun, B. R. Iyer, and B. S. Sathyaprakash, ",
           "style": 0
         },
         {
@@ -12337,15 +9372,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "96",
-          "style": 0
-        },
-        {
-          "text": "] T. G. F. Li, W. Del Pozzo, S. Vitale, C. Van Den Broeck, M. Agathos, J. Veitch, K. Grover, T. Sidery, R. Sturani, and A. Vecchio, ",
+          "text": "[96] T. G. F. Li, W. Del Pozzo, S. Vitale, C. Van Den Broeck, M. Agathos, J. Veitch, K. Grover, T. Sidery, R. Sturani, and A. Vecchio, ",
           "style": 0
         },
         {
@@ -12394,15 +9421,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "97",
-          "style": 0
-        },
-        {
-          "text": "] C. M. Will, ",
+          "text": "[97] C. M. Will, ",
           "style": 0
         },
         {
@@ -12451,15 +9470,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "98",
-          "style": 0
-        },
-        {
-          "text": "] C. Talmadge, J. P. Berthias, R. W. Hellings, and E. M. Standish, ",
+          "text": "[98] C. Talmadge, J. P. Berthias, R. W. Hellings, and E. M. Standish, ",
           "style": 0
         },
         {
@@ -12508,15 +9519,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "99",
-          "style": 0
-        },
-        {
-          "text": "] L. S. Finn and P. J. Sutton, ",
+          "text": "[99] L. S. Finn and P. J. Sutton, ",
           "style": 0
         },
         {
@@ -12565,15 +9568,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "100",
-          "style": 0
-        },
-        {
-          "text": "] A. S. Goldhaber and M. M. Nieto, ",
+          "text": "[100] A. S. Goldhaber and M. M. Nieto, ",
           "style": 0
         },
         {
@@ -12622,15 +9617,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "101",
-          "style": 0
-        },
-        {
-          "text": "] S. Choudhury and S. SenGupta, ",
+          "text": "[101] S. Choudhury and S. SenGupta, ",
           "style": 0
         },
         {
@@ -12679,15 +9666,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "102",
-          "style": 0
-        },
-        {
-          "text": "] A. Tutukov and L. Yungelson, Nauchnye Informatsii ",
+          "text": "[102] A. Tutukov and L. Yungelson, Nauchnye Informatsii ",
           "style": 0
         },
         {
@@ -12713,15 +9692,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "103",
-          "style": 0
-        },
-        {
-          "text": "] V. M. Lipunov, K. A. Postnov, and M. E. Prokhorov, ",
+          "text": "[103] V. M. Lipunov, K. A. Postnov, and M. E. Prokhorov, ",
           "style": 0
         },
         {
@@ -12770,15 +9741,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "104",
-          "style": 0
-        },
-        {
-          "text": "] K. Belczynski, S. Repetto, D. Holz, R. O’Shaughnessy, T. Bulik, E. Berti, C. Fryer, M. Dominik, ",
+          "text": "[104] K. Belczynski, S. Repetto, D. Holz, R. O’Shaughnessy, T. Bulik, E. Berti, C. Fryer, M. Dominik, ",
           "style": 0
         },
         {
@@ -12805,15 +9768,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "105",
-          "style": 0
-        },
-        {
-          "text": "] S. Sigurdsson and L. Hernquist, ",
+          "text": "[105] S. Sigurdsson and L. Hernquist, ",
           "style": 0
         },
         {
@@ -12862,15 +9817,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "106",
-          "style": 0
-        },
-        {
-          "text": "] S. F. Portegies Zwart and S. L. W. McMillan, ",
+          "text": "[106] S. F. Portegies Zwart and S. L. W. McMillan, ",
           "style": 0
         },
         {
@@ -12919,15 +9866,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "107",
-          "style": 0
-        },
-        {
-          "text": "] C. L. Rodriguez, M. Morscher, B. Pattabiraman, S. Chatterjee, C.-J. Haster, and F. A. Rasio, ",
+          "text": "[107] C. L. Rodriguez, M. Morscher, B. Pattabiraman, S. Chatterjee, C.-J. Haster, and F. A. Rasio, ",
           "style": 0
         },
         {
@@ -12976,15 +9915,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "108",
-          "style": 0
-        },
-        {
-          "text": "] K. Belczynski, T. Bulik, C. L. Fryer, A. Ruiter, F. Valsecchi, J. S. Vink, and J. R. Hurley, ",
+          "text": "[108] K. Belczynski, T. Bulik, C. L. Fryer, A. Ruiter, F. Valsecchi, J. S. Vink, and J. R. Hurley, ",
           "style": 0
         },
         {
@@ -13033,15 +9964,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "109",
-          "style": 0
-        },
-        {
-          "text": "] M. Spera, M. Mapelli, and A. Bressan, ",
+          "text": "[109] M. Spera, M. Mapelli, and A. Bressan, ",
           "style": 0
         },
         {
@@ -13090,15 +10013,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "110",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[110] B. Abbott ",
           "style": 0
         },
         {
@@ -13147,15 +10062,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "111",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[111] B. Abbott ",
           "style": 0
         },
         {
@@ -13195,15 +10102,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "112",
-          "style": 0
-        },
-        {
-          "text": "] C. Kim, V. Kalogera, and D. R. Lorimer, ",
+          "text": "[112] C. Kim, V. Kalogera, and D. R. Lorimer, ",
           "style": 0
         },
         {
@@ -13252,15 +10151,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "113",
-          "style": 0
-        },
-        {
-          "text": "] W. M. Farr, J. R. Gair, I. Mandel, and C. Cutler, ",
+          "text": "[113] W. M. Farr, J. R. Gair, I. Mandel, and C. Cutler, ",
           "style": 0
         },
         {
@@ -13309,15 +10200,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "114",
-          "style": 0
-        },
-        {
-          "text": "] J. Abadie ",
+          "text": "[114] J. Abadie ",
           "style": 0
         },
         {
@@ -13374,15 +10257,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "115",
-          "style": 0
-        },
-        {
-          "text": "] B. Abbott ",
+          "text": "[115] B. Abbott ",
           "style": 0
         },
         {
@@ -13422,15 +10297,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "116",
-          "style": 0
-        },
-        {
-          "text": "] LIGO Open Science Center (LOSC), ",
+          "text": "[116] LIGO Open Science Center (LOSC), ",
           "style": 0
         },
         {
@@ -13462,15 +10329,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "117",
-          "style": 0
-        },
-        {
-          "text": "] B. P. Abbott ",
+          "text": "[117] B. P. Abbott ",
           "style": 0
         },
         {
@@ -13527,15 +10386,7 @@
       },
       "spans": [
         {
-          "text": "[",
-          "style": 0
-        },
-        {
-          "text": "118",
-          "style": 0
-        },
-        {
-          "text": "] B. Iyer ",
+          "text": "[118] B. Iyer ",
           "style": 0
         },
         {

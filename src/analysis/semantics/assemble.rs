@@ -41,6 +41,10 @@ pub struct AssembleConfig {
     /// A superscript after a word of fewer letters than this is an exponent
     /// (x², c²), not a footnote mark.
     pub mark_min_word_letters_count: usize,
+    /// A repeated label (the second "[1]", "Section 1", ...) starts a new set
+    /// of numbering, as in a report followed by a system card, only when at
+    /// least this many anchors of that kind repeat; fewer are stray duplicates.
+    pub min_target_set_count: usize,
 }
 
 impl Default for AssembleConfig {
@@ -50,6 +54,7 @@ impl Default for AssembleConfig {
             equation_margin_pt: 2.5,
             table_cell_gap_em: 0.55,
             mark_min_word_letters_count: 2,
+            min_target_set_count: 2,
         }
     }
 }
@@ -129,13 +134,12 @@ pub(crate) fn build_document(
     }
     let Assembler {
         mut blocks,
-        anchors,
         loose,
         title_parts,
         cfg,
         ..
     } = assembler;
-    link_blocks(&mut blocks, &anchors, cfg);
+    link_blocks(&mut blocks, cfg);
 
     if !title_parts.is_empty() {
         meta.title = Some(title_parts.join(" ").split_whitespace().collect::<Vec<_>>().join(" "));
@@ -523,7 +527,14 @@ fn slug_marker(marker: &str) -> String {
 
 /// Links the cross-references in every block (except equations, titles and
 /// headings) and the footnote marks in every non-footnote block.
-fn link_blocks(blocks: &mut [Block], anchors: &HashSet<String>, cfg: &AssembleConfig) {
+fn link_blocks(blocks: &mut [Block], cfg: &AssembleConfig) {
+    let targets = LinkTargets::new(
+        blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(index, block)| block.anchor.as_deref().map(|anchor| (index, anchor))),
+        cfg.min_target_set_count,
+    );
     // Footnote marks in the running text. A paper may number its notes
     // more than once (a report and its appendix), so a mark goes to the
     // note with that mark nearest after it: on its page, else the next.
@@ -538,13 +549,13 @@ fn link_blocks(blocks: &mut [Block], anchors: &HashSet<String>, cfg: &AssembleCo
         })
         .collect();
 
-    for (idx, block) in blocks.iter_mut().enumerate() {
+    for (index, block) in blocks.iter_mut().enumerate() {
         let linkable = !matches!(
             block.kind,
             BlockKind::Equation { .. } | BlockKind::Title | BlockKind::Heading { .. }
         );
         if linkable {
-            link_cross_references(block, anchors);
+            link_cross_references(block, &targets, index);
         }
         if !matches!(block.kind, BlockKind::Footnote { .. }) {
             let page = block.page;
@@ -553,7 +564,7 @@ fn link_blocks(blocks: &mut [Block], anchors: &HashSet<String>, cfg: &AssembleCo
                     .iter()
                     .filter(|(marker, ..)| marker == mark)
                     .min_by_key(|(_, note_page, note_idx, _)| {
-                        (*note_page < page, note_page.abs_diff(page), note_idx.abs_diff(idx))
+                        (*note_page < page, note_page.abs_diff(page), note_idx.abs_diff(index))
                     })
                     .map(|(.., anchor)| anchor.clone())
             };
@@ -565,20 +576,20 @@ fn link_blocks(blocks: &mut [Block], anchors: &HashSet<String>, cfg: &AssembleCo
 /// Links the cross-references in the running text, rows, line spans and
 /// table cells of a block. References to the block's own anchor are not
 /// linked in the running and line text.
-fn link_cross_references(block: &mut Block, anchors: &HashSet<String>) {
+fn link_cross_references(block: &mut Block, targets: &LinkTargets, at: usize) {
     let own = block.anchor.clone();
     let spans = std::mem::take(&mut block.spans);
-    block.spans = link_spans(spans, anchors, own.as_deref());
+    block.spans = link_spans(spans, targets, at, own.as_deref());
     let rows = std::mem::take(&mut block.rows);
-    block.rows = rows.into_iter().map(|row| link_spans(row, anchors, None)).collect();
+    block.rows = rows.into_iter().map(|row| link_spans(row, targets, at, None)).collect();
     for hline in block.hlines.iter_mut() {
         let spans = std::mem::take(&mut hline.spans);
-        hline.spans = link_spans(spans, anchors, own.as_deref());
+        hline.spans = link_spans(spans, targets, at, own.as_deref());
     }
     if let Some(table) = block.table.as_mut() {
         for cell in table.rows.iter_mut().flatten() {
             let spans = std::mem::take(&mut cell.spans);
-            cell.spans = link_spans(spans, anchors, None);
+            cell.spans = link_spans(spans, targets, at, None);
         }
     }
 }

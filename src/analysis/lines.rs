@@ -47,6 +47,8 @@ const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     gutter_window_min_lines: 4,
     gutter_window_min_width_pt: 5.0,
     gutter_window_space_factor: 2.0,
+    gutter_window_min_piece_chars: 15,
+    gutter_window_min_letter_ratio: 0.7,
     merge_max_size_factor: 2.2,
     math_axis_em: 0.25,
     math_reanchor_min_offset_em: 0.5,
@@ -164,6 +166,11 @@ pub struct LinesConfig {
     /// ... and this many times the median word space of the window: word
     /// spaces lined up by chance in justified text are not a gutter.
     pub gutter_window_space_factor: f32,
+    /// The pieces on each side of a window's gutter are running text: their
+    /// median length is at least this many characters ...
+    pub gutter_window_min_piece_chars: usize,
+    /// ... and at least this share of their characters are letters.
+    pub gutter_window_min_letter_ratio: f32,
     /// Segments on one baseline are not merged when one font is this many
     /// times larger than the other (a heading next to a margin note).
     pub merge_max_size_factor: f32,
@@ -1000,7 +1007,9 @@ fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) 
                 .gutter_window_min_width_pt
                 .max(cfg.gutter_window_space_factor * median_space(&window, cfg));
             let lines = cfg.gutter_window_min_lines;
-            if let Some(gutter) = find_gutter(&window, zone, lines, min_width, cfg) {
+            if let Some(gutter) = find_gutter(&window, zone, lines, min_width, cfg)
+                .filter(|&gutter| prose_on_both_sides(&window, gutter, cfg))
+            {
                 for index in members {
                     gutters[index] = gutters[index].or(Some(gutter));
                 }
@@ -1015,6 +1024,44 @@ fn split_at_gutters(segments: Vec<Segment>, page_width: f32, cfg: &LinesConfig) 
         }
     }
     out
+}
+
+/// Whether the pieces on both sides of `gutter` in a window are running
+/// text: long enough and mostly letters. A display equation and the column
+/// of its conditions ("ℓ = 1 . . . L") have a gap like a gutter, but are
+/// not two columns of text.
+fn prose_on_both_sides(segments: &[&Segment], gutter: (f32, f32), cfg: &LinesConfig) -> bool {
+    let side_is_prose = |left: bool| {
+        let pieces: Vec<String> = segments
+            .iter()
+            .map(|segment| {
+                visible_glyphs(segment)
+                    .into_iter()
+                    .filter(|glyph| {
+                        if left {
+                            glyph.x1 <= gutter.1
+                        } else {
+                            glyph.x0 >= gutter.0
+                        }
+                    })
+                    .map(|glyph| glyph.text.as_str())
+                    .collect::<String>()
+            })
+            .filter(|piece| !piece.is_empty())
+            .collect();
+        let mut lengths: Vec<usize> = pieces.iter().map(|piece| piece.chars().count()).collect();
+        lengths.sort_unstable();
+        let chars: usize = lengths.iter().sum();
+        let letters: usize = pieces
+            .iter()
+            .map(|piece| piece.chars().filter(|ch| ch.is_alphabetic()).count())
+            .sum();
+        lengths
+            .get(lengths.len() / 2)
+            .is_some_and(|&median| median >= cfg.gutter_window_min_piece_chars)
+            && letters as f32 >= cfg.gutter_window_min_letter_ratio * chars as f32
+    };
+    side_is_prose(true) && side_is_prose(false)
 }
 
 /// The visible glyphs of `segment`, left to right.

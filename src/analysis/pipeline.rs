@@ -67,7 +67,9 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
     merge_paragraphs(&mut nodes, &stats, fonts, &layout.semantics);
 
     let rotated = pages.iter().map(|page| rotated_runs(page, fonts)).collect();
-    let (doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);
+    let (mut doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);
+    // Pictures of equations and figures that cut glyphs are made clean.
+    crate::analysis::crops::fit_equation_crops(&mut doc, &loose);
     Analysis { doc, loose, rotated }
 }
 

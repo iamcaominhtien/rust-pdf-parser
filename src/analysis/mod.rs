@@ -14,11 +14,13 @@
 //! 7. [`blocks`]: lines grouped into raw blocks (paragraphs, equations, footnotes).
 //! 8. [`semantics`]: classification, paragraph merging, cross-reference links
 //!    and the assembly of the document.
+//! 9. [`crops`]: pictures of equations made clean (no cut glyphs).
 //!
 //! Every stage takes its thresholds from its own struct in
 //! [`LayoutConfig`](crate::config::LayoutConfig).
 
 pub mod blocks;
+pub mod crops;
 pub mod floats;
 pub mod furniture;
 pub mod lines;

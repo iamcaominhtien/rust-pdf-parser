@@ -570,6 +570,68 @@ fn faster_rcnn_footnotes_and_tables() {
         .filter(|block| block.page == 7 && matches!(block.kind, BlockKind::Figure { label: None, .. }))
         .count();
     assert_eq!(graphics, 0, "Table 4 left without its caption");
+    // A URL broken across lines after "_" is one link.
+    let html = paper.to_html(&analysis, &HtmlOptions::default()).html;
+    assert!(
+        html.contains("href=\"https://github.com/shaoqingren/faster_rcnn\""),
+        "broken GitHub link"
+    );
+    assert!(html.contains("href=\"https://github.com/rbgirshick/py-faster-rcnn\""));
+}
+
+/// GPT-4's references break URLs across lines after ".", "-" and "%": each
+/// is one link, with its hyphens, except where TeX hyphenated a word
+/// ("ope-" / "nai.com").
+#[test]
+fn urls_broken_across_lines_are_whole() {
+    let Some(paper) = load("2303.08774v6") else { return };
+    let html = paper.to_html(&paper.analyze(), &HtmlOptions::default()).html;
+    for url in [
+        "https://github.com/inverse-scaling/prize",
+        "https://bounded-regret.ghost.io/emergent-deception-optimization/",
+        "https://satsuite.collegeboard.org/media/pdf/understanding-sat-scores.pdf",
+        "https://openai.com/research/language-unsupervised",
+    ] {
+        assert!(html.contains(&format!("href=\"{url}\"")), "missing link {url}");
+    }
+    assert!(!html.contains("href=\"https://github\""), "a link cut at a line break");
+}
+
+/// No picture cut out of a page (equation or figure) cuts through a glyph
+/// of something else: the pictures show whole letters, never halves of
+/// the text around them.
+#[test]
+fn pictures_do_not_cut_text() {
+    let mut report = Vec::new();
+    for id in [
+        "1412.6980v9",
+        "1506.01497v3",
+        "1512.03385v1",
+        "1602.03837v1",
+        "1706.03762v7",
+        "1810.04805v2",
+        "2010.11929v2",
+        "2303.08774v6",
+    ] {
+        let Some(paper) = load(id) else { continue };
+        let analysis = paper.analyze();
+        for cut in paper2html::analysis::crops::cut_glyphs(&analysis.doc, &analysis.loose) {
+            report.push(format!(
+                "{id} p{} {} #{}: {} glyphs cut by [{:.0},{:.0} {:.0}x{:.0}]: {}",
+                cut.page + 1,
+                cut.kind,
+                cut.block,
+                cut.glyphs,
+                cut.rect.x0,
+                cut.rect.y0,
+                cut.rect.width(),
+                cut.rect.height(),
+                cut.examples.join(" ")
+            ));
+        }
+    }
+    eprintln!("{}", report.join("\n"));
+    assert!(report.is_empty(), "{} pictures cut text", report.len());
 }
 
 /// The output does not depend on the number of threads (on a real paper).

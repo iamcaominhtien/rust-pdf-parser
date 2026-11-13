@@ -158,6 +158,22 @@ impl TextBuilder<'_> {
     /// the lines (none after a slash, as in URLs). Returns whether a soft
     /// hyphen was removed.
     fn join_line_end(&self, spans: &mut Vec<Span>, text: &str, next: &str) -> bool {
+        // A URL broken across lines goes on without a space. A hyphen at
+        // the break is part of it ("py-faster-" / "rcnn"), unless TeX
+        // hyphenated a word there: the joined word is used elsewhere in
+        // the paper ("ope-" / "nai.com", and the paper says OpenAI).
+        if url_continues(text, next) {
+            if text.ends_with('-') && url_hyphen_is_soft(text, next, self.vocab) {
+                if let Some(last) = spans.last_mut() {
+                    last.text.pop();
+                    if last.text.is_empty() {
+                        spans.pop();
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
         if text.ends_with('-') && text.chars().count() > 1 {
             if remove_hyphen(text, next, self.vocab, self.cfg) {
                 if let Some(last) = spans.last_mut() {
@@ -373,6 +389,49 @@ pub(crate) fn build_vocab<'a>(blocks: impl Iterator<Item = &'a [Line]>) -> HashS
     vocab
 }
 
+/// Whether a line ends inside a URL that the next line goes on with: the
+/// last word of `text` is a URL ("https://…", "www.…") and ends where TeX
+/// breaks URLs ("faster_" / "rcnn", "py-faster-" / "rcnn"). After a period
+/// the next line must go on in lower case or with a digit ("github." /
+/// "com/…"), not start a sentence.
+pub(crate) fn url_continues(text: &str, next: &str) -> bool {
+    let Some(last) = text.split_whitespace().last() else {
+        return false;
+    };
+    let last = last.trim_start_matches(['(', '[', '<', '"', '\u{201c}']);
+    if !(last.contains("://") || last.starts_with("www.")) {
+        return false;
+    }
+    let Some(first) = next.trim_start().chars().next() else {
+        return false;
+    };
+    if next.starts_with(char::is_whitespace) {
+        return false;
+    }
+    match last.chars().last() {
+        Some('_' | '-' | '/' | '?' | '=' | '&' | '#' | '~' | '%' | ':') => true,
+        Some('.') => first.is_lowercase() || first.is_ascii_digit(),
+        _ => false,
+    }
+}
+
+/// Whether the hyphen ending `text`, inside a URL, was put there by
+/// hyphenation: the letters on both sides of it make a word of the
+/// document.
+fn url_hyphen_is_soft(text: &str, next: &str, vocab: &HashSet<String>) -> bool {
+    let left: String = text
+        .chars()
+        .rev()
+        .skip(1)
+        .take_while(|ch| ch.is_alphabetic())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    let right: String = next.chars().take_while(|ch| ch.is_alphabetic()).collect();
+    !left.is_empty() && !right.is_empty() && vocab.contains(&format!("{left}{right}").to_lowercase())
+}
+
 /// Decides whether a line-end hyphen is a soft hyphen (to be removed).
 ///
 /// `left` is the text of the line ending with the hyphen, `right` the text
@@ -474,6 +533,29 @@ mod tests {
 
     fn vocab(words: &[&str]) -> HashSet<String> {
         words.iter().map(|w| w.to_string()).collect()
+    }
+
+    #[test]
+    fn urls_broken_across_lines_go_on() {
+        assert!(url_continues(
+            "available at https://github.com/shaoqingren/faster_",
+            "rcnn (in MATLAB) and"
+        ));
+        assert!(url_continues(
+            "see https://github.com/rbgirshick/py-faster-",
+            "rcnn (in Python)."
+        ));
+        assert!(url_continues("at www.robots.ox.ac.", "uk/~vgg"));
+        assert!(!url_continues("results at https://example.com/page.html.", "We then"));
+        assert!(!url_continues("the dot-product (multi-", "plicative) attention"));
+        assert!(!url_continues("https://example.com/a", "and more"));
+        let vocab: HashSet<String> = ["openai", "faster", "rcnn"].iter().map(|w| w.to_string()).collect();
+        assert!(url_hyphen_is_soft("https://ope-", "nai.com/blog", &vocab));
+        assert!(!url_hyphen_is_soft(
+            "https://github.com/rbgirshick/py-faster-",
+            "rcnn",
+            &vocab
+        ));
     }
 
     #[test]

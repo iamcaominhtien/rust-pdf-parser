@@ -1,0 +1,2 @@
+too-many-lines-threshold = 80
+allowed-idents-below-min-chars = ["i", "j", "k", "n", "x", "y", "a", "b", "_"]

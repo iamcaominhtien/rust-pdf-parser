@@ -1,4 +1,10 @@
 //! HTML output in four fidelity modes (see [`Mode`]).
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 mod assets;
 mod escape;
@@ -28,7 +34,7 @@ pub(crate) trait Renderer {
     fn render(&self, analysis: &Analysis, images: &mut ImageStore<'_>) -> String;
 }
 
-/// The renderer of a mode.
+/// The renderer of a mode: one implementation of [`Renderer`] per [`Mode`].
 fn renderer_for(mode: Mode) -> &'static dyn Renderer {
     match mode {
         Mode::Friendly => &friendly::Friendly,
@@ -39,6 +45,10 @@ fn renderer_for(mode: Mode) -> &'static dyn Renderer {
 }
 
 /// Renders an analysed document as HTML in the mode chosen in `opts`.
+///
+/// The HTML is written first, with placeholders for the pictures; the
+/// pictures are then drawn from `pdf` (on `opts.jobs` threads) and either
+/// inlined as data URIs or returned in [`HtmlOutput::files`].
 pub fn render(analysis: &Analysis, pdf: &PdfFile, opts: &HtmlOptions) -> HtmlOutput {
     let mut images = ImageStore { opts, jobs: Vec::new() };
     let html = renderer_for(opts.mode).render(analysis, &mut images);

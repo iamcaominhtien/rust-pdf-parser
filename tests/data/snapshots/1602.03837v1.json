@@ -2519,7 +2519,7 @@
           "style": 8
         },
         {
-          "text": "pffi2ffiffi",
+          "text": "√2",
           "style": 0
         },
         {
@@ -2527,87 +2527,47 @@
           "style": 2
         },
         {
-          "text": "ffiffiffi",
-          "style": 0
-        },
-        {
           "text": "c",
           "style": 34
         },
         {
-          "text": "ffiffi",
-          "style": 0
-        },
-        {
           "text": "/",
           "style": 2
-        },
-        {
-          "text": "ffiffi",
-          "style": 0
         },
         {
           "text": "(",
           "style": 8
         },
         {
-          "text": "ffiffi1ffiffiffiffi",
+          "text": "1 ",
           "style": 0
         },
         {
-          "text": "+",
+          "text": "+ ",
           "style": 8
-        },
-        {
-          "text": "ffiffiffiffi",
-          "style": 0
         },
         {
           "text": "E",
           "style": 2
-        },
-        {
-          "text": "ffiffiffiffi",
-          "style": 0
         },
         {
           "text": "n",
           "style": 34
         },
         {
-          "text": "ffiffi",
-          "style": 0
-        },
-        {
-          "text": "/",
+          "text": "/E",
           "style": 2
-        },
-        {
-          "text": "ffiffi",
-          "style": 0
-        },
-        {
-          "text": "E",
-          "style": 2
-        },
-        {
-          "text": "ffiffiffi",
-          "style": 0
         },
         {
           "text": "c",
           "style": 34
         },
         {
-          "text": "ffiffi",
-          "style": 0
-        },
-        {
           "text": ")",
           "style": 8
         },
         {
-          "text": "ffiffi, where ",
+          "text": ", where ",
           "style": 0
         },
         {

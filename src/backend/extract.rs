@@ -357,6 +357,15 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
             if self.fonts.infos[font as usize].math_pi {
                 text = remap_math_pi(&text);
             }
+            if self.fonts.infos[font as usize].radical_pi {
+                // The radical sign and the pieces of its bar, encoded on
+                // letters: the bar is drawn, not read.
+                text = match text.as_str() {
+                    "p" => "√".into(),
+                    "ffi" | "ff" | "fi" | "fl" => continue,
+                    _ => text,
+                };
+            }
             if text == "=" && outline_box.is_some_and(|outline| outline.height() > SLASH_MIN_ASPECT * outline.width()) {
                 text = "/".into();
             }

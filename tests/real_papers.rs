@@ -974,3 +974,19 @@ fn gpt4_response_labels_are_not_headings() {
     assert!(headings.iter().any(|heading| heading == "2.3 Harmful Content"));
     assert!(headings.iter().any(|heading| heading == "A Exam Benchmark Methodology"));
 }
+
+/// The APS radical font sets the radical sign on "p" and the pieces of its
+/// bar on "ffi": the formula reads with a square root, not "pffi2ffiffi".
+#[test]
+fn ligo_radical_is_a_square_root() {
+    let Some(paper) = load("1602.03837v1") else { return };
+    let analysis = paper.analyze();
+    let text: String = analysis
+        .doc
+        .blocks
+        .iter()
+        .map(|block| plain(&block.spans) + "\n")
+        .collect();
+    assert!(!text.contains("pffi"), "radical bar read as text");
+    assert!(text.contains("= √2"), "radical sign missing");
+}

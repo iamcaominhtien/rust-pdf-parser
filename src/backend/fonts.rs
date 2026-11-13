@@ -106,6 +106,9 @@ const MONO_PATTERNS: &[&str] = &[
 /// Name prefix (lower case) of the embedded "Mathematical Pi" font of
 /// APS/Elsevier typesetting, which has an anonymous name.
 const MATH_PI_PREFIX: &str = "advp4c4e74";
+/// Name prefix (lower case) of the APS font that sets radical signs: "p" is
+/// the sign and "ffi" a piece of its bar.
+const RADICAL_PI_PREFIX: &str = "advp4c4e46";
 /// Name fragments (lower case) of the "Mathematical Pi 1" font.
 const MATH_PI_PATTERNS: &[&str] = &["mathematicalpi-one", "mathpi-one"];
 /// Name fragments (lower case) of sans-serif fonts.
@@ -152,6 +155,8 @@ pub struct FontInfo {
     /// Adobe "Mathematical Pi 1" style font whose glyphs are encoded on
     /// Latin-1 letters (used by APS/Elsevier typesetting).
     pub math_pi: bool,
+    /// The APS radical font (see [`RADICAL_PI_PREFIX`]).
+    pub radical_pi: bool,
     /// Sans-serif text font (never set for math or monospaced fonts).
     pub sans: bool,
 }
@@ -190,6 +195,7 @@ impl FontInfo {
             math: math || math_pi,
             serif,
             math_pi,
+            radical_pi: lower.starts_with(RADICAL_PI_PREFIX),
         }
     }
 }

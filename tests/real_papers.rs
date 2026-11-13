@@ -446,6 +446,20 @@ fn bert_table_headers_are_kept() {
     }
 }
 
+/// The APS fonts of the LIGO paper declare a text encoding but keep the TeX
+/// math layout: the glyph coded as `=` is a slash and, in the Math Pi font,
+/// `f` and `g` are braces. The text must say what the glyphs show.
+#[test]
+fn mislabelled_math_glyphs_are_read_by_shape() {
+    let Some(paper) = load("1602.03837v1") else { return };
+    let analysis = paper.analyze();
+    let text: String = analysis.doc.blocks.iter().map(|block| plain(&block.spans) + "\n").collect();
+    for expected in ["ρ/{[1 + (χ", "erg/s", "0031-9007/16/116(6)/061102", "(m1 + m2)1/5"] {
+        assert!(text.contains(expected), "missing {expected:?}");
+    }
+    assert!(!text.contains("erg=s"), "a slash read as an equals sign");
+}
+
 /// The output does not depend on the number of threads (on a real paper).
 #[test]
 fn threads_do_not_change_real_output() {

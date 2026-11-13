@@ -6,6 +6,9 @@
 //! no longer matches the fraction bars and radicals of the page picture. In
 //! hard-95 mode they are drawn glyph by glyph at their place in the PDF,
 //! inside the line; the rest of the line stays flowing text.
+//!
+//! Glyphs on the baseline whose size differs from the line's (small
+//! capitals, a big operator in the text) keep their own size.
 
 use super::{Units, gaps_of, span_html, spans_h95};
 use crate::model::{Line, SUB, SUP, Span};
@@ -20,6 +23,10 @@ const STACK_MIN_OVERLAP_PT: f32 = 0.5;
 /// font size): a numerator over a denominator, a superscript over a
 /// subscript. Less than that is one glyph slightly lower than the other.
 const STACK_MIN_RISE_EM: f32 = 0.4;
+/// A glyph on the baseline keeps its own font size when it differs from the
+/// font size of the line by more than this fraction (small capitals are
+/// about 80% of the capitals).
+const RESIZED_MIN_RATIO: f32 = 0.08;
 
 /// Consecutive glyphs of a line drawn at their own place.
 struct Cluster {
@@ -32,16 +39,41 @@ struct Cluster {
     chars: std::ops::Range<usize>,
 }
 
+/// Text of one span waiting to be written, all at one size.
+#[derive(Default)]
+struct Plain {
+    /// The characters.
+    text: String,
+    /// Their own font size (points), or `None` for the size of the line.
+    size: Option<f32>,
+}
+
+impl Plain {
+    /// Writes the pending text of `span` (if any) and clears it.
+    fn flush(&mut self, out: &mut String, span: &Span, gaps: &mut std::slice::Iter<'_, f32>, units: &Units) {
+        if self.text.is_empty() {
+            return;
+        }
+        let html = span_html(span, &self.text, gaps);
+        match self.size {
+            Some(size) => out.push_str(&format!("<span style=\"font-size:{}\">{html}</span>", units.len(size))),
+            None => out.push_str(&html),
+        }
+        self.text.clear();
+    }
+}
+
 /// The styled text of a line as HTML, with its stacked glyphs (if any)
-/// drawn at their place. Returns the markup and whether the text ended with
-/// a space (which the caller places outside the line element).
+/// drawn at their place and its resized glyphs at their size. Returns the
+/// markup and whether the text ended with a space (which the caller places
+/// outside the line element).
 ///
-/// Lines without stacked glyphs, and lines whose text cannot be matched to
-/// their glyphs, are written as plain styled text.
+/// Lines without stacked or resized glyphs, and lines whose text cannot be
+/// matched to their glyphs, are written as plain styled text.
 pub(super) fn line_html(line: &Line, spans: &[Span], units: &Units) -> (String, bool) {
     let gaps = gaps_of(line);
     let runs = stacked_runs(line);
-    if runs.is_empty() {
+    if runs.is_empty() && !(0..line.glyphs.len()).any(|idx| own_size(line, idx).is_some()) {
         return spans_h95(spans, &gaps);
     }
     let Some(glyph_of_char) = glyph_of_chars(line, spans) else {
@@ -73,6 +105,15 @@ fn stacked_runs(line: &Line) -> Vec<(usize, usize)> {
         }
     }
     runs
+}
+
+/// The font size of glyph `idx` of `line` when the glyph sits on the
+/// baseline but is clearly smaller or larger than the line (see
+/// [`RESIZED_MIN_RATIO`]); `None` otherwise.
+fn own_size(line: &Line, idx: usize) -> Option<f32> {
+    let glyph = &line.glyphs[idx];
+    let on_baseline = (glyph.y - line.baseline).abs() <= OFF_BASELINE_EM * line.size;
+    (on_baseline && (glyph.size - line.size).abs() > RESIZED_MIN_RATIO * line.size).then_some(glyph.size)
 }
 
 /// Whether two glyphs of `line.glyphs[first..end]` sit one over the other.
@@ -135,7 +176,8 @@ fn clusters_of(runs: &[(usize, usize)], glyph_of_char: &[Option<usize>]) -> Vec<
 }
 
 /// Writes the spans of a line, replacing the characters of each cluster by
-/// the cluster drawn glyph by glyph.
+/// the cluster drawn glyph by glyph, and setting resized glyphs (see
+/// [`own_size`]) at their size.
 fn write_line(
     line: &Line,
     spans: &[Span],
@@ -155,31 +197,33 @@ fn write_line(
             text = text.trim_end_matches(' ');
             trailing = true;
         }
-        let mut plain = String::new();
+        let mut plain = Plain::default();
         for ch in text.chars() {
             match clusters.get(next_cluster) {
                 Some(cluster) if cluster.chars.contains(&pos) => {
-                    flush(&mut out, span, &mut plain, &mut gaps);
+                    plain.flush(&mut out, span, &mut gaps, units);
                     if pos + 1 == cluster.chars.end {
                         out.push_str(&cluster_html(line, spans, cluster, glyph_of_char, units));
                         next_cluster += 1;
                     }
                 }
-                _ => plain.push(ch),
+                _ => {
+                    // Spaces (no glyph) keep the size of the text before them.
+                    if let Some(glyph_idx) = glyph_of_char[pos] {
+                        let size = own_size(line, glyph_idx);
+                        if size != plain.size {
+                            plain.flush(&mut out, span, &mut gaps, units);
+                            plain.size = size;
+                        }
+                    }
+                    plain.text.push(ch);
+                }
             }
             pos += 1;
         }
-        flush(&mut out, span, &mut plain, &mut gaps);
+        plain.flush(&mut out, span, &mut gaps, units);
     }
     (out, trailing)
-}
-
-/// Writes the pending plain text of `span` (if any) and clears it.
-fn flush(out: &mut String, span: &Span, plain: &mut String, gaps: &mut std::slice::Iter<'_, f32>) {
-    if !plain.is_empty() {
-        out.push_str(&span_html(span, plain, gaps));
-        plain.clear();
-    }
 }
 
 /// The glyphs of a cluster, each in a box of its advance width placed at its

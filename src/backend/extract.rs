@@ -56,6 +56,11 @@ const FALLBACK_INK_ASCENT_EM: f32 = 0.7;
 /// Depth of the ink box below the baseline assumed for glyphs without an
 /// outline, in multiples of the font size.
 const FALLBACK_INK_DESCENT_EM: f32 = 0.2;
+/// A glyph mapped to `=` whose outline is this many times taller than wide
+/// is a slash: an equals sign is always wider than tall. Some publishers'
+/// fonts (APS) keep the TeX math italic layout, where the code of `=` holds
+/// the slash, but declare a text encoding.
+const SLASH_MIN_ASPECT: f64 = 1.5;
 /// Images whose visible part is not wider and taller than this (in points)
 /// are ignored (invisible placeholder images, masks of single pixels).
 const MIN_IMAGE_SIDE_PT: f32 = 0.5;
@@ -352,6 +357,9 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
             if self.fonts.infos[font as usize].math_pi {
                 text = remap_math_pi(&text);
             }
+            if text == "=" && outline_box.is_some_and(|outline| outline.height() > SLASH_MIN_ASPECT * outline.width()) {
+                text = "/".into();
+            }
             // Use the horizontal extent of the transform so that horizontally
             // scaled text keeps correct advances.
             let adv = advance.unwrap_or(DEFAULT_ADVANCE_UNITS) as f64 / GLYPH_UNITS_PER_EM * placement.x_scale;
@@ -489,6 +497,8 @@ fn remap_math_pi(text: &str) -> String {
             'ð' => '(',
             'Þ' => ')',
             '½' => '[',
+            'f' => '{',
+            'g' => '}',
             other => other,
         })
         .collect()

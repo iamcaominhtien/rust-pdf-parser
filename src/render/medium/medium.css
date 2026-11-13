@@ -36,8 +36,10 @@ h4{font-size:1em}
 h5{font-size:1em;font-style:italic;font-weight:400}
 .zone>:first-child{margin-top:0}
 p{margin:0 0 .62em;text-align:justify;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word}
-/* Long links and code break anywhere rather than stretch the justified line before them. */
+/* Long links and code break anywhere rather than stretch the justified line before them;
+   a URL fills the end of its line like a word would. */
 .page :is(a,code){overflow-wrap:anywhere}
+.page a[href^="http"]{word-break:break-all}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 sup,sub{line-height:0;font-size:.72em}

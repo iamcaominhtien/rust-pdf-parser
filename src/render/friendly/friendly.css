@@ -147,6 +147,8 @@ a:hover{text-decoration-color:var(--link)}
 a.xref{text-decoration-style:dotted}
 /* Long URLs and identifiers break rather than widen the page on phones. */
 article :is(a,code){overflow-wrap:anywhere}
+/* A URL fills the end of its line instead of stretching the justified line before it. */
+article a[href^="http"]{word-break:break-all}
 article :is(aside,figcaption,li,td,th,.note){overflow-wrap:break-word}
 sup,sub{font-size:.7em;line-height:0;position:relative;vertical-align:baseline}
 sup{top:-.5em}sub{top:.25em}

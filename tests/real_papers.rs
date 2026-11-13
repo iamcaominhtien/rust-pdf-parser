@@ -453,7 +453,12 @@ fn bert_table_headers_are_kept() {
 fn mislabelled_math_glyphs_are_read_by_shape() {
     let Some(paper) = load("1602.03837v1") else { return };
     let analysis = paper.analyze();
-    let text: String = analysis.doc.blocks.iter().map(|block| plain(&block.spans) + "\n").collect();
+    let text: String = analysis
+        .doc
+        .blocks
+        .iter()
+        .map(|block| plain(&block.spans) + "\n")
+        .collect();
     for expected in ["ρ/{[1 + (χ", "erg/s", "0031-9007/16/116(6)/061102", "(m1 + m2)1/5"] {
         assert!(text.contains(expected), "missing {expected:?}");
     }

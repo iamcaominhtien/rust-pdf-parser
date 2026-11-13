@@ -69,6 +69,20 @@ fn load(id: &str) -> Option<Paper> {
     }
 }
 
+/// Visible characters of the text inside figures in a hard-95 page: the
+/// HTML copy of glyphs that stay in the page pictures.
+fn figure_text_chars(html: &str) -> usize {
+    let tag = Regex::new(r"<[^>]*>").unwrap();
+    html.split("data-kind=\"figure-text\"")
+        .skip(1)
+        .map(|rest| {
+            let body = &rest[rest.find('>').map_or(0, |i| i + 1)..];
+            let body = &body[..body.find("</div>").unwrap_or(body.len())];
+            tag.replace_all(body, "").chars().filter(|c| !c.is_whitespace()).count()
+        })
+        .sum()
+}
+
 fn plain(spans: &[Span]) -> String {
     spans
         .iter()
@@ -232,12 +246,15 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
         }
         fingerprints.push((mode.name(), fingerprint(&out.html, &out.files)));
         if mode == Mode::Hard95 {
-            glyphs_left = out
+            // Text inside figures stays in the page pictures on purpose (it
+            // is drawn in the figure's own order); the rest should be HTML.
+            let in_pictures: usize = out
                 .files
                 .iter()
                 .filter(|(n, _)| n.ends_with(".svg"))
                 .map(|(_, d)| d.windows(5).filter(|w| w == b"<use ").count())
                 .sum();
+            glyphs_left = in_pictures.saturating_sub(figure_text_chars(&out.html));
         }
     }
     fingerprints.push(("json", hex(Sha256::digest(json.as_bytes()))));
@@ -395,7 +412,9 @@ paper_test!(
     tables >= 12,
     broken <= 3,
     split <= 0,
-    glyphs <= 188,
+    // 188 on p10, the rest are labels in the detection examples of p12-p13,
+    // drawn twice (outline and fill) and kept in the figure pictures.
+    glyphs <= 372,
     hyphenated <= 162
 );
 paper_test!(
@@ -657,4 +676,47 @@ fn threads_do_not_change_real_output() {
         })
     };
     assert!(render(1) == render(4), "output differs between 1 and 4 threads");
+}
+
+/// The first line of a caption set next to a figure has few words, and
+/// justification stretches its spaces past the gap that separates columns
+/// ("Figure 3:   Transfer to ImageNet.     While"): the caption still runs
+/// on to its last line, and the paragraph cut by the figures stays whole.
+/// In hard-95 the text inside figures stays in the page picture (a legend
+/// box covers tick labels there), with a transparent copy for selecting.
+#[test]
+fn vit_captions_and_figure_text() {
+    let Some(paper) = load("2010.11929v2") else { return };
+    let analysis = paper.analyze();
+    let blocks = &analysis.doc.blocks;
+    let caption = |label: &str| {
+        blocks
+            .iter()
+            .find(|block| matches!(&block.kind, BlockKind::Figure { label: Some(l), .. } if l == label))
+            .map(|block| plain(&block.spans))
+            .unwrap_or_default()
+    };
+    assert!(
+        caption("Figure 3").ends_with("overtake smaller ones as the dataset grows."),
+        "{}",
+        caption("Figure 3")
+    );
+    assert!(
+        blocks
+            .iter()
+            .any(|block| plain(&block.spans)
+                .contains("Figure 3 also shows the performance region spanned by BiT models")),
+        "paragraph cut by Figures 3 and 4"
+    );
+    let html = paper
+        .to_html(
+            &analysis,
+            &HtmlOptions {
+                mode: Mode::Hard95,
+                ..Default::default()
+            },
+        )
+        .html;
+    assert!(html.contains("data-kind=\"figure-text\""));
+    assert!(html.contains(".b[data-kind=\"figure-text\"]{color:transparent}"));
 }

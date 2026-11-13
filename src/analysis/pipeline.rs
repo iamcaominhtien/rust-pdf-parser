@@ -55,7 +55,7 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
     for page in pages.iter_mut() {
         join_caption_labels(page, &layout.floats, &layout.lines);
     }
-    let table_caption_above = table_caption_convention(&pages, fonts, &layout.floats);
+    let table_caption_above = table_caption_convention(&pages, &stats, fonts, &layout.floats);
     for page in pages.iter_mut() {
         layout_page(page, &stats, fonts, table_caption_above, &opts, &mut nodes);
     }
@@ -76,10 +76,15 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
 /// Convention for table captions in this document: `Some(true)` if they
 /// clearly sit above their tables, `Some(false)` if clearly below, `None`
 /// when the pages do not agree.
-fn table_caption_convention(pages: &[PageData], fonts: &[FontInfo], cfg: &FloatsConfig) -> Option<bool> {
+fn table_caption_convention(
+    pages: &[PageData],
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    cfg: &FloatsConfig,
+) -> Option<bool> {
     let (mut votes_above, mut votes_below) = (0, 0);
     for page in pages {
-        let (above, below) = table_caption_votes(page, fonts, cfg);
+        let (above, below) = table_caption_votes(page, stats, fonts, cfg);
         votes_above += above;
         votes_below += below;
     }

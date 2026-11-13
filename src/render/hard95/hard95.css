@@ -27,6 +27,8 @@ body.fit .page{width:min(100%,calc(var(--pw)*var(--zoom)*1px))}
 .tl .m{font-family:var(--pmono)}
 .tl .x{font-family:var(--math)}
 .pl,.g,.rt{position:absolute;white-space:pre}
+/* Text inside figures is drawn by the page picture; this copy is for selecting. */
+.b[data-kind="figure-text"]{color:transparent}
 .rt{transform-origin:0 .84em}
 .ph{display:inline-block}
 /* Stacked glyphs in a line (inline fractions), each at its place in the PDF. */

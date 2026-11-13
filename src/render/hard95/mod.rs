@@ -228,7 +228,17 @@ impl PageLayer<'_> {
             return;
         }
         match &block.table {
-            Some(table) => self.html.push_str(&table_box(table, self.units)),
+            Some(table) => {
+                self.html.push_str(&table_box(table, self.units));
+                block
+                    .inner_lines
+                    .iter()
+                    .for_each(|line| add_origins(&mut self.drawn, line));
+            }
+            // The text inside a figure stays in the page picture, where it
+            // is drawn in the figure's own order: a legend box may cover
+            // tick labels, which HTML laid on top would show. The HTML copy
+            // is transparent, for selecting, searching and copying.
             None => {
                 let mut html = String::new();
                 for (line, spans) in block.inner_lines.iter().zip(&block.inner_spans) {
@@ -240,10 +250,6 @@ impl PageLayer<'_> {
                 ));
             }
         }
-        block
-            .inner_lines
-            .iter()
-            .for_each(|line| add_origins(&mut self.drawn, line));
     }
 
     /// Adds the lines of the page that belong to no block (running heads,

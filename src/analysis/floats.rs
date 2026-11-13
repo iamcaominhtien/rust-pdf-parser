@@ -79,7 +79,9 @@ pub struct FloatsConfig {
     /// a stray label).
     pub continuation_min_chars: usize,
     /// The second line of a caption starts at most this many sizes below
-    /// the first.
+    /// the first, or at the body's leading (times `caption_step_max_leading`,
+    /// plus `caption_step_slack_pt`): small captions set at the body's
+    /// leading (ACL) are further apart than their size suggests.
     pub caption_first_step_max_em: f32,
     /// Further caption lines follow at most this multiple of the leading
     /// measured between the first two lines...
@@ -718,8 +720,13 @@ pub fn join_caption_labels(page: &mut PageData, cfg: &FloatsConfig, lines_cfg: &
 /// table in this document: returns (votes for above, votes for below) from
 /// captions that have a table on one side only. A page without table
 /// captions returns `(0, 0)`.
-pub fn table_caption_votes(page: &PageData, fonts: &[FontInfo], cfg: &FloatsConfig) -> (usize, usize) {
-    let captions = find_captions(page, fonts, cfg);
+pub fn table_caption_votes(
+    page: &PageData,
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    cfg: &FloatsConfig,
+) -> (usize, usize) {
+    let captions = find_captions(page, stats.leading, fonts, cfg);
     if !captions.iter().any(|caption| caption.kind == FloatKind::Table) {
         return (0, 0);
     }
@@ -759,7 +766,7 @@ pub fn detect_floats(
     table_caption_above: Option<bool>,
     cfg: &FloatsConfig,
 ) -> Vec<Float> {
-    let captions = find_captions(page, fonts, cfg);
+    let captions = find_captions(page, stats.leading, fonts, cfg);
     let is_caption_line = caption_line_mask(&captions, page.lines.len());
     let mut absorbed: Vec<Option<usize>> = vec![None; page.lines.len()]; // float index
     let floats = {
@@ -816,7 +823,7 @@ fn body_like(line: &Line, stats: &DocStats, cfg: &FloatsConfig) -> bool {
 /// starts with a caption label starts a caption, and the following lines of
 /// the same size and column are added to it. Every line belongs to at most
 /// one caption.
-fn find_captions(page: &PageData, fonts: &[FontInfo], cfg: &FloatsConfig) -> Vec<Caption> {
+fn find_captions(page: &PageData, body_leading: f32, fonts: &[FontInfo], cfg: &FloatsConfig) -> Vec<Caption> {
     let lines = &page.lines;
     let mut used = vec![false; lines.len()];
     let mut captions = Vec::new();
@@ -824,7 +831,7 @@ fn find_captions(page: &PageData, fonts: &[FontInfo], cfg: &FloatsConfig) -> Vec
         if used[i] {
             continue;
         }
-        let Some(caption) = caption_at(lines, &used, i, fonts, cfg) else {
+        let Some(caption) = caption_at(lines, &used, i, body_leading, fonts, cfg) else {
             continue;
         };
         for &j in &caption.lines {
@@ -839,7 +846,14 @@ fn find_captions(page: &PageData, fonts: &[FontInfo], cfg: &FloatsConfig) -> Vec
 /// start with a caption label, or the label is a mere reference (no
 /// punctuation, not alone, not bold), or the line continues the paragraph
 /// above it (unless the label is bold).
-fn caption_at(lines: &[Line], used: &[bool], first: usize, fonts: &[FontInfo], cfg: &FloatsConfig) -> Option<Caption> {
+fn caption_at(
+    lines: &[Line],
+    used: &[bool],
+    first: usize,
+    body_leading: f32,
+    fonts: &[FontInfo],
+    cfg: &FloatsConfig,
+) -> Option<Caption> {
     let line = &lines[first];
     let text = line.text();
     let captures = CAPTION.captures(&text)?;
@@ -858,7 +872,7 @@ fn caption_at(lines: &[Line], used: &[bool], first: usize, fonts: &[FontInfo], c
     if !label_bold && continues_paragraph(lines, first, cfg) {
         return None;
     }
-    let (idxs, bbox) = collect_caption_lines(lines, used, first, cfg);
+    let (idxs, bbox) = collect_caption_lines(lines, used, first, body_leading, cfg);
     Some(Caption {
         lines: idxs,
         bbox,
@@ -901,10 +915,25 @@ fn continues_paragraph(lines: &[Line], idx: usize, cfg: &FloatsConfig) -> bool {
     })
 }
 
+/// Baseline distances a caption's lines are measured against.
+#[derive(Clone, Copy)]
+struct Leading {
+    /// Between the caption's first two lines, once known.
+    caption: Option<f32>,
+    /// Of the running text.
+    body: f32,
+}
+
 /// Collects the lines of the caption that starts at line `first`: returns
 /// their indices (top to bottom) and their bounding box. The caption ends at
 /// a gap, at the next caption, or after a line that ended early.
-fn collect_caption_lines(lines: &[Line], used: &[bool], first: usize, cfg: &FloatsConfig) -> (Vec<usize>, Rect) {
+fn collect_caption_lines(
+    lines: &[Line],
+    used: &[bool],
+    first: usize,
+    body_leading: f32,
+    cfg: &FloatsConfig,
+) -> (Vec<usize>, Rect) {
     let head_size = lines[first].size;
     let mut idxs = vec![first];
     let mut bbox = lines[first].bbox;
@@ -912,7 +941,18 @@ fn collect_caption_lines(lines: &[Line], used: &[bool], first: usize, cfg: &Floa
     let mut leading: Option<f32> = None;
     loop {
         let prev_line = &lines[prev];
-        let Some(j) = next_caption_line(lines, used, prev, head_size, &bbox, leading, cfg) else {
+        let Some(j) = next_caption_line(
+            lines,
+            used,
+            prev,
+            head_size,
+            &bbox,
+            Leading {
+                caption: leading,
+                body: body_leading,
+            },
+            cfg,
+        ) else {
             break;
         };
         let next = &lines[j];
@@ -951,15 +991,16 @@ fn next_caption_line(
     prev: usize,
     head_size: f32,
     bbox: &Rect,
-    leading: Option<f32>,
+    leading: Leading,
     cfg: &FloatsConfig,
 ) -> Option<usize> {
     let prev_line = &lines[prev];
     for (j, line) in lines.iter().enumerate().skip(prev + 1) {
         let dy = line.baseline - prev_line.baseline;
-        let max_dy = match leading {
+        let max_dy = match leading.caption {
             Some(lead) => cfg.caption_step_max_leading * lead + cfg.caption_step_slack_pt,
-            None => cfg.caption_first_step_max_em * head_size,
+            None => (cfg.caption_step_max_leading * leading.body + cfg.caption_step_slack_pt)
+                .max(cfg.caption_first_step_max_em * head_size),
         };
         if dy > max_dy {
             return None;

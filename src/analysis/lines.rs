@@ -29,6 +29,14 @@ const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     same_baseline_pt: 0.25,
     same_baseline_em: 0.03,
     merge_max_gap_em: 1.0,
+    justified_max_gap_em: 2.5,
+    justified_edge_tol_pt: 1.5,
+    justified_max_indent_em: 3.0,
+    justified_min_step_em: 0.7,
+    justified_max_step_em: 2.0,
+    justified_gutter_reach_em: 4.0,
+    justified_gutter_tol_pt: 1.0,
+    justified_max_gap_ratio: 3.0,
     merge_max_size_factor: 2.2,
     math_axis_em: 0.25,
     math_reanchor_min_offset_em: 0.5,
@@ -94,6 +102,31 @@ pub struct LinesConfig {
     /// most this (in font sizes of the larger segment); wider gaps separate
     /// columns or table cells.
     pub merge_max_gap_em: f32,
+    /// A justified line with few words can have a word gap wider than
+    /// `merge_max_gap_em`. Such a gap is closed when it is at most this (in
+    /// font sizes) and a neighbouring line shows the two pieces are the ends
+    /// of one line (see [`merge_justified_gaps`]).
+    pub justified_max_gap_em: f32,
+    /// How closely (in points) the neighbouring line must end where the
+    /// right piece ends, and start where the left piece starts.
+    pub justified_edge_tol_pt: f32,
+    /// The neighbouring line may start this much (in font sizes) left of the
+    /// left piece: the left piece may be an indented first line.
+    pub justified_max_indent_em: f32,
+    /// Range of baseline distances (in font sizes) of the neighbouring line.
+    pub justified_min_step_em: f32,
+    /// See [`LinesConfig::justified_min_step_em`].
+    pub justified_max_step_em: f32,
+    /// A gap is a column gutter, not a stretched space, when another line
+    /// within this many font sizes above or below has an edge at the same
+    /// place: the lines of a column all end, and start, at one x.
+    pub justified_gutter_reach_em: f32,
+    /// Tolerance (in points) of that edge comparison.
+    pub justified_gutter_tol_pt: f32,
+    /// A justified line stretches all its word spaces: a gap between pieces
+    /// is closed only when it is at most this many times the median word
+    /// space inside the pieces (table cells are far apart, words are not).
+    pub justified_max_gap_ratio: f32,
     /// Segments on one baseline are not merged when one font is this many
     /// times larger than the other (a heading next to a margin note).
     pub merge_max_size_factor: f32,
@@ -429,6 +462,7 @@ pub fn build_lines(raw: &RawPage, cfg: &LinesConfig) -> (Vec<Line>, Vec<RotatedT
 
     // 3. Hosts may have grown towards each other.
     let segments = merge_same_baseline(segments, cfg);
+    let segments = merge_justified_gaps(segments, cfg);
 
     let mut lines: Vec<Line> = segments
         .into_iter()
@@ -739,6 +773,133 @@ fn merge_same_baseline(mut segments: Vec<Segment>, cfg: &LinesConfig) -> Vec<Seg
         // `drain` shifted the tail down, so `i` already points at the next group.
     }
     out
+}
+
+/// Joins the pieces of a justified line whose word gaps were stretched
+/// beyond [`LinesConfig::merge_max_gap_em`]: the first line of a caption set
+/// next to a figure ("Figure 3:   Transfer to ImageNet.     While") has few
+/// words to share the space.
+///
+/// A run of pieces on one baseline is joined only when its word spaces are
+/// stretched like its gaps, its pieces hold words, a line directly above or
+/// below runs from the first piece's start (or an indent before it) to the
+/// last piece's end without a break, and no line nearby has an edge at
+/// either side of a gap: the lines of two columns all end, and start, at the
+/// gutter.
+fn merge_justified_gaps(mut segments: Vec<Segment>, cfg: &LinesConfig) -> Vec<Segment> {
+    segments.sort_by(|a, b| a.y.total_cmp(&b.y).then(a.x0.total_cmp(&b.x0)));
+    let mut runs: Vec<(usize, usize)> = Vec::new();
+    let mut i = 0;
+    while i < segments.len() {
+        // The longest run from i whose gaps could be stretched spaces.
+        let mut end = i;
+        while end + 1 < segments.len() && joinable(&segments[end], &segments[end + 1], cfg) {
+            end += 1;
+        }
+        // Its longest prefix that is one justified line.
+        let found = (i + 1..=end).rev().find(|&last| {
+            let pieces = &segments[i..=last];
+            let widest = pieces
+                .windows(2)
+                .map(|pair| pair[1].x0 - pair[0].x1)
+                .fold(0.0, f32::max);
+            stretched(pieces, widest, cfg)
+                && pieces[1..].iter().all(has_word)
+                && spanned(pieces, &segments, cfg)
+                && pieces
+                    .windows(2)
+                    .all(|pair| !gutter(&pair[0], &pair[1], &segments, cfg))
+        });
+        match found {
+            Some(last) => {
+                runs.push((i, last));
+                i = last + 1;
+            }
+            None => i += 1,
+        }
+    }
+    for &(first, last) in runs.iter().rev() {
+        let rest: Vec<Segment> = segments.drain(first + 1..=last).collect();
+        for piece in rest {
+            segments[first].glyphs.extend(piece.glyphs);
+        }
+        segments[first].refresh(cfg);
+    }
+    segments
+}
+
+/// Whether `right` follows `left` on the same baseline, at a gap that a
+/// stretched word space may reach.
+fn joinable(left: &Segment, right: &Segment, cfg: &LinesConfig) -> bool {
+    let gap = right.x0 - left.x1;
+    (right.y - left.y).abs() <= cfg.same_baseline_pt + cfg.same_baseline_em * left.size
+        && gap > 0.0
+        && gap <= cfg.justified_max_gap_em * left.size.max(right.size)
+        && (left.size / right.size).max(right.size / left.size) < cfg.merge_max_size_factor
+}
+
+/// Whether the word spaces inside `pieces` are stretched like the widest
+/// gap between them: a justified line stretches all its spaces, while table
+/// cells are far apart and the words inside them are not.
+fn stretched(pieces: &[Segment], widest: f32, cfg: &LinesConfig) -> bool {
+    let mut spaces: Vec<f32> = Vec::new();
+    for piece in pieces {
+        let mut glyphs: Vec<&LineGlyph> = piece
+            .glyphs
+            .iter()
+            .filter(|glyph| !glyph.text.trim().is_empty())
+            .collect();
+        glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+        spaces.extend(
+            glyphs
+                .windows(2)
+                .map(|pair| pair[1].x0 - pair[0].x1)
+                .filter(|&gap| gap > cfg.space_gap_em * piece.size),
+        );
+    }
+    if spaces.len() < 2 {
+        return false;
+    }
+    spaces.sort_by(f32::total_cmp);
+    widest <= cfg.justified_max_gap_ratio * spaces[spaces.len() / 2]
+}
+
+/// Whether `piece` holds a word of two lower-case letters: text, not a
+/// table cell of numbers.
+fn has_word(piece: &Segment) -> bool {
+    let mut glyphs: Vec<&LineGlyph> = piece.glyphs.iter().collect();
+    glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+    let lower = |glyph: &LineGlyph| !glyph.text.is_empty() && glyph.text.chars().all(char::is_lowercase);
+    glyphs.windows(2).any(|pair| lower(pair[0]) && lower(pair[1]))
+}
+
+/// Whether a line directly above or below `pieces` runs from the first
+/// piece's start (or an indent before it) to the last piece's end.
+fn spanned(pieces: &[Segment], all: &[Segment], cfg: &LinesConfig) -> bool {
+    let (first, last) = (&pieces[0], &pieces[pieces.len() - 1]);
+    let size = pieces.iter().map(|piece| piece.size).fold(0.0, f32::max);
+    all.iter().any(|other| {
+        let step = (other.y - first.y).abs();
+        step >= cfg.justified_min_step_em * size
+            && step <= cfg.justified_max_step_em * size
+            && (other.size - size).abs() <= cfg.justified_edge_tol_pt
+            && other.x0 <= first.x0 + cfg.justified_edge_tol_pt
+            && other.x0 >= first.x0 - cfg.justified_max_indent_em * size
+            && (other.x1 - last.x1).abs() <= cfg.justified_edge_tol_pt
+    })
+}
+
+/// Whether another line near the gap between `left` and `right` has an edge
+/// at either side of it, as the lines of two columns do at their gutter.
+fn gutter(left: &Segment, right: &Segment, all: &[Segment], cfg: &LinesConfig) -> bool {
+    let size = left.size.max(right.size);
+    all.iter().any(|other| {
+        !std::ptr::eq(other, left)
+            && !std::ptr::eq(other, right)
+            && (other.y - left.y).abs() <= cfg.justified_gutter_reach_em * size
+            && ((other.x1 - left.x1).abs() <= cfg.justified_gutter_tol_pt
+                || (other.x0 - right.x0).abs() <= cfg.justified_gutter_tol_pt)
+    })
 }
 
 /// Glyphs of math extension fonts (radicals, big operators, tall

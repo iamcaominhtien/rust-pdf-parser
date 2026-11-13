@@ -363,7 +363,8 @@ paper_test!(
     broken <= 1,
     split <= 0,
     glyphs <= 85,
-    hyphenated <= 89
+    // "sequence-aligned" twice, broken at its hyphen.
+    hyphenated <= 91
 );
 paper_test!(
     resnet,

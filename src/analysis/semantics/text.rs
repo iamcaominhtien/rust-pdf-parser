@@ -463,6 +463,10 @@ pub(crate) fn remove_hyphen(left: &str, right: &str, vocab: &HashSet<String>, cf
     if before.first() == Some(&'-') {
         return false;
     }
+    // "CNN-\nbased": TeX never breaks an acronym; the hyphen is real.
+    if trailing.chars().count() >= 2 && trailing.chars().all(char::is_uppercase) {
+        return false;
+    }
     let (left_part, right_part) = (trailing.to_lowercase(), leading.to_lowercase());
     if vocab.contains(&format!("{left_part}{right_part}")) {
         return true;
@@ -470,9 +474,19 @@ pub(crate) fn remove_hyphen(left: &str, right: &str, vocab: &HashSet<String>, cf
     if vocab.contains(&format!("{left_part}-{right_part}")) {
         return false;
     }
+    // "sequence-\naligned": both parts are words of the paper, the right one
+    // perhaps with an inflection ("aligned" where the paper says "align").
+    let known = |word: &str| {
+        vocab.contains(word)
+            || ["ed", "d", "ing", "s", "es"].iter().any(|suffix| {
+                word.strip_suffix(suffix).is_some_and(|stem| {
+                    stem.chars().count() >= cfg.compound_part_min_chars_count && vocab.contains(stem)
+                })
+            })
+    };
     if left_part.chars().count() >= cfg.compound_part_min_chars_count
         && vocab.contains(&left_part)
-        && vocab.contains(&right_part)
+        && known(&right_part)
     {
         return false;
     }

@@ -142,6 +142,9 @@ a{color:var(--link);text-decoration:underline;text-decoration-thickness:1px;text
   text-decoration-color:color-mix(in srgb,var(--link) 45%,transparent)}
 a:hover{text-decoration-color:var(--link)}
 a.xref{text-decoration-style:dotted}
+/* Long URLs and identifiers break rather than widen the page on phones. */
+article :is(a,code){overflow-wrap:anywhere}
+article :is(aside,figcaption,li,td,th,.note){overflow-wrap:break-word}
 sup,sub{font-size:.7em;line-height:0;position:relative;vertical-align:baseline}
 sup{top:-.5em}sub{top:.25em}
 code{font-family:var(--mono);font-size:.84em;color:var(--ink-2);background:var(--wash);padding:.05em .3em;border-radius:var(--radius)}

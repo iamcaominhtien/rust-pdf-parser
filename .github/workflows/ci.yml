@@ -62,15 +62,18 @@ jobs:
         env:
           P2H_REQUIRE_ALL_PAPERS: "1"
 
-      # hard-95 behaviour that only a browser can check (line fitting,
-      # reflow after translation), with the Chrome preinstalled on the runner.
+      # Behaviour that only a browser can check, with the Chrome preinstalled
+      # on the runner: hard-95 line fitting and reflow after translation;
+      # friendly themes, contents, phone widths and the book view.
       - name: Browser checks
         run: |
           npm install --no-save --no-package-lock playwright-core@1.63.0
           mkdir -p out
           for p in 1706.03762v7 1512.03385v1 1602.03837v1 1412.6980v9; do
             target/debug/paper2html convert "tests/data/$p.pdf" -m hard-95 -o "out/$p.hard-95.html"
+            target/debug/paper2html convert "tests/data/$p.pdf" -m friendly -o "out/$p.friendly.html"
           done
           node tests/browser/check-hard95.js out/*.hard-95.html
+          node tests/browser/check-friendly.js out/*.friendly.html
         env:
           P2H_CHROME_CHANNEL: chrome

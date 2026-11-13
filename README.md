@@ -21,7 +21,7 @@ sang HTML đẹp, dễ đọc, câu chữ liền mạch — phù hợp làm đ�
 | `hard` | Giống 1-1 từng trang (trang gốc vẽ lại bằng SVG/PNG) | Lớp chữ ẩn, chọn/copy/tìm kiếm được | Cần đối chiếu chính xác với bản PDF |
 | `hard-95` | Như `hard`: từng trang, đúng vị trí, đúng ngắt dòng | **Chữ HTML thật, hiển thị**; bảng là `<table>`; công thức là chữ | Muốn giống bản gốc mà vẫn dịch/sửa/copy được |
 | `medium` | Giữ trang, số cột, vị trí tương đối của hình/bảng | HTML thật, tự dàn lại; đoạn văn không bị cắt giữa cột/trang | Muốn "cảm giác bài báo", chữ dàn tự nhiên |
-| `friendly` | Một cột, responsive, thiết kế Offprint: theme Paper / White / Dark, mục lục ẩn/hiện được, font đọc nhúng sẵn | HTML thật, ưu tiên dễ đọc | Đọc trên web/điện thoại, đưa vào công cụ dịch |
+| `friendly` | Một cột, responsive, thiết kế Offprint: theme Paper / White / Dark, mục lục ẩn/hiện được, font đọc nhúng sẵn, code tô màu, chế độ đọc dạng sách lật trang | HTML thật, ưu tiên dễ đọc | Đọc trên web/điện thoại, đưa vào công cụ dịch |
 
 Ở cả bốn chế độ, văn bản của một đoạn luôn nằm liền nhau trong DOM:
 
@@ -280,10 +280,16 @@ Test không bao giờ tự tải gì. Chỉ bài LIGO (CC BY 4.0) nằm trong re
 phép phân phối lại nên phải tải bằng script trên. Bài nào chưa tải thì test bỏ qua và in ra danh
 sách còn thiếu.
 
-Phần JavaScript của `hard-95` (căn dòng, dàn lại chữ khi dịch) được kiểm tra trong trình duyệt:
+Phần JavaScript của `hard-95` (căn dòng, dàn lại chữ khi dịch) và của `friendly` (theme, mục lục,
+màn hình điện thoại, chế độ đọc dạng sách: chia trang, lật trang, chia lại trang sau khi dịch) được
+kiểm tra trong trình duyệt:
 
 ```bash
 node tests/browser/check-hard95.js out/*.hard-95.html
+```
+
+```bash
+node tests/browser/check-friendly.js out/*.friendly.html
 ```
 
 Cần gói `playwright` hoặc `playwright-core`. CI (`.github/workflows/ci.yml`) chạy `cargo fmt`,

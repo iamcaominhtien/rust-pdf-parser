@@ -22,6 +22,13 @@ const DEFAULT_MARGIN_PT: f32 = 60.0;
 const MARGIN_X_RANGE_PT: (f32, f32) = (18.0, 130.0);
 /// Smallest and largest top page margin, in points.
 const MARGIN_Y_RANGE_PT: (f32, f32) = (24.0, 110.0);
+/// Largest margin shown around the text, in points: a page keeps the text
+/// width and type size of the PDF, but wide paper margins (1.5 inch in
+/// some templates) are trimmed to this, so the page is narrower instead of
+/// mostly empty.
+const SHOWN_MARGIN_X_PT: f32 = 40.0;
+/// Largest top and bottom margin shown, in points.
+const SHOWN_MARGIN_Y_PT: f32 = 44.0;
 /// Smallest and largest line height, as a multiple of the font size: the
 /// leading of the PDF, kept in a range that reads well as HTML.
 const LINE_HEIGHT_RANGE: (f32, f32) = (1.22, 1.5);
@@ -43,11 +50,16 @@ impl Renderer for Medium {
 pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let title = doc_title(doc);
     let (mx, my) = page_margins(doc);
+    let trim = PageTrim {
+        x: (mx - SHOWN_MARGIN_X_PT).max(0.0),
+        y: (my - SHOWN_MARGIN_Y_PT).max(0.0),
+    };
+    let (mx, my) = (mx - trim.x, my - trim.y);
     let line_height = (doc.leading / doc.body_size).clamp(LINE_HEIGHT_RANGE.0, LINE_HEIGHT_RANGE.1);
 
     let mut pages = String::new();
     for (page_idx, page) in doc.pages.iter().enumerate() {
-        pages.push_str(&page_html(doc, page_idx, page, images));
+        pages.push_str(&page_html(doc, page_idx, page, &trim, images));
     }
 
     let source = arxiv_abs_link(doc);
@@ -102,11 +114,25 @@ fn page_margins(doc: &Document) -> (f32, f32) {
     (mx, my)
 }
 
-/// One page: its zones of text, then its footnotes, then its number.
-fn page_html(doc: &Document, page_idx: usize, page: &PageInfo, images: &mut ImageStore<'_>) -> String {
+/// How much of the paper margins is cut off each side of every page, in
+/// points.
+struct PageTrim {
+    /// Cut off the left and the right.
+    x: f32,
+    /// Cut off the top and the bottom.
+    y: f32,
+}
+
+/// One page: its zones of text, then its footnotes, then its number. The
+/// page is drawn `trim` narrower and shorter than the PDF page.
+fn page_html(doc: &Document, page_idx: usize, page: &PageInfo, trim: &PageTrim, images: &mut ImageStore<'_>) -> String {
     let blocks: Vec<&Block> = doc.blocks.iter().filter(|block| block.page == page_idx).collect();
+    let (width, height) = (
+        (page.width - 2.0 * trim.x).max(1.0),
+        (page.height - 2.0 * trim.y).max(1.0),
+    );
     let ctx = FlowCtx {
-        unit: WidthUnit::Cqw { page_width: page.width },
+        unit: WidthUnit::Cqw { page_width: width },
         offprint: false,
     };
     let mut inner = String::new();
@@ -135,8 +161,8 @@ fn page_html(doc: &Document, page_idx: usize, page: &PageInfo, images: &mut Imag
     format!(
         "<section class=\"page\" id=\"page-{n}\" data-page=\"{n}\" style=\"--pw:{w};--ph:{h}\">\n<div class=\"page-inner\">\n{inner}</div>\n<div class=\"page-no\">{n}</div>\n</section>\n",
         n = page_idx + 1,
-        w = page.width,
-        h = page.height,
+        w = width,
+        h = height,
     )
 }
 

@@ -1,5 +1,11 @@
 //! An opened PDF file: the entry point of the backend, and the only type the
 //! rest of the program uses to reach the PDF library.
+#![warn(
+    missing_docs,
+    clippy::missing_docs_in_private_items,
+    clippy::too_many_lines,
+    clippy::min_ident_chars
+)]
 
 use super::extract::{RawPage, extract_page};
 use super::fonts::{FontInfo, FontRegistry, UNKNOWN_FONT};
@@ -22,7 +28,7 @@ impl PdfFile {
     /// # Errors
     /// When the data is not a readable PDF, or the PDF has no pages.
     pub fn open(data: Vec<u8>) -> Result<Self> {
-        let pdf = Pdf::new(data).map_err(|e| anyhow!("cannot read PDF: {e:?}"))?;
+        let pdf = Pdf::new(data).map_err(|err| anyhow!("cannot read PDF: {err:?}"))?;
         if pdf.pages().is_empty() {
             return Err(anyhow!("the PDF has no pages"));
         }
@@ -61,39 +67,54 @@ impl PdfFile {
             },
             |(fonts, cache, settings), page_idx| {
                 let page = extract_page(&pages[page_idx], page_idx, fonts, cache, settings);
-                // The fonts this page refers to, by local index.
-                let mut used: Vec<(u16, FontInfo)> = Vec::new();
-                for glyph in &page.glyphs {
-                    if !used.iter().any(|(font, _)| *font == glyph.font) {
-                        used.push((glyph.font, fonts.infos[glyph.font as usize].clone()));
-                    }
-                }
+                let used = fonts_used(&page, fonts);
                 (page, used)
             },
         );
-
-        let mut infos = FontRegistry::new().infos; // starts with the "unknown" font
-        let mut by_name: HashMap<String, u16> = HashMap::new();
-        let mut raw = Vec::with_capacity(extracted.len());
-        for (mut page, used) in extracted {
-            let to_global: HashMap<u16, u16> = used
-                .into_iter()
-                .map(|(local, info)| {
-                    if local == UNKNOWN_FONT {
-                        return (local, local);
-                    }
-                    let global = *by_name.entry(info.name.clone()).or_insert_with(|| {
-                        infos.push(info);
-                        (infos.len() - 1) as u16
-                    });
-                    (local, global)
-                })
-                .collect();
-            for glyph in &mut page.glyphs {
-                glyph.font = to_global[&glyph.font];
-            }
-            raw.push(page);
-        }
-        (raw, infos)
+        unify_fonts(extracted)
     }
+}
+
+/// The fonts `page` refers to, as (index in the worker's registry, font
+/// description) pairs in order of first use.
+fn fonts_used(page: &RawPage, fonts: &FontRegistry<'_>) -> Vec<(u16, FontInfo)> {
+    let mut used: Vec<(u16, FontInfo)> = Vec::new();
+    for glyph in &page.glyphs {
+        if !used.iter().any(|(font, _)| *font == glyph.font) {
+            used.push((glyph.font, fonts.infos[glyph.font as usize].clone()));
+        }
+    }
+    used
+}
+
+/// Renumbers the worker-local font indices of the extracted pages into one
+/// document-wide font table and returns the pages with that table.
+///
+/// Fonts are identified by name and numbered in order of first use, page by
+/// page, so the table does not depend on how pages were spread over
+/// workers. Index [`UNKNOWN_FONT`] keeps its meaning.
+fn unify_fonts(extracted: Vec<(RawPage, Vec<(u16, FontInfo)>)>) -> (Vec<RawPage>, Vec<FontInfo>) {
+    let mut infos = FontRegistry::new().infos; // starts with the "unknown" font
+    let mut by_name: HashMap<String, u16> = HashMap::new();
+    let mut raw = Vec::with_capacity(extracted.len());
+    for (mut page, used) in extracted {
+        let to_global: HashMap<u16, u16> = used
+            .into_iter()
+            .map(|(local, info)| {
+                if local == UNKNOWN_FONT {
+                    return (local, local);
+                }
+                let global = *by_name.entry(info.name.clone()).or_insert_with(|| {
+                    infos.push(info);
+                    (infos.len() - 1) as u16
+                });
+                (local, global)
+            })
+            .collect();
+        for glyph in &mut page.glyphs {
+            glyph.font = to_global[&glyph.font];
+        }
+        raw.push(page);
+    }
+    (raw, infos)
 }

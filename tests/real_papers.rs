@@ -315,8 +315,9 @@ fn check(e: &Expect) -> Option<Metrics> {
     Some(m)
 }
 
-/// The rebuilt table whose caption starts with `label` ("Table 2"), as rows
-/// of cell texts. `None` when the paper is not downloaded.
+/// The rebuilt table whose caption starts with `label` ("Table 2", followed by
+/// a colon or a full stop), as rows of cell texts. `None` when the paper is
+/// not downloaded.
 fn table(id: &str, label: &str) -> Option<Vec<Vec<String>>> {
     let paper = load(id)?;
     let analysis = paper.analyze();
@@ -324,7 +325,10 @@ fn table(id: &str, label: &str) -> Option<Vec<Vec<String>>> {
         .doc
         .blocks
         .iter()
-        .find(|b| plain(&b.spans).starts_with(&format!("{label}:")))
+        .find(|b| {
+            let caption = plain(&b.spans);
+            caption.starts_with(&format!("{label}:")) || caption.starts_with(&format!("{label}."))
+        })
         .unwrap_or_else(|| panic!("{id}: no caption starting with {label:?}"));
     let t = block
         .table
@@ -416,8 +420,10 @@ paper_test!(
     broken <= 3,
     split <= 0,
     // 188 on p10, the rest are labels in the detection examples of p12-p13,
-    // drawn twice (outline and fill) and kept in the figure pictures.
-    glyphs <= 391,
+    // drawn twice (outline and fill) and kept in the figure pictures. The
+    // labels at the top of p12-p13 are in them since they stopped being taken
+    // for running heads (15 more glyphs).
+    glyphs <= 410,
     hyphenated <= 162
 );
 paper_test!(
@@ -465,6 +471,86 @@ fn bert_table_headers_are_kept() {
             return;
         };
         assert_eq!(rows[0], ["System", "Dev", "Test"], "{label}: header row");
+    }
+}
+
+/// The tables of BERT whose numbers are set tightly: "QNLI" and "MRPC", and
+/// the two scores under them, are cells of their own, not one cell of two
+/// values (Table 5), and so are "MNLI" and "NER" with their scores (Table 8).
+/// The header that centres "Dev Set" over several columns must not hide the
+/// corridors between them.
+#[test]
+fn bert_tight_numeric_columns_are_split() {
+    let Some(rows) = table("1810.04805v2", "Table 5") else {
+        return;
+    };
+    assert_eq!(
+        rows[1],
+        ["Tasks", "MNLI-m", "QNLI", "MRPC", "SST-2", "SQuAD"],
+        "Table 5: header"
+    );
+    assert_eq!(
+        rows[3],
+        ["BERTBASE", "84.4", "88.4", "86.7", "92.7", "88.5"],
+        "Table 5: first row"
+    );
+    let Some(rows) = table("1810.04805v2", "Table 8") else {
+        return;
+    };
+    assert_eq!(rows[1], ["MASK", "SAME", "RND", "MNLI", "NER"], "Table 8: header");
+    assert_eq!(
+        rows[3],
+        ["80%", "10%", "10%", "84.2", "95.4", "94.9"],
+        "Table 8: first row"
+    );
+}
+
+/// Table 11 of the GPT-4 report: "Contamination" and "GPT-4 (non-" are two
+/// columns, and so are the two values of a row such as "25%" and "65.58%".
+#[test]
+fn gpt4_contamination_table_columns_are_split() {
+    let Some(rows) = table("2303.08774v6", "Table 11") else {
+        return;
+    };
+    assert_eq!(
+        rows[0],
+        [
+            "Benchmark",
+            "GPT-4",
+            "GPT-3.5",
+            "Contamination",
+            "GPT-4 (non-",
+            "Degradation"
+        ],
+        "header"
+    );
+    let human_eval = rows.iter().find(|row| row[0] == "HumanEval").expect("a HumanEval row");
+    assert_eq!(human_eval, &["HumanEval", "67.0%", "48.1%", "25%", "65.58%", "-2.12%"]);
+}
+
+/// The header rows of the detection tables of Faster R-CNN and ResNet hold
+/// the twenty class names, one cell each: "person" and "plant", and "train"
+/// and "tv", are not merged, and the numbers below them are not either.
+#[test]
+fn detection_tables_keep_every_class_column() {
+    for (id, label, first, second) in [
+        ("1506.01497v3", "Table 6", "person", "plant"),
+        ("1512.03385v1", "Table 10", "train", "tv"),
+    ] {
+        let Some(rows) = table(id, label) else {
+            return;
+        };
+        let header = &rows[0];
+        let at = header
+            .iter()
+            .position(|cell| cell == first)
+            .unwrap_or_else(|| panic!("{label}: no {first:?} cell in {header:?}"));
+        assert_eq!(header[at + 1], second, "{label}: {first:?} is followed by {second:?}");
+        let merged = rows[1..]
+            .iter()
+            .flat_map(|row| row.iter().skip(2))
+            .find(|cell| cell.contains(' '));
+        assert!(merged.is_none(), "{label}: a cell holds two numbers: {merged:?}");
     }
 }
 

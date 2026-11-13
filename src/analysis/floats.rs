@@ -110,6 +110,14 @@ pub struct FloatsConfig {
     /// The caption stops growing after more than this many lines; guards
     /// against swallowing a whole column.
     pub caption_max_lines_count: usize,
+    /// A horizontal rule at least this wide (in points) that runs between two
+    /// lines of text and under the lower one ends a caption: the lower line
+    /// is the header row of the table, not more caption.
+    pub caption_rule_min_width_pt: f32,
+    /// A rule separates two caption lines only if it lies this far (in font
+    /// sizes) above the baseline of the lower one: at least the height of
+    /// its lowercase letters.
+    pub caption_rule_clear_em: f32,
 
     // --- joining bare labels ---
     /// A bare label and its text are on the same baseline within this.
@@ -381,6 +389,8 @@ impl Default for FloatsConfig {
             caption_word_space_em: 0.3,
             caption_short_line_slack_pt: 2.0,
             caption_max_lines_count: 60,
+            caption_rule_min_width_pt: 30.0,
+            caption_rule_clear_em: 0.6,
             label_join_baseline_tol_pt: 0.6,
             label_join_size_tol_pt: 0.4,
             label_join_max_gap_em: 4.0,
@@ -842,13 +852,19 @@ fn body_like(line: &Line, stats: &DocStats, cfg: &FloatsConfig) -> bool {
 /// one caption.
 fn find_captions(page: &PageData, body_leading: f32, fonts: &[FontInfo], cfg: &FloatsConfig) -> Vec<Caption> {
     let lines = &page.lines;
+    let rules: Vec<Rect> = page
+        .paths
+        .iter()
+        .filter(|path| path.is_hrule() && path.bbox.width() >= cfg.caption_rule_min_width_pt)
+        .map(|path| path.bbox)
+        .collect();
     let mut used = vec![false; lines.len()];
     let mut captions = Vec::new();
     for i in 0..lines.len() {
         if used[i] {
             continue;
         }
-        let Some(caption) = caption_at(lines, &used, i, body_leading, fonts, cfg) else {
+        let Some(caption) = caption_at(lines, &used, &rules, i, body_leading, fonts, cfg) else {
             continue;
         };
         for &j in &caption.lines {
@@ -866,6 +882,7 @@ fn find_captions(page: &PageData, body_leading: f32, fonts: &[FontInfo], cfg: &F
 fn caption_at(
     lines: &[Line],
     used: &[bool],
+    rules: &[Rect],
     first: usize,
     body_leading: f32,
     fonts: &[FontInfo],
@@ -889,7 +906,7 @@ fn caption_at(
     if !label_bold && continues_paragraph(lines, first, cfg) {
         return None;
     }
-    let (idxs, bbox) = collect_caption_lines(lines, used, first, body_leading, cfg);
+    let (idxs, bbox) = collect_caption_lines(lines, used, rules, first, body_leading, cfg);
     Some(Caption {
         lines: idxs,
         bbox,
@@ -941,12 +958,14 @@ struct Leading {
     body: f32,
 }
 
-/// Collects the lines of the caption that starts at line `first`: returns
+/// Collects the lines of the caption that starts at line `first` (`rules` are
+/// the page's horizontal rules): returns
 /// their indices (top to bottom) and their bounding box. The caption ends at
 /// a gap, at the next caption, or after a line that ended early.
 fn collect_caption_lines(
     lines: &[Line],
     used: &[bool],
+    rules: &[Rect],
     first: usize,
     body_leading: f32,
     cfg: &FloatsConfig,
@@ -973,7 +992,7 @@ fn collect_caption_lines(
             break;
         };
         let next = &lines[j];
-        if starts_next_caption(next, &bbox, cfg) {
+        if starts_next_caption(next, &bbox, cfg) || rule_between(rules, prev_line, next, cfg) {
             break;
         }
         // The previous line ended early although the next word would
@@ -995,6 +1014,18 @@ fn collect_caption_lines(
         }
     }
     (idxs, bbox)
+}
+
+/// Whether a horizontal rule lies between the lines `upper` and `lower` and
+/// spans `lower`: the table's top rule, which ends a caption set above it.
+fn rule_between(rules: &[Rect], upper: &Line, lower: &Line, cfg: &FloatsConfig) -> bool {
+    rules.iter().any(|rule| {
+        let y = rule.cy();
+        y > upper.baseline
+            && y < lower.baseline - cfg.caption_rule_clear_em * lower.size
+            && rule.x0 <= lower.bbox.x0
+            && rule.x1 >= lower.bbox.x1
+    })
 }
 
 /// The index of the line that may continue a caption after line `prev`:
@@ -1360,7 +1391,9 @@ fn candidate_components(page: &PageData, captions: &[Caption], cfg: &FloatsConfi
         })
         .collect();
     let tol = cfg.rule_table_containment_tol_pt;
-    for table in rule_tables(page, captions, cfg) {
+    let tables = rule_tables(page, captions, cfg);
+    split_side_by_side_tables(&mut comps, &tables, captions, tol);
+    for table in tables {
         if comps
             .iter()
             .any(|comp| comp.bbox.inflate(tol, tol).contains(&table.bbox))
@@ -1371,6 +1404,51 @@ fn candidate_components(page: &PageData, captions: &[Caption], cfg: &FloatsConfi
         comps.push(table);
     }
     comps
+}
+
+/// Replaces a ruled drawing that is really two tables set side by side (their
+/// borders are closer than the clustering distance) by those tables.
+///
+/// `tables` are the tables found from the rules alone. A table-like
+/// component is split when it contains at least two of them, none overlapping
+/// another horizontally, and each has a table caption over its own columns
+/// only. `tol` is the slack (in points) of the containment test.
+fn split_side_by_side_tables(comps: &mut Vec<Component>, tables: &[Component], captions: &[Caption], tol: f32) {
+    let own_caption = |table: &Component, others: &[&Component]| {
+        captions.iter().any(|caption| {
+            caption.kind == FloatKind::Table
+                && caption.bbox.x_overlap(&table.bbox) > 0.0
+                && others.iter().all(|other| caption.bbox.x_overlap(&other.bbox) <= 0.0)
+        })
+    };
+    let mut split: Vec<Component> = Vec::new();
+    comps.retain(|comp| {
+        let inside: Vec<&Component> = tables
+            .iter()
+            .filter(|table| comp.bbox.inflate(tol, tol).contains(&table.bbox))
+            .collect();
+        let disjoint = inside.iter().enumerate().all(|(i, table)| {
+            inside
+                .iter()
+                .skip(i + 1)
+                .all(|other| table.bbox.x_overlap(&other.bbox) <= 0.0)
+        });
+        let captioned = inside.iter().enumerate().all(|(i, table)| {
+            let others: Vec<&Component> = inside
+                .iter()
+                .enumerate()
+                .filter(|(j, _)| *j != i)
+                .map(|(_, other)| *other)
+                .collect();
+            own_caption(table, &others)
+        });
+        let side_by_side = comp.table_like && inside.len() >= 2 && disjoint && captioned;
+        if side_by_side {
+            split.extend(inside.into_iter().cloned());
+        }
+        !side_by_side
+    });
+    comps.extend(split);
 }
 
 /// Assigns each caption at most one component, best score first, each

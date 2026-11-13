@@ -435,8 +435,15 @@ impl Assembler<'_> {
                         split_at_gaps(line, self.cfg.table_cell_gap_em * line.size, &self.opts.layout.lines)
                     })
                     .collect();
-                extract_grid(region, &pieces, &float.hrules, &float.vrules, &self.opts.layout.tables)
-                    .map(|grid| self.text.table(grid))
+                extract_grid(
+                    region,
+                    &pieces,
+                    &float.hrules,
+                    &float.vrules,
+                    &self.opts.layout.tables,
+                    &self.opts.layout.lines,
+                )
+                .map(|grid| self.text.table(grid))
             }
             _ => None,
         }

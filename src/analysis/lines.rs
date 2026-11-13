@@ -478,6 +478,28 @@ pub fn split_at_gaps(line: &Line, min_gap: f32, cfg: &LinesConfig) -> Vec<Line> 
         .collect()
 }
 
+/// Splits a line at the x positions `cuts` (ascending), each of which lies in
+/// a gap between two glyphs: the glyphs that start left of the first cut form
+/// the first line, and so on. Used inside tables, where a column corridor
+/// can run through the spaces of what was read as one line.
+///
+/// Returns a copy of the line when `cuts` is empty.
+pub fn split_at_positions(line: &Line, cuts: &[f32], cfg: &LinesConfig) -> Vec<Line> {
+    if cuts.is_empty() {
+        return vec![line.clone()];
+    }
+    let mut groups: Vec<Vec<LineGlyph>> = vec![Vec::new(); cuts.len() + 1];
+    for glyph in &line.glyphs {
+        let group = cuts.iter().filter(|&&cut| glyph.x0 >= cut).count();
+        groups[group].push(glyph.clone());
+    }
+    groups
+        .into_iter()
+        .filter(|group| group.iter().any(|glyph| !glyph.text.trim().is_empty()))
+        .map(|group| finalize(line.page, Segment::from_glyphs(group, cfg), cfg))
+        .collect()
+}
+
 /// Builds the text lines of a page from its glyphs.
 ///
 /// Returns the horizontal lines, sorted by baseline then left edge, and the

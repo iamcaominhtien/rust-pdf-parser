@@ -10,6 +10,7 @@
 //! look like a regular grid it returns `None` and the caller falls back to
 //! other means of presenting the table.
 
+use crate::analysis::lines::{LinesConfig, split_at_positions};
 use crate::common::geom::{Rect, median};
 use crate::model::Align;
 use crate::model::Line;
@@ -18,6 +19,10 @@ use crate::model::Line;
 /// is sampled when looking for white-space corridors. Half a point is finer
 /// than any gap that matters and keeps the bin count small.
 const BIN_PT: f32 = 0.5;
+
+/// Letters that follow a number as its unit or multiplier ("125.0M", "1.7B",
+/// "473K", "2x") without making it a word.
+const NUMBER_UNITS: &str = "MKBGkx";
 
 /// Tuning parameters of table grid reconstruction. Part of [`LayoutConfig`](crate::config::LayoutConfig).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,6 +46,39 @@ pub struct TablesConfig {
     /// Narrowest white-space corridor (in table font sizes) that separates
     /// columns; a word space is about a quarter of the font size.
     pub min_corridor_em: f32,
+    /// A corridor tolerating a few crossing rows is put where it is clear in
+    /// every row, and that clear stretch must be at least this wide (in table
+    /// font sizes): headers set over the columns may crowd the gap.
+    pub min_clear_corridor_em: f32,
+    /// A corridor between two columns of numbers may be this narrow (in table
+    /// font sizes): numbers are set tightly, and a gap of this width between
+    /// two numbers is never a word space.
+    pub min_numeric_corridor_em: f32,
+    /// A narrow corridor counts as one between numbers when, in at least
+    /// this many rows, the words on both sides of it are numbers, and in
+    /// most of the rows that have words on both sides.
+    pub numeric_corridor_min_rows_count: usize,
+    /// A column is split where it has a corridor that all the rows with two
+    /// or more pieces in the column share, even when other rows (spanning
+    /// cells) cross it; this many such rows are needed, and at least this
+    /// many must have pieces on both sides.
+    pub multi_row_split_min_rows_count: usize,
+    /// A piece that separators run through is split into its words only when
+    /// each word is lined up with the words of other rows: its left edge or
+    /// its right edge agrees to within this many points with that of ...
+    pub aligned_word_tolerance_pt: f32,
+    /// ... at least this many of them (a column of cells, not a chance).
+    pub aligned_words_min_count: usize,
+    /// ... or the piece has at least this many words, one per column it
+    /// crosses: a row of labels, which need not line up with anything.
+    pub split_unaligned_min_words_count: usize,
+    /// A row is a row of numbers when at least this many tenths of its words
+    /// are numbers (integer tenths, to compare without rounding) ...
+    pub numeric_row_min_tenths: usize,
+    /// ... and tables with at least this many such rows get the corridors
+    /// between their numbers looked for apart from the header rows and labels
+    /// that cross them.
+    pub numeric_rivers_min_rows_count: usize,
     /// Tables with fewer rows than this need corridors that no row crosses;
     /// larger tables tolerate a few spanning cells.
     pub strict_corridor_below_rows_count: usize,
@@ -145,6 +183,15 @@ impl Default for TablesConfig {
             row_break_em: 0.45,
             min_rows_count: 2,
             min_corridor_em: 0.4,
+            min_clear_corridor_em: 0.1,
+            min_numeric_corridor_em: 0.15,
+            numeric_corridor_min_rows_count: 2,
+            multi_row_split_min_rows_count: 2,
+            aligned_word_tolerance_pt: 0.6,
+            aligned_words_min_count: 2,
+            split_unaligned_min_words_count: 4,
+            numeric_row_min_tenths: 8,
+            numeric_rivers_min_rows_count: 3,
             strict_corridor_below_rows_count: 4,
             corridor_crossing_ratio: 0.15,
             column_split_passes_count: 3,
@@ -244,6 +291,52 @@ struct TableText<'line> {
     x_max: f32,
 }
 
+/// How wide (in bins of [`BIN_PT`]) a corridor between columns must be.
+#[derive(Clone, Copy)]
+struct CorridorBins {
+    /// The stretch crossed by at most the tolerated number of rows.
+    run: usize,
+    /// Its part that no row crosses, where the separator is put.
+    clear: usize,
+    /// The narrowest stretch that separates two columns of numbers.
+    numeric_run: usize,
+    /// Rows with numbers on both sides that make a stretch numeric.
+    numeric_rows: usize,
+    /// Text is taken word by word (not piece by piece) when finding
+    /// corridors.
+    words: bool,
+}
+
+/// A piece of a row of cells, as it goes into the grid.
+struct RowPiece {
+    /// The text.
+    line: Line,
+    /// The piece is the label of one column that is not lined up with the
+    /// column's numbers: it belongs to the column its centre is in, however
+    /// far its text reaches.
+    centred: bool,
+}
+
+/// A vertical corridor between columns.
+struct Corridor {
+    /// Left edge of the stretch crossed by few enough rows.
+    start: f32,
+    /// Right edge of that stretch.
+    end: f32,
+    /// Where the separator is put: the middle of the stretch's emptiest part.
+    at: f32,
+}
+
+/// A word of a piece of text: the glyphs between two word spaces.
+struct Word {
+    /// Left edge.
+    x0: f32,
+    /// Right edge.
+    x1: f32,
+    /// The word is a number (digits, signs, a percent sign, an exponent).
+    numeric: bool,
+}
+
 /// Where the horizontal rules of a table lie on its grid.
 struct HorizontalRules {
     /// Rule weight above each cell position, `[row][col]`.
@@ -289,12 +382,13 @@ pub fn extract_grid(
     hrules: &[(Rect, f32)],
     vrules: &[Rect],
     cfg: &TablesConfig,
+    lines_cfg: &LinesConfig,
 ) -> Option<Grid> {
     let text = table_text(lines, cfg)?;
     let size = text.size;
     let separators = find_columns(&text, cfg)?;
     let n_cols = separators.len() + 1;
-    let mut grid_rows = build_cells(&text.rows, &separators, cfg);
+    let mut grid_rows = build_cells(&text.rows, &separators, cfg, lines_cfg);
     let mut baselines: Vec<f32> = text.rows.iter().map(|row| row_baseline(row)).collect();
     let floating = take_floating_labels(&mut grid_rows, &mut baselines, size, cfg);
     let n_rows = grid_rows.len();
@@ -398,20 +492,59 @@ fn row_baseline(row: &[&Line]) -> f32 {
     median(&row.iter().map(|line| line.baseline).collect::<Vec<_>>(), 0.0)
 }
 
-/// Finds the column separators (x positions, left to right): corridors
-/// through the whole table, then corridors inside columns that turn out to
-/// be two columns with a few spanning cells. `None` when there is no
-/// corridor at all.
-fn find_columns(text: &TableText, cfg: &TablesConfig) -> Option<Vec<f32>> {
+/// The separators of the corridors through the whole table, left to right.
+///
+/// Corridors crossed by at most a tolerated number of rows come first; the
+/// corridors between the numbers of the rows of numbers add those that
+/// headers and labels crossing them hide. A separator that cuts through a word
+/// of a row crossing its corridor moves to where all the words are apart, if
+/// the corridor has such a place.
+fn table_corridors(text: &TableText, min_bins: CorridorBins, cfg: &TablesConfig) -> Vec<f32> {
     let rows = &text.rows;
-    let min_bins = (cfg.min_corridor_em * text.size / BIN_PT) as usize;
     let n_all = rows.len();
     let tolerance = if n_all < cfg.strict_corridor_below_rows_count {
         0
     } else {
         ((n_all as f32 * cfg.corridor_crossing_ratio) as u16).max(1)
     };
-    let mut separators = find_separators(rows, text.x_min, text.x_max, tolerance, min_bins);
+    let mut corridors = find_corridors(rows, text.x_min, text.x_max, tolerance, min_bins);
+    for river in numeric_rivers(rows, text, min_bins, cfg) {
+        let known = corridors
+            .iter()
+            .any(|corridor| corridor.start - BIN_PT <= river.end && river.start <= corridor.end + BIN_PT);
+        if !known {
+            corridors.push(river);
+        }
+    }
+    for corridor in corridors.iter_mut() {
+        if !cuts_word(rows, corridor.at) {
+            continue;
+        }
+        if let Some(clear) = clearest_point(rows, corridor.start, corridor.end, true)
+            && !cuts_word(rows, clear)
+        {
+            corridor.at = clear;
+        }
+    }
+    let mut separators: Vec<f32> = corridors.iter().map(|corridor| corridor.at).collect();
+    separators.sort_by(|a, b| a.total_cmp(b));
+    separators
+}
+
+/// Finds the column separators (x positions, left to right): corridors
+/// through the whole table, then corridors inside columns that turn out to
+/// be two columns with a few spanning cells. `None` when there is no
+/// corridor at all.
+fn find_columns(text: &TableText, cfg: &TablesConfig) -> Option<Vec<f32>> {
+    let rows = &text.rows;
+    let min_bins = CorridorBins {
+        run: ((cfg.min_corridor_em * text.size / BIN_PT) as usize).max(1),
+        clear: ((cfg.min_clear_corridor_em * text.size / BIN_PT) as usize).max(1),
+        numeric_run: ((cfg.min_numeric_corridor_em * text.size / BIN_PT) as usize).max(1),
+        numeric_rows: cfg.numeric_corridor_min_rows_count,
+        words: false,
+    };
+    let mut separators = table_corridors(text, min_bins, cfg);
     if separators.is_empty() {
         return None;
     }
@@ -435,11 +568,74 @@ fn find_columns(text: &TableText, cfg: &TablesConfig) -> Option<Vec<f32>> {
     Some(separators)
 }
 
+/// Whether the position `x` falls inside a word of some row.
+fn cuts_word(rows: &[Vec<&Line>], x: f32) -> bool {
+    rows.iter()
+        .flatten()
+        .flat_map(|line| piece_words(line))
+        .any(|word| word.x0 < x && x < word.x1)
+}
+
+/// The corridors between the numbers of the rows of numbers, found word by
+/// word with no row crossing them: a header or a label centred over several
+/// columns crosses them in the other rows, but not in these.
+fn numeric_rivers(rows: &[Vec<&Line>], text: &TableText, min_bins: CorridorBins, cfg: &TablesConfig) -> Vec<Corridor> {
+    let numeric_rows: Vec<Vec<&Line>> = rows
+        .iter()
+        .filter(|row| {
+            let words: Vec<Word> = row.iter().flat_map(|line| piece_words(line)).collect();
+            let numeric = words.iter().filter(|word| word.numeric).count();
+            numeric >= 2 && numeric * 10 >= words.len() * cfg.numeric_row_min_tenths
+        })
+        .cloned()
+        .collect();
+    if numeric_rows.len() < cfg.numeric_rivers_min_rows_count {
+        return Vec::new();
+    }
+    let by_words = CorridorBins {
+        words: true,
+        ..min_bins
+    };
+    find_corridors(&numeric_rows, text.x_min, text.x_max, 0, by_words)
+        .into_iter()
+        .map(|corridor| Corridor {
+            at: clearest_point(&numeric_rows, corridor.start, corridor.end, true).unwrap_or(corridor.at),
+            ..corridor
+        })
+        .collect()
+}
+
 /// Looks for sub-column separators inside the column between `left` and
-/// `right` and appends those that both halves support to `added`. Columns
-/// used by too few rows, or whose rows rarely hold two pieces, are left
-/// alone.
-fn split_column(rows: &[Vec<&Line>], left: f32, right: f32, min_bins: usize, cfg: &TablesConfig, added: &mut Vec<f32>) {
+/// `right` and appends them to `added`: first those that both halves support
+/// by a share of the rows, and, when there are none, those that all the rows
+/// with two pieces in the column agree on.
+fn split_column(
+    rows: &[Vec<&Line>],
+    left: f32,
+    right: f32,
+    min_bins: CorridorBins,
+    cfg: &TablesConfig,
+    added: &mut Vec<f32>,
+) {
+    let known = added.len();
+    split_column_by_share(rows, left, right, min_bins, cfg, added);
+    if added.len() == known {
+        split_column_by_multi_rows(rows, left, right, min_bins, cfg, added);
+    }
+}
+
+/// Looks for sub-column separators inside the column between `left` and
+/// `right` that both halves support, with a crossing tolerance relative to
+/// the rows that use the column. Columns used by too few rows, or whose rows
+/// rarely hold two pieces, are left alone.
+fn split_column_by_share(
+    rows: &[Vec<&Line>],
+    left: f32,
+    right: f32,
+    min_bins: CorridorBins,
+    cfg: &TablesConfig,
+    added: &mut Vec<f32>,
+) {
     let inside = |line: &&&Line| line.bbox.cx() >= left && line.bbox.cx() <= right;
     let with: usize = rows.iter().filter(|row| row.iter().any(|line| inside(&line))).count();
     let multi: usize = rows.iter().filter(|row| row.iter().filter(inside).count() >= 2).count();
@@ -489,17 +685,104 @@ fn split_column(rows: &[Vec<&Line>], left: f32, right: f32, min_bins: usize, cfg
     }
 }
 
+/// Looks for sub-column separators inside the column between `left` and
+/// `right` among the rows that hold two or more pieces in it. A corridor
+/// that none of these rows crosses and that at least
+/// [`multi_row_split_min_rows_count`](TablesConfig::multi_row_split_min_rows_count)
+/// of them have pieces on both sides of is a separator; the other rows are
+/// then cells spanning both columns (a label centred over them, say).
+fn split_column_by_multi_rows(
+    rows: &[Vec<&Line>],
+    left: f32,
+    right: f32,
+    min_bins: CorridorBins,
+    cfg: &TablesConfig,
+    added: &mut Vec<f32>,
+) {
+    let multi_rows: Vec<Vec<&Line>> = rows
+        .iter()
+        .map(|row| {
+            row.iter()
+                .copied()
+                .filter(|line| line.bbox.cx() >= left && line.bbox.cx() <= right)
+                .collect::<Vec<_>>()
+        })
+        .filter(|row| row.len() >= 2)
+        .collect();
+    if multi_rows.len() < cfg.multi_row_split_min_rows_count {
+        return;
+    }
+    let lo = multi_rows
+        .iter()
+        .flatten()
+        .map(|line| line.bbox.x0)
+        .fold(f32::INFINITY, f32::min);
+    let hi = multi_rows
+        .iter()
+        .flatten()
+        .map(|line| line.bbox.x1)
+        .fold(f32::NEG_INFINITY, f32::max);
+    for corridor in find_corridors(&multi_rows, lo, hi, 0, min_bins) {
+        let split = clearest_point(rows, corridor.start, corridor.end, false).unwrap_or(corridor.at);
+        let straddling = multi_rows
+            .iter()
+            .filter(|row| row.iter().any(|line| line.bbox.x1 <= split) && row.iter().any(|line| line.bbox.x0 >= split))
+            .count();
+        let (numeric, with_both) = numeric_sides(&multi_rows, split, split);
+        // Labels and words that happen to repeat in two rows are not columns.
+        if straddling >= cfg.multi_row_split_min_rows_count && numeric >= 1 && numeric * 2 >= with_both {
+            added.push(split);
+        }
+    }
+}
+
+/// The middle of the longest stretch of `[start, end]` that the fewest of
+/// all `rows` have text in (numbers counted one by one); `None` when the
+/// range is empty. Rows that do not take part in finding a corridor can still
+/// crowd one side of it.
+fn clearest_point(rows: &[Vec<&Line>], start: f32, end: f32, by_words: bool) -> Option<f32> {
+    let n_bins = ((end - start) / BIN_PT).ceil() as usize + 1;
+    let mut crossing = vec![0u16; n_bins];
+    for row in rows {
+        let mut covered = vec![false; n_bins];
+        for (left, right) in row.iter().flat_map(|line| piece_extents(line, by_words)) {
+            if right < start || left > end {
+                continue;
+            }
+            let first_bin = ((left - start) / BIN_PT).floor().max(0.0) as usize;
+            let last_bin = (((right - start) / BIN_PT).ceil().max(0.0) as usize).min(n_bins - 1);
+            for flag in &mut covered[first_bin..=last_bin.max(first_bin)] {
+                *flag = true;
+            }
+        }
+        for (bin, flag) in covered.iter().enumerate() {
+            crossing[bin] += *flag as u16;
+        }
+    }
+    let (best, best_len) = emptiest_stretch(&crossing, 0, n_bins);
+    (best_len > 0).then_some(start + (best as f32 + best_len as f32 * 0.5) * BIN_PT)
+}
+
+/// The separators (x positions) of the corridors found by
+/// [`find_corridors`].
+fn find_separators(rows: &[Vec<&Line>], x0: f32, x1: f32, tolerance: u16, min_bins: CorridorBins) -> Vec<f32> {
+    find_corridors(rows, x0, x1, tolerance, min_bins)
+        .into_iter()
+        .map(|corridor| corridor.at)
+        .collect()
+}
+
 /// Finds the vertical corridors within `[x0, x1]`: stretches crossed by at
-/// most `tolerance` rows and bounded by text on both sides. Returns the x
-/// position of a separator in each.
+/// most `tolerance` rows and bounded by text on both sides. Returns the
+/// extent of each and the x position of its separator.
 ///
 /// Only pieces whose centre lies inside the range count. A corridor must be
-/// at least `min_bins` bins (of [`BIN_PT`]) wide, and so must its emptiest
-/// stretch, where the separator is put.
-fn find_separators(rows: &[Vec<&Line>], x0: f32, x1: f32, tolerance: u16, min_bins: usize) -> Vec<f32> {
-    let crossing = crossing_counts(rows, x0, x1);
+/// at least `min_bins.run` bins (of [`BIN_PT`]) wide; the separator is put in
+/// its emptiest stretch, which must be at least `min_bins.clear` bins wide.
+fn find_corridors(rows: &[Vec<&Line>], x0: f32, x1: f32, tolerance: u16, min_bins: CorridorBins) -> Vec<Corridor> {
+    let crossing = crossing_counts(rows, x0, x1, min_bins.words);
     let n_bins = crossing.len();
-    let mut separators = Vec::new();
+    let mut corridors = Vec::new();
     let mut i = 0;
     while i < n_bins {
         if crossing[i] > tolerance {
@@ -510,19 +793,29 @@ fn find_separators(rows: &[Vec<&Line>], x0: f32, x1: f32, tolerance: u16, min_bi
         while i < n_bins && crossing[i] <= tolerance {
             i += 1;
         }
-        if start == 0 || i >= n_bins || i - start < min_bins.max(1) {
+        if start == 0 || i >= n_bins || i - start < min_bins.numeric_run {
+            continue;
+        }
+        let narrow = i - start < min_bins.run;
+        if narrow && !numbers_on_both_sides(rows, x0 + start as f32 * BIN_PT, x0 + i as f32 * BIN_PT, min_bins) {
             continue;
         }
         let (best, best_len) = emptiest_stretch(&crossing, start, i);
-        if best_len >= min_bins.max(1) {
-            separators.push(x0 + (best as f32 + best_len as f32 * 0.5) * BIN_PT);
+        if best_len >= min_bins.clear {
+            corridors.push(Corridor {
+                start: x0 + start as f32 * BIN_PT,
+                end: x0 + i as f32 * BIN_PT,
+                at: x0 + (best as f32 + best_len as f32 * 0.5) * BIN_PT,
+            });
         }
     }
-    separators
+    corridors
 }
 
-/// For each bin of `[x0, x1]`, the number of rows with text in it.
-fn crossing_counts(rows: &[Vec<&Line>], x0: f32, x1: f32) -> Vec<u16> {
+/// For each bin of `[x0, x1]`, the number of rows with text in it. A piece
+/// counts as one stretch of text, except that the space between two numbers
+/// is not covered: two numbers set tightly side by side can be one piece.
+fn crossing_counts(rows: &[Vec<&Line>], x0: f32, x1: f32, by_words: bool) -> Vec<u16> {
     let n_bins = ((x1 - x0) / BIN_PT).ceil() as usize + 1;
     let mut crossing = vec![0u16; n_bins];
     for row in rows {
@@ -532,11 +825,13 @@ fn crossing_counts(rows: &[Vec<&Line>], x0: f32, x1: f32) -> Vec<u16> {
             if line.bbox.cx() < x0 || line.bbox.cx() > x1 {
                 continue;
             }
-            let first_bin = ((line.bbox.x0 - x0) / BIN_PT).floor().max(0.0) as usize;
-            let last_bin = (((line.bbox.x1 - x0) / BIN_PT).ceil().max(0.0) as usize).min(n_bins - 1);
-            if first_bin <= last_bin {
-                for flag in &mut covered[first_bin..=last_bin] {
-                    *flag = true;
+            for (left, right) in piece_extents(line, by_words) {
+                let first_bin = ((left - x0) / BIN_PT).floor().max(0.0) as usize;
+                let last_bin = (((right - x0) / BIN_PT).ceil().max(0.0) as usize).min(n_bins - 1);
+                if first_bin <= last_bin {
+                    for flag in &mut covered[first_bin..=last_bin] {
+                        *flag = true;
+                    }
                 }
             }
         }
@@ -545,6 +840,107 @@ fn crossing_counts(rows: &[Vec<&Line>], x0: f32, x1: f32) -> Vec<u16> {
         }
     }
     crossing
+}
+
+/// The `(left, right)` extents of the pieces of text to count: the stretches
+/// of the piece, or, when `by_words`, each of its words.
+fn piece_extents(line: &Line, by_words: bool) -> Vec<(f32, f32)> {
+    if by_words {
+        piece_words(line).iter().map(|word| (word.x0, word.x1)).collect()
+    } else {
+        piece_stretches(line)
+    }
+}
+
+/// The `(left, right)` extents of the stretches of text of a piece: the
+/// whole piece, cut between every two neighbouring numbers.
+fn piece_stretches(line: &Line) -> Vec<(f32, f32)> {
+    let mut stretches: Vec<(f32, f32)> = Vec::new();
+    let mut previous_numeric = false;
+    for word in piece_words(line) {
+        match stretches.last_mut() {
+            Some(stretch) if !(previous_numeric && word.numeric) => stretch.1 = word.x1,
+            _ => stretches.push((word.x0, word.x1)),
+        }
+        previous_numeric = word.numeric;
+    }
+    stretches
+}
+
+/// The words of a piece of text, left to right: runs of glyphs with no word
+/// space between them.
+fn piece_words(line: &Line) -> Vec<Word> {
+    let mut words: Vec<(f32, f32, String)> = Vec::new();
+    let mut open = false;
+    for glyph in &line.glyphs {
+        if glyph.text.trim().is_empty() {
+            open = false;
+            continue;
+        }
+        match words.last_mut() {
+            Some(word) if open && !glyph.space_before => {
+                word.0 = word.0.min(glyph.x0);
+                word.1 = word.1.max(glyph.x1);
+                word.2.push_str(&glyph.text);
+            }
+            _ => words.push((glyph.x0, glyph.x1, glyph.text.clone())),
+        }
+        open = true;
+    }
+    words
+        .into_iter()
+        .map(|(x0, x1, text)| Word {
+            x0,
+            x1,
+            numeric: is_number(&text),
+        })
+        .collect()
+}
+
+/// Whether a word is a number: it starts with a digit or a sign, has a digit
+/// and nothing but digits, signs, separators, a percent sign, an exponent
+/// mark or a footnote symbol. A tolerance ("±0.4") belongs to the number
+/// before it and is not one itself.
+fn is_number(word: &str) -> bool {
+    let digits = word.trim_end_matches(|ch| NUMBER_UNITS.contains(ch));
+    digits
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_digit() || "+-−~<>≈.".contains(ch))
+        && digits.chars().any(|ch| ch.is_ascii_digit())
+        && digits
+            .chars()
+            .all(|ch| ch.is_ascii_digit() || ".,%±+-−~*†‡<>≈eE".contains(ch))
+}
+
+/// Whether the stretch `[xa, xb]` lies between numbers: in enough rows, and
+/// in most of the rows that have a word on both sides of it, the nearest
+/// words to its left and right are numbers.
+fn numbers_on_both_sides(rows: &[Vec<&Line>], xa: f32, xb: f32, min_bins: CorridorBins) -> bool {
+    let (numeric, with_both) = numeric_sides(rows, xa, xb);
+    numeric >= min_bins.numeric_rows && numeric * 2 > with_both
+}
+
+/// For the stretch `[xa, xb]`: how many rows have numbers as the nearest
+/// words on both sides of it, and how many have a word on both sides.
+fn numeric_sides(rows: &[Vec<&Line>], xa: f32, xb: f32) -> (usize, usize) {
+    let (mut numeric, mut with_both) = (0, 0);
+    for row in rows {
+        let words: Vec<Word> = row.iter().flat_map(|line| piece_words(line)).collect();
+        let left = words
+            .iter()
+            .filter(|word| word.x1 <= xa + BIN_PT)
+            .max_by(|a, b| a.x1.total_cmp(&b.x1));
+        let right = words
+            .iter()
+            .filter(|word| word.x0 >= xb - BIN_PT)
+            .min_by(|a, b| a.x0.total_cmp(&b.x0));
+        if let (Some(left), Some(right)) = (left, right) {
+            with_both += 1;
+            numeric += (left.numeric && right.numeric) as usize;
+        }
+    }
+    (numeric, with_both)
 }
 
 /// The longest run of bins in `crossing[start..end]` with the smallest
@@ -571,32 +967,124 @@ fn emptiest_stretch(crossing: &[u16], start: usize, end: usize) -> (usize, usize
 
 /// Turns the rows of pieces into rows of cells. Pieces that fall into the
 /// columns of the previous cell join it; a piece crossing separators makes
-/// its cell span columns.
-fn build_cells(rows: &[Vec<&Line>], separators: &[f32], cfg: &TablesConfig) -> Vec<Vec<GridCell>> {
+/// its cell span columns, unless it is a row of single-word cells set close
+/// together (see [`split_tight_cells`]).
+fn build_cells(
+    rows: &[Vec<&Line>],
+    separators: &[f32],
+    cfg: &TablesConfig,
+    lines_cfg: &LinesConfig,
+) -> Vec<Vec<GridCell>> {
     let col_of = |x: f32| separators.iter().filter(|&&separator| separator <= x).count();
+    let words: Vec<Vec<Word>> = rows
+        .iter()
+        .map(|row| row.iter().flat_map(|line| piece_words(line)).collect())
+        .collect();
     let mut grid_rows: Vec<Vec<GridCell>> = Vec::with_capacity(rows.len());
-    for row in rows {
+    for (row_idx, row) in rows.iter().enumerate() {
+        let others: Vec<&Word> = words
+            .iter()
+            .enumerate()
+            .filter(|(other_idx, _)| *other_idx != row_idx)
+            .flat_map(|(_, other)| other.iter())
+            .collect();
+        let pieces: Vec<RowPiece> = row
+            .iter()
+            .flat_map(|line| split_tight_cells(line, separators, &others, cfg, lines_cfg))
+            .collect();
         let mut cells: Vec<GridCell> = Vec::new();
-        for line in row {
-            let first_col = col_of(line.bbox.x0 + cfg.cell_edge_inset_pt);
-            let last_col = col_of(line.bbox.x1 - cfg.cell_edge_inset_pt).max(first_col);
+        for RowPiece { line, centred } in &pieces {
+            let (first_col, last_col) = if *centred {
+                let col = col_of(line.bbox.cx());
+                (col, col)
+            } else {
+                let first_col = col_of(line.bbox.x0 + cfg.cell_edge_inset_pt);
+                (first_col, col_of(line.bbox.x1 - cfg.cell_edge_inset_pt).max(first_col))
+            };
             match cells.last_mut() {
                 // Another piece of the same cell.
                 Some(prev) if first_col < prev.col + prev.colspan => {
                     prev.colspan = prev.colspan.max(last_col + 1 - prev.col);
-                    prev.lines.push((*line).clone());
+                    prev.lines.push(line.clone());
                 }
                 _ => cells.push(GridCell {
                     col: first_col,
                     colspan: last_col - first_col + 1,
                     rowspan: 1,
-                    lines: vec![(*line).clone()],
+                    lines: vec![line.clone()],
                 }),
             }
         }
         grid_rows.push(cells);
     }
     grid_rows
+}
+
+/// Splits a piece that separators run through into its words when they are
+/// cells of their own: the piece has one more word than it crosses
+/// separators, each separator lies in the space between two words, and each
+/// word is lined up with a word of another row (or there are many words), as the cells of a column are
+/// (two numbers set too close together to be told apart, or the labels of a
+/// row of columns). A label centred over several columns is not lined up with
+/// anything and is left whole, unless it has so many words that each is a
+/// label of its own column. `others` are the words of the other rows.
+fn split_tight_cells(
+    line: &Line,
+    separators: &[f32],
+    others: &[&Word],
+    cfg: &TablesConfig,
+    lines_cfg: &LinesConfig,
+) -> Vec<RowPiece> {
+    let crossed: Vec<f32> = separators
+        .iter()
+        .copied()
+        .filter(|&separator| {
+            separator > line.bbox.x0 + cfg.cell_edge_inset_pt && separator < line.bbox.x1 - cfg.cell_edge_inset_pt
+        })
+        .collect();
+    let words = piece_words(line);
+    let whole = || {
+        vec![RowPiece {
+            line: line.clone(),
+            centred: false,
+        }]
+    };
+    let pieces = |cuts: &[f32], centred: bool| {
+        split_at_positions(line, cuts, lines_cfg)
+            .into_iter()
+            .map(|line| RowPiece { line, centred })
+            .collect()
+    };
+    if crossed.is_empty() || words.len() != crossed.len() + 1 {
+        return whole();
+    }
+    let in_spaces = crossed
+        .iter()
+        .enumerate()
+        .all(|(i, &separator)| words[i].x1 <= separator && separator <= words[i + 1].x0);
+    let own_column = |(i, word): (usize, &Word)| {
+        let centre = (word.x0 + word.x1) * 0.5;
+        (i == 0 || crossed[i - 1] < centre) && (i == crossed.len() || centre < crossed[i])
+    };
+    let labels = words.len() >= cfg.split_unaligned_min_words_count && words.iter().enumerate().all(own_column);
+    let lined_up = |word: &Word| {
+        let tolerance = cfg.aligned_word_tolerance_pt;
+        let aligned = others
+            .iter()
+            .filter(|other| (other.x0 - word.x0).abs() <= tolerance || (other.x1 - word.x1).abs() <= tolerance)
+            .count();
+        aligned >= cfg.aligned_words_min_count
+    };
+    if labels && !in_spaces {
+        // Centred over its column, each word is cut off in the middle of the
+        // space that follows it.
+        let cuts: Vec<f32> = words.windows(2).map(|pair| (pair[0].x1 + pair[1].x0) * 0.5).collect();
+        pieces(&cuts, true)
+    } else if in_spaces && (labels || words.iter().all(lined_up)) {
+        pieces(&crossed, false)
+    } else {
+        whole()
+    }
 }
 
 /// Labels set between rows (vertically centred multi-row cells): removes

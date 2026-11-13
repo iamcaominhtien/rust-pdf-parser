@@ -84,7 +84,8 @@ pub struct FurnitureConfig {
     pub crowded_min_distance_pt: f32,
     /// Baseline distance (in font sizes of the larger line) below which a
     /// non-candidate line crowds a candidate, making it content: a normal
-    /// line pitch is about 1.2 font sizes.
+    /// line pitch is about 1.2 font sizes, and a table set in open rows
+    /// (such as the header of a table of numbers) reaches about 1.5.
     pub crowded_max_distance_em: f32,
     /// A number followed on its row, within this many font sizes, by text
     /// that is not furniture is a heading's number, not a page number.
@@ -115,7 +116,7 @@ impl Default for FurnitureConfig {
             body_edge_tolerance_pt: 1.0,
             page_number_max_glyphs_count: 12,
             crowded_min_distance_pt: 2.0,
-            crowded_max_distance_em: 1.45,
+            crowded_max_distance_em: 1.75,
             heading_number_max_gap_em: 3.0,
             number_offset_min_pages: 3,
             number_offset_min_ratio: 0.3,

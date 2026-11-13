@@ -26,6 +26,9 @@ pub static BULLET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[•◦▪�
 /// An enumeration label at the start of a line.
 pub static NUM_LABEL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:\(\d{1,2}\)|\([a-z]\)|\([ivx]{1,4}\)|\d{1,2}[.)]|[a-z]\))\s").unwrap());
+/// A bibliography label at the start of a line ("[12] "): the next entry of
+/// a reference list, also without a "References" heading (APS papers).
+pub static BRACKET_LABEL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[\d{1,3}\]\s").unwrap());
 /// Any list item label at the start of a line: a bullet or an enumeration
 /// label (the union of [`BULLET`] and [`NUM_LABEL`]).
 pub static LIST_LABEL: LazyLock<Regex> = LazyLock::new(|| {
@@ -1331,8 +1334,9 @@ fn dash_goes_on(candidate: &ParagraphBreak) -> bool {
 /// paragraph that also starts with one: the next item of a list.
 fn new_enumeration_item(candidate: &ParagraphBreak, cfg: &BlocksConfig) -> bool {
     let first = &candidate.para[0].0;
-    NUM_LABEL.is_match(candidate.text)
-        && NUM_LABEL.is_match(&first.text())
+    let labelled = |text: &str| NUM_LABEL.is_match(text) || BRACKET_LABEL.is_match(text);
+    labelled(candidate.text)
+        && labelled(&first.text())
         && (candidate.line.bbox.x0 - first.bbox.x0).abs() <= cfg.para_label_align_em * candidate.line.size
 }
 

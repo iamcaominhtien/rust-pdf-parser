@@ -73,6 +73,7 @@ pub(crate) mod text;
 
 pub use body::BodyConfig;
 pub use front_matter::FrontMatterConfig;
+pub use paragraphs::ParagraphsConfig;
 pub use references::ReferencesConfig;
 
 pub(crate) use assemble::build_document;
@@ -117,6 +118,8 @@ pub struct SemanticsConfig {
     pub body: BodyConfig,
     /// Splitting bibliography blocks into one entry each.
     pub references: ReferencesConfig,
+    /// Merging paragraphs and footnotes split across columns and pages.
+    pub paragraphs: ParagraphsConfig,
 }
 
 impl Default for SemanticsConfig {
@@ -129,6 +132,7 @@ impl Default for SemanticsConfig {
             front_matter: FrontMatterConfig::default(),
             body: BodyConfig::default(),
             references: ReferencesConfig::default(),
+            paragraphs: ParagraphsConfig::default(),
         }
     }
 }

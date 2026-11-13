@@ -54,6 +54,18 @@ pub struct ParagraphsConfig {
     /// Footnote pieces whose first lines differ in size by this (points) or
     /// more are not joined.
     pub footnote_size_tolerance_pt: f32,
+    /// Two paragraphs of the same column, one right after the other, are
+    /// one paragraph cut by a layout quirk (an enumeration label hanging
+    /// into the margin) when the first has several lines (or ends in a
+    /// hyphen) and ends in a full line, the second starts lowercase after an unfinished sentence
+    /// and lies at most this many leadings below it.
+    pub same_leaf_max_gap_leading: f32,
+    /// Lines joined across a paragraph cut are running text: at least this
+    /// share of their visible characters are letters.
+    pub cut_prose_min_letter_ratio: f32,
+    /// A last line ending within this distance (multiple of its font size)
+    /// of the right edge of its block is a full line, as in running text.
+    pub full_line_max_gap_em: f32,
 }
 
 impl Default for ParagraphsConfig {
@@ -71,6 +83,9 @@ impl Default for ParagraphsConfig {
             ref_continuation_indent_min_em: 0.6,
             size_tolerance_pt: 0.4,
             footnote_size_tolerance_pt: 0.4,
+            same_leaf_max_gap_leading: 1.6,
+            cut_prose_min_letter_ratio: 0.6,
+            full_line_max_gap_em: 0.6,
         }
     }
 }
@@ -128,8 +143,63 @@ pub(crate) fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats, fonts: &
         uses_indent: uses_first_line_indent(nodes, stats, cfg),
         refs_labeled: references_are_labeled(nodes, cfg),
     };
+    merge_cut_paragraphs(nodes, stats, cfg);
     merge_split_blocks(nodes, &style, cfg);
     merge_split_footnotes(nodes, cfg);
+}
+
+/// Joins a paragraph with the paragraph right after it in the same column
+/// when the first stops in the middle of a sentence and the second goes on
+/// in lowercase: block building cut it where the indentation changed
+/// ("(a) Suppose ... Then the" / "distance function ...").
+fn merge_cut_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats, cfg: &ParagraphsConfig) {
+    let mut i = 0;
+    while i + 1 < nodes.len() {
+        if is_cut_paragraph(&nodes[i], &nodes[i + 1], stats, cfg) {
+            append_text_node(nodes, i, i + 1);
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// Whether text node `next` continues the paragraph node `prev` that
+/// precedes it in the same column (see [`merge_cut_paragraphs`]).
+fn is_cut_paragraph(prev: &Node, next: &Node, stats: &DocStats, cfg: &ParagraphsConfig) -> bool {
+    let (
+        Class::Paragraph {
+            in_abstract: prev_abstract,
+        },
+        Class::Paragraph {
+            in_abstract: next_abstract,
+        },
+    ) = (&prev.class, &next.class)
+    else {
+        return false;
+    };
+    let (Some(prev_block), Some(next_block)) = (prev.text_block(), next.text_block()) else {
+        return false;
+    };
+    let (last, first) = (prev_block.lines.last().unwrap(), &next_block.lines[0]);
+    prev_abstract == next_abstract
+        && (prev_block.lines.len() >= 2 || last.text().ends_with('-'))
+        && prev_block.right - last.bbox.x1 <= cfg.full_line_max_gap_em * last.size
+        && prev.tail == (next.loc.page, next.loc.leaf)
+        && (last.size - first.size).abs() <= cfg.size_tolerance_pt
+        && next_block.gap_before <= cfg.same_leaf_max_gap_leading * stats.leading
+        && !ends_terminal(&last.text())
+        && first_alpha_lower(&first.text())
+        && prose_line(&last.text(), cfg)
+        && prose_line(&first.text(), cfg)
+}
+
+/// Whether `text` reads as a line of running text: mostly letters, and not
+/// starting with a number (table rows of figures, numbered pseudocode).
+fn prose_line(text: &str, cfg: &ParagraphsConfig) -> bool {
+    let visible: Vec<char> = text.chars().filter(|ch| !ch.is_whitespace()).collect();
+    let letters = visible.iter().filter(|ch| ch.is_alphabetic()).count();
+    !visible.first().is_some_and(char::is_ascii_digit)
+        && letters as f32 >= cfg.cut_prose_min_letter_ratio * visible.len() as f32
 }
 
 /// Does this document indent the first line of a paragraph? Looks at the

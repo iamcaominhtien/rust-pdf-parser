@@ -13,16 +13,22 @@
 //!    plain paragraphs, depending on the last heading seen.
 
 use super::patterns::*;
+use super::run_in::split_run_in_headings;
 use super::*;
 use crate::analysis::blocks::LIST_LABEL;
 use crate::analysis::page::DocStats;
 use crate::backend::FontInfo;
 use crate::common::geom::median;
 use regex::Captures;
+use std::collections::HashMap;
 
 /// Deepest heading level in the output; deeper numbered sections
 /// ("1.2.3.4.5.6") are clamped to it.
 const MAX_HEADING_LEVEL: u8 = 5;
+
+/// Resolution of the font sizes used as keys when counting characters per
+/// size: sizes are compared in tenths of a point.
+const SIZE_KEY_PER_PT: f32 = 10.0;
 
 /// Tuning parameters of body classification. Part of [`SemanticsConfig`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -71,6 +77,15 @@ pub struct BodyConfig {
     /// An unnumbered level-2 heading must be at least this much larger than
     /// the body text (points); smaller ones are level 3.
     pub h2_min_size_above_body_pt: f32,
+    /// An unnumbered, unknown heading text that occurs at least this many
+    /// times in the document is a repeated label ("GPT-4 (early) response"),
+    /// not a heading.
+    pub repeated_label_min_count: usize,
+    /// An unnumbered heading whose centre is within this distance (points)
+    /// of the centre of its column, on a page after the first, is the title
+    /// block of an embedded document (a system card after a report), not a
+    /// section heading.
+    pub centered_title_tolerance_pt: f32,
     /// The abstract ends at the latest this many pages after its heading.
     pub abstract_max_pages_count: usize,
     /// Last page index (0-based) on which an inline "Abstract—" label starts
@@ -99,6 +114,8 @@ impl Default for BodyConfig {
             default_h1_size_above_body_pt: 1.5,
             level_size_tolerance_pt: 0.3,
             h2_min_size_above_body_pt: 0.3,
+            repeated_label_min_count: 5,
+            centered_title_tolerance_pt: 4.0,
             abstract_max_pages_count: 1,
             inline_abstract_max_page_idx: 1,
         }
@@ -117,6 +134,8 @@ struct HeadingCandidate {
     size: f32,
     /// The text is a known heading word ("Introduction", "References").
     known: bool,
+    /// The block's text, trimmed.
+    text: String,
 }
 
 /// Measurements of a short text block that the heading rules look at.
@@ -129,6 +148,8 @@ struct HeadingFeatures<'a> {
     words: usize,
     /// Median font size of the block.
     size: f32,
+    /// Set in a bold font.
+    bold: bool,
     /// Bold, or clearly larger than the body text.
     strong: bool,
     /// Mostly italic.
@@ -159,11 +180,12 @@ struct FlowState {
     abstract_page: usize,
 }
 
-/// Classifies the body: marks headings (with level and number), then
+/// Classifies the body: cuts run-in headings off their paragraphs, marks headings (with level and number), then
 /// paragraphs (inside or outside the abstract), references and list items.
 /// Only nodes still [`Class::Unknown`] are classified; non-text nodes are
 /// left alone.
-pub(crate) fn classify_body(nodes: &mut [Node], stats: &DocStats, fonts: &[FontInfo], cfg: &SemanticsConfig) {
+pub(crate) fn classify_body(nodes: &mut Vec<Node>, stats: &DocStats, fonts: &[FontInfo], cfg: &SemanticsConfig) {
+    split_run_in_headings(nodes, fonts, cfg);
     let candidates = find_heading_candidates(nodes, stats, fonts, cfg);
     assign_heading_levels(nodes, candidates, stats, &cfg.body);
     classify_running_text(nodes, &cfg.body);
@@ -180,20 +202,26 @@ fn find_heading_candidates(
 ) -> Vec<HeadingCandidate> {
     let mut candidates: Vec<HeadingCandidate> = Vec::new();
     let mut seen_refs = false;
+    let page_body_sizes = page_body_sizes(nodes, stats);
     for (idx, node) in nodes.iter().enumerate() {
         if node.class != Class::Unknown {
             continue;
         }
         let Some(block) = node.text_block() else { continue };
         let text = block_text(&block.lines);
-        let Some(features) = heading_features(block, text.trim(), stats, fonts, cfg) else {
+        let body_size = page_body_sizes.get(node.loc.page).copied().unwrap_or(stats.body_size);
+        let Some(features) = heading_features(block, text.trim(), body_size, fonts, cfg) else {
             continue;
         };
+        if THEOREM_LABEL.is_match(features.text) {
+            continue;
+        }
         let number = heading_number(&features, seen_refs, &cfg.body);
         let is_heading = number.is_some()
             || is_known_heading(&features, &cfg.body)
             || is_styled_heading(&features, block, &cfg.body);
-        if !is_heading {
+        if !is_heading || (number.is_none() && !features.known && is_embedded_title(node, block, &features, &cfg.body))
+        {
             continue;
         }
         if REF_HEADING.is_match(features.text) {
@@ -209,9 +237,73 @@ fn find_heading_candidates(
             number,
             size: features.size,
             known: features.known,
+            text: features.text.to_string(),
         });
     }
+    drop_repeated_labels(candidates, &cfg.body)
+}
+
+/// The body font size of each page: the size carrying most characters of
+/// the unclassified text blocks of the page, but never below the document's
+/// body size. A system card set in 11 pt inside a report set in 10 pt has
+/// body text of 11 pt, which must not count as "larger than the body".
+fn page_body_sizes(nodes: &[Node], stats: &DocStats) -> Vec<f32> {
+    let pages = nodes.iter().map(|node| node.loc.page + 1).max().unwrap_or(0);
+    // Characters per size, in tenths of a point, for each page.
+    let mut chars: Vec<HashMap<i32, usize>> = vec![HashMap::new(); pages];
+    for node in nodes.iter().filter(|node| node.class == Class::Unknown) {
+        let Some(block) = node.text_block() else { continue };
+        for line in &block.lines {
+            *chars[node.loc.page]
+                .entry((line.size * SIZE_KEY_PER_PT).round() as i32)
+                .or_default() += line.glyphs.len();
+        }
+    }
+    chars
+        .iter()
+        .map(|sizes| {
+            let dominant = sizes
+                .iter()
+                .max_by_key(|&(key, count)| (*count, *key))
+                .map(|(key, _)| *key as f32 / SIZE_KEY_PER_PT)
+                .unwrap_or(0.0);
+            dominant.max(stats.body_size)
+        })
+        .collect()
+}
+
+/// Whether the (unnumbered) heading block is the title block of a document
+/// embedded in the paper: on a page after the first, centred in its column
+/// (narrower than it) and large without being bold. Bold centred headings
+/// are ordinary section headings (APS style).
+fn is_embedded_title(node: &Node, block: &TextBlock, features: &HeadingFeatures<'_>, cfg: &BodyConfig) -> bool {
+    let tolerance = cfg.centered_title_tolerance_pt;
+    let column_center = (node.leaf_left + node.leaf_right) * 0.5;
+    node.loc.page > 0
+        && !features.bold
+        && (block.bbox.cx() - column_center).abs() <= tolerance
+        && block.bbox.x0 - node.leaf_left > tolerance
+}
+
+/// Removes the unnumbered candidates whose text repeats at least
+/// [`BodyConfig::repeated_label_min_count`] times: a label that the document
+/// uses over and over is part of a template, not a section.
+fn drop_repeated_labels(candidates: Vec<HeadingCandidate>, cfg: &BodyConfig) -> Vec<HeadingCandidate> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| candidate.number.is_none() && !candidate.known)
+    {
+        *counts.entry(candidate.text.clone()).or_default() += 1;
+    }
     candidates
+        .into_iter()
+        .filter(|candidate| {
+            candidate.number.is_some()
+                || candidate.known
+                || counts.get(&candidate.text).copied().unwrap_or(0) < cfg.repeated_label_min_count
+        })
+        .collect()
 }
 
 /// Measures a block for the heading rules. Returns `None` for blocks too
@@ -219,7 +311,7 @@ fn find_heading_candidates(
 fn heading_features<'a>(
     block: &TextBlock,
     text: &'a str,
-    stats: &DocStats,
+    body_size: f32,
     fonts: &[FontInfo],
     cfg: &SemanticsConfig,
 ) -> Option<HeadingFeatures<'a>> {
@@ -231,15 +323,16 @@ fn heading_features<'a>(
         return None;
     }
     let size = block_size(&block.lines);
-    let bold = frac(&block.lines, fonts, |font| font.bold) >= body.bold_min_ratio;
-    let italic = frac(&block.lines, fonts, |font| font.italic) >= body.italic_min_ratio;
+    let bold = text_frac(&block.lines, fonts, |font| font.bold) >= body.bold_min_ratio;
+    let italic = text_frac(&block.lines, fonts, |font| font.italic) >= body.italic_min_ratio;
     let caps = upper_ratio(text, cfg) >= body.caps_min_upper_ratio || small_caps(&block.lines, cfg);
-    let strong = bold || size >= stats.body_size + body.strong_min_size_above_body_pt;
+    let strong = bold || size >= body_size + body.strong_min_size_above_body_pt;
     Some(HeadingFeatures {
         text,
         nchars,
         words: text.split_whitespace().count(),
         size,
+        bold,
         strong,
         italic,
         caps,
@@ -326,10 +419,12 @@ fn is_known_heading(features: &HeadingFeatures<'_>, cfg: &BodyConfig) -> bool {
 }
 
 /// An unnumbered heading recognised by its style: strong, short, not a
-/// sentence, not a list item and not ending in a full line of running text.
+/// sentence or a lead-in ending in a colon, not a list item, not a
+/// continuation (lowercase start) or a note ("CW: ...") and not ending in a
+/// full line of running text.
 fn is_styled_heading(features: &HeadingFeatures<'_>, block: &TextBlock, cfg: &BodyConfig) -> bool {
     let text = features.text;
-    let ends_sentence = text.ends_with('.') && features.words > cfg.sentence_max_heading_words_count;
+    let ends_sentence = text.ends_with(['.', ':']) && features.words > cfg.sentence_max_heading_words_count;
     let last_full = block.lines.len() > 1 && {
         let last = block.lines.last().unwrap();
         last.bbox.x1 > block.right - cfg.full_line_right_tolerance_pt
@@ -343,6 +438,8 @@ fn is_styled_heading(features: &HeadingFeatures<'_>, block: &TextBlock, cfg: &Bo
         && !ends_sentence
         && !last_full
         && !list_like
+        && !first_alpha_lower(text)
+        && !NOTE_LABEL.is_match(text)
         && features.words <= cfg.styled_heading_max_words_count
         && text.chars().any(|ch| ch.is_alphabetic())
 }
@@ -469,6 +566,43 @@ impl FlowState {
     }
 }
 
+/// Fraction (0–1) of the text glyphs of `lines` whose font satisfies `pred`.
+/// Only glyphs of ASCII letters and numerals in text fonts count: arrows,
+/// brackets, Greek letters and math symbols of a heading such as
+/// "5. H→ γγ channel" come from other fonts and say nothing about the style
+/// of the heading. A block without any such glyph counts all its letters and
+/// numerals instead.
+fn text_frac(lines: &[Line], fonts: &[FontInfo], pred: impl Fn(&FontInfo) -> bool) -> f32 {
+    let count = |ascii_only: bool| {
+        let (mut matching, mut total) = (0usize, 0usize);
+        for glyph in lines.iter().flat_map(|line| line.glyphs.iter()) {
+            let font = &fonts[glyph.font as usize];
+            let counts = glyph.text.chars().any(|ch| {
+                if ascii_only {
+                    ch.is_ascii_alphanumeric()
+                } else {
+                    ch.is_alphanumeric()
+                }
+            });
+            if font.math || !counts {
+                continue;
+            }
+            total += 1;
+            matching += usize::from(pred(font));
+        }
+        (matching, total)
+    };
+    let (mut matching, mut total) = count(true);
+    if total == 0 {
+        (matching, total) = count(false);
+    }
+    if total == 0 {
+        0.0
+    } else {
+        matching as f32 / total as f32
+    }
+}
+
 /// A block starting with a list label ("•", "1.", "(a)"): a list item; a
 /// bullet when the label is a single symbol. Labels in brackets (`[3]`) are
 /// citations, not list labels.
@@ -476,4 +610,55 @@ fn list_item_rule(trimmed: &str) -> Option<Class> {
     let label = LIST_LABEL.find(trimmed)?.as_str().trim();
     let bullet = label.chars().count() == 1 && !label.chars().next().unwrap().is_alphanumeric();
     (!label.starts_with('[')).then_some(Class::ListItem { bullet })
+}
+
+#[cfg(test)]
+#[allow(clippy::missing_docs_in_private_items)]
+mod tests {
+    use super::*;
+
+    fn candidate(text: &str, number: Option<&str>, known: bool) -> HeadingCandidate {
+        HeadingCandidate {
+            idx: 0,
+            level: number.map(|_| 1),
+            number: number.map(str::to_string),
+            size: 12.0,
+            known,
+            text: text.to_string(),
+        }
+    }
+
+    #[test]
+    fn repeated_unnumbered_labels_are_not_headings() {
+        let cfg = BodyConfig::default();
+        let mut candidates: Vec<HeadingCandidate> = (0..cfg.repeated_label_min_count)
+            .map(|_| candidate("GPT-4 (early) response", None, false))
+            .collect();
+        candidates.push(candidate("Results", None, false));
+        candidates.push(candidate("1 Results", Some("1"), false));
+        let kept = drop_repeated_labels(candidates, &cfg);
+        let texts: Vec<&str> = kept.iter().map(|kept_candidate| kept_candidate.text.as_str()).collect();
+        assert_eq!(texts, ["Results", "1 Results"]);
+    }
+
+    #[test]
+    fn repeated_known_and_numbered_headings_stay() {
+        let cfg = BodyConfig::default();
+        let mut candidates = Vec::new();
+        for _ in 0..cfg.repeated_label_min_count {
+            candidates.push(candidate("Abstract", None, true));
+            candidates.push(candidate("A.1 Prompt", Some("A.1"), false));
+        }
+        assert_eq!(
+            drop_repeated_labels(candidates, &cfg).len(),
+            2 * cfg.repeated_label_min_count
+        );
+    }
+
+    #[test]
+    fn few_repeats_are_kept() {
+        let cfg = BodyConfig::default();
+        let candidates = vec![candidate("Setup", None, false), candidate("Setup", None, false)];
+        assert_eq!(drop_repeated_labels(candidates, &cfg).len(), 2);
+    }
 }

@@ -199,6 +199,11 @@ pub struct BlocksConfig {
     /// ... and either the upper row is bold or the gap exceeds this many
     /// expected leadings.
     pub bold_flip_gap_leading: f32,
+    /// A bold row that ends with a period, has at least two and at most this
+    /// many words and is followed by regular text without extra space is a
+    /// run-in head that filled its line ("**Performance stratified by
+    /// syntactic divergence.** As discussed ..."), not a heading of its own.
+    pub bold_run_in_max_words_count: usize,
     /// A row is bold when at least this fraction of its glyphs are bold.
     pub bold_dominant_ratio: f32,
 }
@@ -258,6 +263,7 @@ impl Default for BlocksConfig {
             block_size_change_pt: 0.6,
             bold_flip_min_chars: 2,
             bold_flip_gap_leading: 1.1,
+            bold_run_in_max_words_count: 12,
             bold_dominant_ratio: 0.95,
         }
     }
@@ -1191,8 +1197,31 @@ fn starts_new_group(ctx: BlockContext, last: &Line, line: &Line, gap: f32) -> bo
         // ... and it does not go on into the next line: a long run-in
         // heading ("One-Stage Detection vs. Two-Stage Proposal + De- /
         // tection. The OverFeat ...") ends in bold on the line below.
-        && !(bold_dominant(last, fonts, cfg) && starts_bold(line, fonts));
+        && !(bold_dominant(last, fonts, cfg) && starts_bold(line, fonts))
+        // A bold sentence-like row that fills its line is the head of the
+        // paragraph that goes on below.
+        && !(bold_dominant(last, fonts, cfg) && is_run_in_head(last, gap, expected, cfg));
     big_gap || size_change || bold_flip
+}
+
+/// Whether the bold row `last`, followed by a row at baseline distance `gap`
+/// (`expected` is the usual distance), is a run-in head that filled its line:
+/// capitalised words ending in a period (not a numbered or lettered section
+/// heading, not a single word) and no extra space below.
+fn is_run_in_head(last: &Line, gap: f32, expected: f32, cfg: &BlocksConfig) -> bool {
+    let text = last.text();
+    let text = text.trim();
+    let words = text.split_whitespace().count();
+    // A section label ("A.1", "4.2", "B.") is not a word of a sentence.
+    let labeled = text
+        .split_whitespace()
+        .next()
+        .is_some_and(|word| word.chars().any(char::is_numeric) || word.trim_end_matches('.').chars().count() < 2);
+    text.ends_with('.')
+        && !labeled
+        && text.chars().next().is_some_and(char::is_uppercase)
+        && (2..=cfg.bold_run_in_max_words_count).contains(&words)
+        && gap <= cfg.bold_flip_gap_leading * expected
 }
 
 /// Cuts the group of text rows into paragraphs and appends them to `out`

@@ -15,6 +15,7 @@ pub(crate) mod links;
 pub(crate) mod paragraphs;
 pub(crate) mod patterns;
 pub(crate) mod references;
+pub(crate) mod run_in;
 pub(crate) mod text;
 
 pub use assemble::AssembleConfig;
@@ -22,6 +23,7 @@ pub use body::BodyConfig;
 pub use front_matter::FrontMatterConfig;
 pub use paragraphs::ParagraphsConfig;
 pub use references::ReferencesConfig;
+pub use run_in::RunInConfig;
 pub use text::TextConfig;
 
 pub(crate) use assemble::build_document;
@@ -64,6 +66,8 @@ pub struct SemanticsConfig {
     pub front_matter: FrontMatterConfig,
     /// Classification of headings, paragraphs, list items and references.
     pub body: BodyConfig,
+    /// Cutting numbered italic headings off the paragraph they start.
+    pub run_in: RunInConfig,
     /// Splitting bibliography blocks into one entry each.
     pub references: ReferencesConfig,
     /// Merging paragraphs and footnotes split across columns and pages.
@@ -84,6 +88,7 @@ impl Default for SemanticsConfig {
             small_caps_min_sizes_count: 2,
             front_matter: FrontMatterConfig::default(),
             body: BodyConfig::default(),
+            run_in: RunInConfig::default(),
             references: ReferencesConfig::default(),
             paragraphs: ParagraphsConfig::default(),
             text: TextConfig::default(),

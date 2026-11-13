@@ -800,3 +800,91 @@ fn ligo_first_page_foot_is_furniture() {
             && !plain(&block.spans).contains("Creative Commons")
     }));
 }
+
+/// Text of the blocks of the GPT-4 paper whose kind satisfies `pred`.
+fn gpt4_blocks_where(pred: impl Fn(&BlockKind) -> bool) -> Option<Vec<String>> {
+    let paper = load("2303.08774v6")?;
+    let analysis = paper.analyze();
+    Some(
+        analysis
+            .doc
+            .blocks
+            .iter()
+            .filter(|block| pred(&block.kind))
+            .map(|block| plain(&block.spans).trim().to_string())
+            .collect(),
+    )
+}
+
+/// The numbered harm list, the outline and the RBRM steps of the system
+/// card are list items, not level-1 headings (they are set larger than the
+/// 10 pt of the report, but they are the body size of the system card).
+#[test]
+fn gpt4_numbered_lists_are_not_headings() {
+    let Some(headings) = gpt4_blocks_where(|kind| matches!(kind, BlockKind::Heading { .. })) else {
+        return;
+    };
+    for label in [
+        "Advice or encouragement for self harm",
+        "Graphic material such as erotic",
+        "Evaluation Approach (As Described Above)",
+        "2. Model Mitigations",
+        "3. System Safety",
+        "Pass a prompt through GPT-4 model",
+        "Pass prompt + new response through GPT-4",
+    ] {
+        assert!(
+            !headings.iter().any(|heading| heading.contains(label)),
+            "{label:?} is a heading"
+        );
+    }
+    let items = gpt4_blocks_where(|kind| matches!(kind, BlockKind::ListItem { .. })).unwrap();
+    assert!(
+        items
+            .iter()
+            .any(|item| item.contains("Advice or encouragement for self harm"))
+    );
+    assert!(
+        items
+            .iter()
+            .any(|item| item.contains("Pass a prompt through GPT-4 model"))
+    );
+}
+
+/// Lead-in sentences ending in a colon, the tail of a bullet, bold notes
+/// and reference entries are not headings; neither are the running titles
+/// at the head of the system card.
+#[test]
+fn gpt4_lead_ins_and_labels_are_not_headings() {
+    let Some(headings) = gpt4_blocks_where(|kind| matches!(kind, BlockKind::Heading { .. })) else {
+        return;
+    };
+    for text in [
+        "Some of the tasks ARC tested include:",
+        "The red teamer augmented GPT-4 with a set of tools:",
+        "safe usage.",
+        "GPT-4 System Card",
+        "OpenAI",
+    ] {
+        assert!(!headings.iter().any(|heading| heading == text), "{text:?} is a heading");
+    }
+    for prefix in ["CW:", "[2]", "[93]"] {
+        assert!(
+            !headings.iter().any(|heading| heading.starts_with(prefix)),
+            "{prefix:?} starts a heading"
+        );
+    }
+}
+
+/// The "GPT-4 (early) response" labels of the appendix repeat dozens of
+/// times: they are not sections, while "D.1 Prompt 1" is.
+#[test]
+fn gpt4_response_labels_are_not_headings() {
+    let Some(headings) = gpt4_blocks_where(|kind| matches!(kind, BlockKind::Heading { .. })) else {
+        return;
+    };
+    assert!(!headings.iter().any(|heading| heading.starts_with("GPT-4 (")));
+    assert!(headings.iter().any(|heading| heading == "D.1 Prompt 1"));
+    assert!(headings.iter().any(|heading| heading == "2.3 Harmful Content"));
+    assert!(headings.iter().any(|heading| heading == "A Exam Benchmark Methodology"));
+}

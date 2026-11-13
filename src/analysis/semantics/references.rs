@@ -4,7 +4,7 @@ use super::patterns::*;
 use super::*;
 
 /// Splits reference blocks that contain several labelled entries.
-pub(crate) fn split_references(nodes: &mut Vec<Node>) {
+pub(crate) fn split_references(nodes: &mut Vec<Node>, _cfg: &SemanticsConfig) {
     let mut i = 0;
     while i < nodes.len() {
         if nodes[i].class != Class::Reference {

@@ -1,7 +1,8 @@
 //! High-level entry points: PDF bytes in, structured document and HTML out.
 
-use crate::analysis::pipeline::{Analysis, AnalyzeOptions, analyze};
+use crate::analysis::pipeline::{Analysis, analyze};
 use crate::backend::{PageRenderer, PdfFile};
+use crate::config::AnalyzeOptions;
 use crate::model::Meta;
 use crate::render::{HtmlOptions, HtmlOutput, render};
 use anyhow::Result;

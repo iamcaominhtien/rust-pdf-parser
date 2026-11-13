@@ -5,7 +5,7 @@ use super::*;
 use crate::analysis::blocks::{LIST_LABEL, TextBlock};
 use crate::analysis::page::DocStats;
 
-pub(crate) fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats) {
+pub(crate) fn merge_paragraphs(nodes: &mut Vec<Node>, stats: &DocStats, _cfg: &SemanticsConfig) {
     // Does this document indent the first line of a paragraph?
     let (mut indented, mut total) = (0, 0);
     for n in nodes.iter() {

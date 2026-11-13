@@ -7,7 +7,7 @@ use crate::analysis::page::DocStats;
 use crate::backend::FontInfo;
 use crate::common::geom::median;
 
-pub(crate) fn classify_body(nodes: &mut [Node], stats: &DocStats, fonts: &[FontInfo]) {
+pub(crate) fn classify_body(nodes: &mut [Node], stats: &DocStats, fonts: &[FontInfo], _cfg: &SemanticsConfig) {
     // Pass 1: heading candidates.
     struct Cand {
         idx: usize,

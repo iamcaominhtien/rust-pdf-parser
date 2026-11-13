@@ -10,6 +10,10 @@ use crate::model::Loc;
 use regex::Regex;
 use std::sync::LazyLock;
 
+/// Tuning parameters of block building. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct BlocksConfig {}
+
 #[derive(Debug, Clone)]
 pub struct TextBlock {
     pub lines: Vec<Line>,
@@ -181,7 +185,13 @@ fn bold_dominant(l: &Line, fonts: &[FontInfo]) -> bool {
     l.font_frac(fonts, |f| f.bold) >= 0.95
 }
 
-pub fn build_blocks(page: &PageData, leaves: &[Leaf], stats: &DocStats, fonts: &[FontInfo]) -> Vec<RawBlock> {
+pub fn build_blocks(
+    page: &PageData,
+    leaves: &[Leaf],
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    _cfg: &BlocksConfig,
+) -> Vec<RawBlock> {
     let mut out = Vec::new();
     for (leaf_idx, leaf) in leaves.iter().enumerate() {
         let loc = Loc {

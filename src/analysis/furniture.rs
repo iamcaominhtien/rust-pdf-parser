@@ -7,6 +7,10 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+/// Tuning parameters of furniture removal. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct FurnitureConfig {}
+
 static PAGE_NUMBER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^\W{0,3}(page\s+)?(\d{1,4}|[ivxlc]{1,7})(\s*(of|/)\s*\d{1,4})?\W{0,3}$").unwrap()
 });
@@ -39,7 +43,7 @@ pub struct Furniture {
 
 /// Removes running headers/footers, page numbers, margin line numbers and the
 /// arXiv margin stamp from the pages.
-pub fn remove_furniture(pages: &mut [PageData]) -> Furniture {
+pub fn remove_furniture(pages: &mut [PageData], _cfg: &FurnitureConfig) -> Furniture {
     let mut out = Furniture::default();
 
     // arXiv stamp: rotated text in the left margin of the first page.

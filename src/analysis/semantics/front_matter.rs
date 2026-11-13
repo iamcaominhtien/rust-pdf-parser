@@ -10,7 +10,13 @@ use crate::model::Line;
 use crate::model::Loc;
 use std::collections::{HashMap, HashSet};
 
-pub(crate) fn classify_front_matter(nodes: &mut Vec<Node>, pages: &[PageData], stats: &DocStats, fonts: &[FontInfo]) {
+pub(crate) fn classify_front_matter(
+    nodes: &mut Vec<Node>,
+    pages: &[PageData],
+    stats: &DocStats,
+    fonts: &[FontInfo],
+    _cfg: &SemanticsConfig,
+) {
     let Some(first_page) = nodes.iter().find(|n| n.text_block().is_some()).map(|n| n.loc.page) else {
         return;
     };

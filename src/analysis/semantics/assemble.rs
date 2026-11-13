@@ -7,10 +7,10 @@ use super::*;
 use crate::analysis::blocks::LIST_LABEL;
 use crate::analysis::lines::split_at_gaps;
 use crate::analysis::page::{DocStats, PageData};
-use crate::analysis::pipeline::AnalyzeOptions;
 use crate::analysis::tables::extract_grid;
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
+use crate::config::AnalyzeOptions;
 use crate::model::FloatKind;
 use crate::model::Line;
 use crate::model::Loc;
@@ -248,7 +248,7 @@ pub(crate) fn build_document(
                             .iter()
                             .flat_map(|l| split_at_gaps(l, 0.55 * l.size))
                             .collect();
-                        extract_grid(region, &pieces, &f.hrules, &f.vrules).map(|g| tb.table(g))
+                        extract_grid(region, &pieces, &f.hrules, &f.vrules, &opts.layout.tables).map(|g| tb.table(g))
                     }
                     _ => None,
                 };

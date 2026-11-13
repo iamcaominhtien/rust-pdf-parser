@@ -25,6 +25,10 @@ use crate::common::geom::median;
 use crate::model::Line;
 use crate::model::Loc;
 
+/// Tuning parameters of the structuring stages. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct SemanticsConfig {}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Class {
     Unknown,

@@ -152,6 +152,7 @@ fn convert(args: ConvertArgs) -> Result<()> {
     let analysis = paper.analyze_with(AnalyzeOptions {
         tables: args.tables == TablesArg::Auto,
         jobs,
+        ..Default::default()
     });
     let tables = analysis.doc.blocks.iter().filter(|b| b.table.is_some()).count();
     eprintln!(

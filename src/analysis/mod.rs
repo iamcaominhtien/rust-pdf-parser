@@ -7,5 +7,5 @@ pub mod lines;
 pub mod order;
 pub mod page;
 pub mod pipeline;
-pub(crate) mod semantics;
+pub mod semantics;
 pub mod tables;

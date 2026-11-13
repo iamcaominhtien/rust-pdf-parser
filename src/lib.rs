@@ -8,11 +8,12 @@
 pub mod analysis;
 pub mod backend;
 pub mod common;
+pub mod config;
 pub mod model;
 pub mod paper;
 pub mod render;
 pub mod source;
 
-pub use analysis::pipeline::AnalyzeOptions;
+pub use config::{AnalyzeOptions, LayoutConfig};
 pub use paper::{Paper, convert};
 pub use render::{HtmlOptions, HtmlOutput, Mode, PageImage};

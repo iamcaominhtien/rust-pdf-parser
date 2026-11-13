@@ -13,6 +13,10 @@ use crate::model::Line;
 use regex::Regex;
 use std::sync::LazyLock;
 
+/// Tuning parameters of float detection. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct FloatsConfig {}
+
 #[derive(Debug, Clone)]
 pub struct Float {
     pub kind: FloatKind,
@@ -429,7 +433,7 @@ fn rule_tables(page: &PageData, caps: &[Cap]) -> Vec<Comp> {
 /// A caption label can be separated from its text by a gap wide enough to
 /// break the line in two ("Table 2:      SQuAD results ..."). Joins a bare
 /// label with the text that follows it on the same baseline.
-pub fn join_caption_labels(page: &mut PageData) {
+pub fn join_caption_labels(page: &mut PageData, _cfg: &FloatsConfig) {
     let mut i = 0;
     while i < page.lines.len() {
         let text = page.lines[i].text();
@@ -467,7 +471,7 @@ pub fn join_caption_labels(page: &mut PageData) {
 /// Collects evidence on whether table captions are set above or below the
 /// table in this document: returns (votes for above, votes for below) from
 /// captions that have a table on one side only.
-pub fn table_caption_votes(page: &PageData, fonts: &[FontInfo]) -> (usize, usize) {
+pub fn table_caption_votes(page: &PageData, fonts: &[FontInfo], _cfg: &FloatsConfig) -> (usize, usize) {
     let caps = find_captions(page, fonts);
     if !caps.iter().any(|c| c.kind == FloatKind::Table) {
         return (0, 0);
@@ -506,6 +510,7 @@ pub fn detect_floats(
     stats: &DocStats,
     fonts: &[FontInfo],
     table_caption_above: Option<bool>,
+    _cfg: &FloatsConfig,
 ) -> Vec<Float> {
     let caps = find_captions(page, fonts);
     let is_caption_line: Vec<bool> = {

@@ -10,6 +10,10 @@ use super::page::DocStats;
 use crate::common::geom::Rect;
 use crate::model::Line;
 
+/// Tuning parameters of reading order. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct OrderConfig {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemRef {
     Line(usize),
@@ -259,7 +263,7 @@ fn flatten(items: Vec<It>, min_gutter: f32, depth: u32, out: &mut Vec<Vec<It>>) 
     }
 }
 
-pub fn order_page(lines: &[Line], floats: &[Float], stats: &DocStats) -> Vec<Leaf> {
+pub fn order_page(lines: &[Line], floats: &[Float], stats: &DocStats, _cfg: &OrderConfig) -> Vec<Leaf> {
     let mut items: Vec<It> = Vec::with_capacity(lines.len() + floats.len());
     for (i, l) in lines.iter().enumerate() {
         items.push(It {

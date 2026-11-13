@@ -14,6 +14,10 @@ use crate::common::geom::{Rect, median};
 use crate::model::Align;
 use crate::model::Line;
 
+/// Tuning parameters of table grid reconstruction. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct TablesConfig {}
+
 #[derive(Debug, Clone)]
 pub struct GridCell {
     pub col: usize,
@@ -116,7 +120,13 @@ fn find_separators(rows: &[Vec<&Line>], x0: f32, x1: f32, tolerance: u16, min_bi
 }
 
 /// Tries to arrange `lines` (the text inside `region`) into a grid.
-pub fn extract_grid(region: Rect, lines: &[Line], hrules: &[(Rect, f32)], vrules: &[Rect]) -> Option<Grid> {
+pub fn extract_grid(
+    region: Rect,
+    lines: &[Line],
+    hrules: &[(Rect, f32)],
+    vrules: &[Rect],
+    _cfg: &TablesConfig,
+) -> Option<Grid> {
     let pieces: Vec<&Line> = lines.iter().filter(|l| !l.glyphs.is_empty()).collect();
     if pieces.len() < 4 {
         return None;

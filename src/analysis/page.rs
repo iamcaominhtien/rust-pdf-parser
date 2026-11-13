@@ -1,10 +1,14 @@
 //! Per-page working data and document-wide statistics.
 
-use super::lines::build_lines;
+use super::lines::{LinesConfig, build_lines};
 use crate::backend::{ImageBox, PathBox, RawPage};
 use crate::common::geom::{Rect, weighted_mode};
 use crate::model::{Line, RotatedText};
 use std::collections::HashMap;
+
+/// Tuning parameters of the document-wide page statistics. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PageConfig {}
 
 pub struct PageData {
     pub index: usize,
@@ -17,8 +21,8 @@ pub struct PageData {
 }
 
 impl PageData {
-    pub fn from_raw(raw: RawPage) -> Self {
-        let (lines, rotated) = build_lines(&raw);
+    pub fn from_raw(raw: RawPage, lines_cfg: &LinesConfig) -> Self {
+        let (lines, rotated) = build_lines(&raw, lines_cfg);
         Self {
             index: raw.index,
             width: raw.width,
@@ -44,7 +48,7 @@ pub struct DocStats {
     pub leading: f32,
 }
 
-pub fn compute_stats(pages: &[PageData]) -> DocStats {
+pub fn compute_stats(pages: &[PageData], _cfg: &PageConfig) -> DocStats {
     let body_size = weighted_mode(
         pages
             .iter()

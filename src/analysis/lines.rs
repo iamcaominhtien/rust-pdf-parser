@@ -10,6 +10,10 @@ use crate::model::{Line, LineGlyph, RotatedText};
 use std::collections::HashSet;
 use unicode_normalization::UnicodeNormalization;
 
+/// Tuning parameters of line building. Part of [`LayoutConfig`](crate::config::LayoutConfig).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct LinesConfig {}
+
 impl Line {
     pub fn text(&self) -> String {
         let mut s = String::new();
@@ -354,7 +358,7 @@ pub fn split_at_gaps(line: &Line, min_gap: f32) -> Vec<Line> {
         .collect()
 }
 
-pub fn build_lines(raw: &RawPage) -> (Vec<Line>, Vec<RotatedText>) {
+pub fn build_lines(raw: &RawPage, _cfg: &LinesConfig) -> (Vec<Line>, Vec<RotatedText>) {
     let has_visible = raw.glyphs.iter().any(|g| !g.invisible);
     let mut seen: HashSet<(i32, i32, u64)> = HashSet::new();
     let mut glyphs: Vec<LineGlyph> = Vec::new();

@@ -157,6 +157,14 @@ pub struct BlocksConfig {
     /// Adjacent equation rows closer than this many leadings are merged into
     /// one equation (unless both are numbered).
     pub merge_max_gap_leading: f32,
+    /// An opening delimiter of an equation taller than this (em of its font
+    /// size) encloses the rows beside it: the lines of a `cases` or of a
+    /// matrix belong to the equation, even when one reads as text
+    /// ("−x, otherwise").
+    pub enclosing_min_height_em: f32,
+    /// How far (points) an enclosed row may reach past the top or the bottom
+    /// of the delimiter.
+    pub enclosing_tolerance_pt: f32,
 
     // --- footnotes ---
     /// Footnote text is at least this much smaller than the body size.
@@ -273,6 +281,8 @@ impl Default for BlocksConfig {
             weak_math_max_prose_ratio: 0.3,
             promote_max_gap_leading: 0.9,
             merge_max_gap_leading: 0.9,
+            enclosing_min_height_em: 1.8,
+            enclosing_tolerance_pt: 1.0,
             footnote_size_drop_pt: 0.4,
             footnote_rule_min_width_pt: 20.0,
             footnote_rule_max_width_ratio: 0.62,
@@ -522,6 +532,7 @@ pub fn build_blocks(
         promote_weak_equations(&mut rows, &mut weak, stats, cfg);
         attach_stray_numbers(&mut rows, &extent, stats, cfg);
         let rows = merge_equation_rows(rows, stats, cfg);
+        let rows = absorb_enclosed_rows(rows, cfg);
         let fn_start = footnote_start(ctx, leaf, &rows, &extent);
         emit_blocks(ctx, rows, fn_start, loc, &mut out);
     }
@@ -1124,6 +1135,42 @@ fn merge_equation_rows(rows: Vec<Row>, stats: &DocStats, cfg: &BlocksConfig) -> 
         });
     }
     merged
+}
+
+/// Moves the text rows that a tall opening delimiter of an equation
+/// encloses (beside it, within its height) into that equation: the second
+/// line of `cases`, the rows of a matrix.
+fn absorb_enclosed_rows(rows: Vec<Row>, cfg: &BlocksConfig) -> Vec<Row> {
+    let mut out: Vec<Row> = Vec::new();
+    for row in rows {
+        if let Row::Text(line) = &row
+            && let Some(Row::Equation { lines, bbox, .. }) = out.last_mut()
+            && enclosing_delimiters(lines, cfg).iter().any(|ink| {
+                let tol = cfg.enclosing_tolerance_pt;
+                line.ink.y0 >= ink.y0 - tol && line.ink.y1 <= ink.y1 + tol && line.ink.x0 >= ink.x1 - tol
+            })
+        {
+            *bbox = bbox.union(&line.ink);
+            if let Row::Text(line) = row {
+                lines.push(line);
+            }
+            continue;
+        }
+        out.push(row);
+    }
+    out
+}
+
+/// The ink of the tall opening delimiters (`{`, `(`, `[`) of the lines of an
+/// equation.
+fn enclosing_delimiters(lines: &[Line], cfg: &BlocksConfig) -> Vec<Rect> {
+    lines
+        .iter()
+        .flat_map(|line| &line.glyphs)
+        .filter(|glyph| matches!(glyph.text.as_str(), "{" | "(" | "["))
+        .filter(|glyph| glyph.ink.height() > cfg.enclosing_min_height_em * glyph.size)
+        .map(|glyph| glyph.ink)
+        .collect()
 }
 
 /// Index of the first row that belongs to the footnote area of the leaf

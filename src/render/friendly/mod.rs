@@ -160,8 +160,10 @@ impl Page<'_> {
     /// The complete HTML document.
     fn html(&self) -> String {
         let embedded: Vec<&str> = [
-            (!self.fonts.is_empty()).then_some("Literata and IBM Plex"),
-            self.math.contains("@font-face").then_some("STIX Two Math"),
+            (!self.fonts.is_empty()).then_some("Literata and IBM Plex, SIL Open Font License 1.1"),
+            self.math
+                .contains("@font-face")
+                .then_some("Latin Modern Math, GUST Font License"),
         ]
         .into_iter()
         .flatten()
@@ -170,8 +172,8 @@ impl Page<'_> {
             "Converted from PDF by paper2html · friendly mode".to_string()
         } else {
             format!(
-                "Converted from PDF by paper2html · friendly mode · {}, SIL Open Font License 1.1",
-                embedded.join(", ")
+                "Converted from PDF by paper2html · friendly mode · {}",
+                embedded.join(" · ")
             )
         };
         format!(

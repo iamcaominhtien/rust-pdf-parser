@@ -20,8 +20,10 @@
 //!    sits on);
 //! 5. limits: the small line right above or below a big operator (∑, ∏) or
 //!    an operator name (lim, max, maximize);
-//! 6. rows: the lines of a multi-line display, aligned on a relation;
-//! 7. in each row, left to right: the tokens on the main baseline, and the
+//! 6. stacks: lines stacked after a tall opening delimiter (`cases`) or
+//!    between two tall delimiters (a matrix), as a table;
+//! 7. rows: the lines of a multi-line display, aligned on a relation;
+//! 8. in each row, left to right: the tokens on the main baseline, and the
 //!    smaller raised and lowered items as their scripts.
 //!
 //! A formula with anything these steps cannot explain (a rule left over,
@@ -159,6 +161,9 @@ pub struct MathConfig {
     /// A delimiter taller than this (em) keeps its height
     /// (`\left(`, `\bigl(`).
     pub tall_delimiter_min_height_em: f32,
+    /// Columns of a stack (a matrix, `cases`) are cut where every line has
+    /// a gap wider than this (em).
+    pub column_min_gap_em: f32,
     /// Relations of different rows whose left edges are this close (points)
     /// are aligned.
     pub align_tolerance_pt: f32,
@@ -185,6 +190,7 @@ impl Default for MathConfig {
             limit_level_overlap_ratio: 0.5,
             limit_join_gap_em: 0.3,
             tall_delimiter_min_height_em: 1.3,
+            column_min_gap_em: 0.8,
             align_tolerance_pt: 2.0,
             row_min_size_ratio: 0.8,
         }
@@ -469,6 +475,7 @@ impl Parser<'_> {
         let items = self.radicals(items)?;
         let items = self.fractions(items)?;
         let items = self.limits(items)?;
+        let items = self.stacks(items)?;
         let mut rows = self.rows(items);
         if rows.len() == 1 {
             self.row(rows.pop()?)
@@ -910,6 +917,102 @@ impl Parser<'_> {
                 None => return taken,
             }
         }
+    }
+
+    /// Replaces every tall opening delimiter with lines stacked after it
+    /// (`cases`), or with lines stacked between it and a tall closing
+    /// delimiter of the same height (a matrix, a binomial), by the
+    /// delimiters around a table of those lines.
+    fn stacks(&self, mut items: Vec<Item>) -> Option<Vec<Item>> {
+        let mut seen: Vec<Rect> = Vec::new();
+        loop {
+            let open =
+                (0..items.len()).find(|&idx| self.is_tall(&items[idx], OPENERS) && !seen.contains(&items[idx].ink));
+            let Some(open) = open else {
+                return Some(items);
+            };
+            seen.push(items[open].ink);
+            let ink = items[open].ink;
+            let tol = self.cfg.bar_tolerance_pt;
+            let close = (0..items.len())
+                .filter(|&idx| self.is_tall(&items[idx], CLOSERS) && items[idx].left > items[open].left)
+                .filter(|&idx| (items[idx].ink.y0 - ink.y0).abs() <= tol && (items[idx].ink.y1 - ink.y1).abs() <= tol)
+                .min_by(|&a, &b| items[a].left.total_cmp(&items[b].left));
+            let end = close.map_or(f32::INFINITY, |idx| items[idx].left + tol);
+            let inside: Vec<usize> = (0..items.len())
+                .filter(|&idx| idx != open && Some(idx) != close)
+                .filter(|&idx| {
+                    let item = &items[idx];
+                    item.left >= items[open].right - tol
+                        && item.right <= end
+                        && item.ink.y0 >= ink.y0 - tol
+                        && item.ink.y1 <= ink.y1 + tol
+                })
+                .collect();
+            let lines = self.rows(inside.iter().map(|&idx| items[idx].clone()).collect());
+            if lines.len() < 2 {
+                continue;
+            }
+            let table = self.stack_table(lines, close.is_none())?;
+            let delimiter = |idx: usize| {
+                let glyph = items[idx].glyph()?;
+                Some(MathNode::Operator {
+                    text: glyph.text.clone(),
+                    height_em: Some(glyph.height_em * glyph.size / self.size),
+                })
+            };
+            let mut nodes = vec![delimiter(open)?, table];
+            if let Some(close) = close {
+                nodes.push(delimiter(close)?);
+            }
+            let (taken, rest) = split_off(items, |idx| idx == open || Some(idx) == close || inside.contains(&idx));
+            let parts: Vec<&Item> = taken.iter().map(|(_, item)| item).collect();
+            let built = Item::built(MathNode::Row(nodes), &parts, None);
+            items = rest;
+            items.push(built);
+        }
+    }
+
+    /// Whether `item` is a delimiter of `set` drawn taller than the text.
+    fn is_tall(&self, item: &Item, set: &[&str]) -> bool {
+        item.glyph().is_some_and(|glyph| {
+            set.contains(&glyph.text.as_str()) && glyph.height_em > self.cfg.tall_delimiter_min_height_em
+        })
+    }
+
+    /// The table of the stacked `lines` of a matrix or of `cases`
+    /// (`cases`: its cells flush left): columns are cut where every line
+    /// has a gap wider than [`MathConfig::column_min_gap_em`].
+    fn stack_table(&self, lines: Vec<Vec<Item>>, cases: bool) -> Option<MathNode> {
+        let mut spans: Vec<(f32, f32)> = lines.iter().flatten().map(|item| (item.left, item.right)).collect();
+        spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let gap = self.em(self.cfg.column_min_gap_em);
+        let mut columns: Vec<(f32, f32)> = Vec::new();
+        for (left, right) in spans {
+            match columns.last_mut() {
+                Some(column) if left < column.1 + gap => column.1 = column.1.max(right),
+                _ => columns.push((left, right)),
+            }
+        }
+        let mut rows = Vec::new();
+        for line in lines {
+            let mut cells = vec![Vec::new(); columns.len()];
+            for item in line {
+                let col = columns.iter().position(|&(_, right)| item.left <= right).unwrap_or(0);
+                cells[col].push(item);
+            }
+            rows.push(
+                cells
+                    .into_iter()
+                    .map(|cell| self.group(cell))
+                    .collect::<Option<Vec<_>>>()?,
+            );
+        }
+        let align = if cases { "left" } else { "center" };
+        Some(MathNode::Table {
+            rows,
+            align: vec![align; columns.len()],
+        })
     }
 
     /// Splits `items` into the lines of a multi-line display: groups whose
@@ -1659,6 +1762,35 @@ mod tests {
             sup: None,
         };
         assert_eq!(math, Some(expected));
+    }
+
+    #[test]
+    fn lines_after_a_tall_brace_are_a_table() {
+        let brace = glyph("{", 3, 20.0, 100.0, 10.0, Some(Rect::new(20.0, 88.0, 25.0, 108.0)));
+        let math = rebuild(
+            vec![
+                glyph("f", 0, 10.0, 100.0, 10.0, None),
+                brace,
+                glyph("a", 0, 27.0, 95.0, 10.0, None),
+                glyph("p", 0, 45.0, 95.0, 10.0, None),
+                glyph("b", 0, 27.0, 106.0, 10.0, None),
+                glyph("q", 0, 45.0, 106.0, 10.0, None),
+            ],
+            &[],
+        );
+        let Some(MathNode::Row(nodes)) = math else {
+            panic!("not a row: {math:?}");
+        };
+        assert_eq!(nodes[0], ident("f"));
+        let MathNode::Row(stack) = &nodes[1] else {
+            panic!("no stack: {:?}", nodes[1]);
+        };
+        assert!(matches!(&stack[0], MathNode::Operator { text, height_em: Some(_) } if text == "{"));
+        let expected = MathNode::Table {
+            rows: vec![vec![ident("a"), ident("p")], vec![ident("b"), ident("q")]],
+            align: vec!["left", "left"],
+        };
+        assert_eq!(stack[1], expected);
     }
 
     #[test]

@@ -5,10 +5,10 @@ use super::{esc, font_face};
 use crate::model::MathNode;
 use std::sync::LazyLock;
 
-/// STIX Two Math (SIL Open Font License 1.1), subset to the letters,
-/// symbols and math alphabets of formulas, with its MATH table (see
-/// `fonts/README.md`).
-const STIX_TWO_MATH: &[u8] = include_bytes!("fonts/stix-two-math.woff2");
+/// Latin Modern Math (GUST Font License), the math font of LaTeX, so that
+/// formulas look as in the papers: subset to the letters, symbols and math
+/// alphabets of formulas, with its MATH table (see `fonts/README.md`).
+const LATIN_MODERN_MATH: &[u8] = include_bytes!("fonts/latin-modern-math.woff2");
 
 /// Operators that MathML stretches by default: written with
 /// `stretchy="false"` unless the PDF drew them taller than the text, so
@@ -31,10 +31,11 @@ const PRIME_DROP: &str = "-0.45em";
 /// Style of the formulas: the math font (the embedded one first, then
 /// those of the usual systems) and a size close to the one of the pictures.
 const MATH_STYLE: &str =
-    "math.eq-math{font-family:\"STIX Two Math\",\"Latin Modern Math\",\"Cambria Math\",math;font-size:1.05em}\n";
+    "math.eq-math{font-family:\"Latin Modern Math\",\"STIX Two Math\",\"Cambria Math\",math;font-size:1.05em}\n";
 
 /// The `@font-face` rule of the embedded math font, built once.
-static MATH_FACE: LazyLock<String> = LazyLock::new(|| font_face("STIX Two Math", "normal", "400", STIX_TWO_MATH));
+static MATH_FACE: LazyLock<String> =
+    LazyLock::new(|| font_face("Latin Modern Math", "normal", "400", LATIN_MODERN_MATH));
 
 /// The styles a page with MathML formulas needs, with the math font
 /// embedded when `embed_font` (otherwise the reader's math font is used).
@@ -121,23 +122,38 @@ fn write_node(node: &MathNode, out: &mut String) {
                 (None, None) => write_node(base, out),
             }
         }
-        MathNode::Table { rows, align } => {
-            // Lines of a display are in display style (MathML makes table
-            // cells compact by default).
-            out.push_str("<mtable displaystyle=\"true\">");
-            for row in rows {
-                out.push_str("<mtr>");
-                for (col, cell) in row.iter().enumerate() {
-                    let align = align.get(col).copied().unwrap_or("center");
-                    out.push_str(&format!("<mtd columnalign=\"{align}\">"));
-                    write_node(cell, out);
-                    out.push_str("</mtd>");
-                }
-                out.push_str("</mtr>");
-            }
-            out.push_str("</mtable>");
-        }
+        MathNode::Table { rows, align } => write_table(rows, align, out),
     }
+}
+
+/// Writes the rows of a table, each cell aligned as `align` says for its
+/// column.
+fn write_table(rows: &[Vec<MathNode>], align: &[&str], out: &mut String) {
+    // Lines of a display are in display style (MathML makes table cells
+    // compact by default).
+    out.push_str("<mtable displaystyle=\"true\">");
+    let aligned = align == ["right", "left"];
+    for row in rows {
+        out.push_str("<mtr>");
+        for (col, cell) in row.iter().enumerate() {
+            let align = align.get(col).copied().unwrap_or("center");
+            // Firefox and Safari follow columnalign; Chromium ignores it and
+            // text-align:right, but follows the -webkit- values. Lines aligned
+            // on a relation have no gap at the relation.
+            let pad = match (aligned, align) {
+                (true, "right") => ";padding-right:0",
+                (true, "left") => ";padding-left:0",
+                _ => "",
+            };
+            out.push_str(&format!(
+                "<mtd columnalign=\"{align}\" style=\"text-align:-webkit-{align}{pad}\">"
+            ));
+            write_node(cell, out);
+            out.push_str("</mtd>");
+        }
+        out.push_str("</mtr>");
+    }
+    out.push_str("</mtable>");
 }
 
 /// Writes a base with its subscript and/or superscript.
@@ -267,6 +283,8 @@ mod tests {
             align: vec!["right", "left"],
         };
         write_node(&table, &mut out);
-        assert!(out.starts_with("<mtable displaystyle=\"true\"><mtr><mtd columnalign=\"right\"><mi>x</mi></mtd>"));
+        assert!(out.starts_with(
+            "<mtable displaystyle=\"true\"><mtr><mtd columnalign=\"right\" style=\"text-align:-webkit-right;padding-right:0\"><mi>x</mi></mtd>"
+        ));
     }
 }

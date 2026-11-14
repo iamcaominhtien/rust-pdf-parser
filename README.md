@@ -51,9 +51,9 @@ code, symbols stacked without a bar (matrices, `cases`, `\underbrace`), a bar or
 that belongs to nothing. On 13 arXiv papers (the 8 test papers and 5 papers full of formulas),
 138 of 147 display formulas are written as MathML.
 
-MathML needs a math font. Pages with MathML embed a subset of STIX Two Math (SIL Open Font
-License, about 230 KB), so formulas look the same on every machine, including Linux and Android,
-which have no math font of their own. With `--fonts system` it is not embedded: the reader's math
+MathML needs a math font. Pages with MathML embed a subset of Latin Modern Math, the math font of
+LaTeX (GUST Font License, about 280 KB), so formulas look as in the papers and the same on every
+machine, including Linux and Android, which have no math font of their own. With `--fonts system` it is not embedded: the reader's math
 font is used (Cambria Math on Windows, STIX Two Math on macOS), or a fallback font that draws
 formulas poorly.
 
@@ -133,7 +133,7 @@ or an arXiv URL (`https://arxiv.org/abs/1706.03762`).
 | `--page-image <svg\|png>` | Page background in `hard` mode (default `svg`) |
 | `--tables <auto\|image>` | `auto` (default): build `<table>` when the table structure is clear. `image`: do not build (the table is an image in `medium`/`friendly`, and text placed by position in `hard-95`) |
 | `--equations <mathml\|image>` | How `medium` and `friendly` show display formulas. `mathml` (default): MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above). `image`: a picture of every formula |
-| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (STIX Two Math, about 230 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
+| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (Latin Modern Math, about 280 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
 | `--json` | Also write `<name>.json`, the document structure |
 | `-j, --jobs <N>` | Number of parallel threads. `0` (default): one thread per CPU core. `1`: no parallelism. The result is identical for every value |
 

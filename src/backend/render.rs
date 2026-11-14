@@ -37,6 +37,16 @@ const TRANSFORM_ATTR: &str = "transform=\"";
 const GLYPH_DEF_PREFIX: &str = "<path id=\"";
 /// End of the definition of a glyph that draws nothing (a space).
 const BLANK_GLYPH_SUFFIX: &str = " d=\"\"/>";
+/// The attribute hayro's SVG output gives a picture without the PDF's
+/// `/Interpolate` flag: nearest-neighbour scaling. When the browser shrinks
+/// such a picture it drops whole rows of pixels, so that the thin gap
+/// between a tick mark and its label vanishes and the tick runs into the
+/// label. See [`smooth_fine_images`].
+const PIXELATED_STYLE: &str = " style=\"image-rendering: pixelated\"";
+/// A picture whose pixels are smaller than this (in points) is smoothed;
+/// larger pixels are blocks the author meant to show (a heat map of 14 by
+/// 14 cells), and stay sharp.
+const PIXELATED_MIN_PIXEL_PT: f64 = 1.0;
 
 /// Draws pages and page regions of one PDF. Keeps the render caches between
 /// calls, so it should be reused for all the pictures a thread draws.
@@ -149,7 +159,8 @@ impl<'a> PageRenderer<'a> {
     }
 
     /// The page as an SVG document on a white background, with large opaque
-    /// embedded images recompressed (see [`compact_images`]). Returns `None`
+    /// embedded images recompressed (see [`compact_images`]) and fine ones
+    /// smoothed when scaled (see [`smooth_fine_images`]). Returns `None`
     /// when the page does not exist.
     pub fn page_svg(&self, page: usize) -> Option<String> {
         let pdf_page = self.pdf.pages().get(page)?;
@@ -161,7 +172,7 @@ impl<'a> PageRenderer<'a> {
                 bg_color: SVG_BACKGROUND,
             },
         );
-        Some(compact_images(svg))
+        Some(smooth_fine_images(compact_images(svg)))
     }
 }
 
@@ -180,6 +191,43 @@ pub fn svg_to_png(svg: &str, scale: f32) -> Option<Vec<u8>> {
         &mut pixmap.as_mut(),
     );
     pixmap.encode_png().ok()
+}
+
+/// Lets the browser smooth the pictures of an SVG page whose pixels are
+/// smaller than [`PIXELATED_MIN_PIXEL_PT`], as PDF viewers do, by removing
+/// their [`PIXELATED_STYLE`]. The size of a pixel is read from the
+/// `transform="matrix(a b c d e f)"` of the `<image>` (the square root of
+/// the area a pixel covers); pictures placed otherwise are left alone.
+fn smooth_fine_images(svg: String) -> String {
+    if !svg.contains(PIXELATED_STYLE) {
+        return svg;
+    }
+    let mut out = String::with_capacity(svg.len());
+    for line in svg.split_inclusive('\n') {
+        let pixel_pt = line.contains(PIXELATED_STYLE).then(|| image_pixel_pt(line)).flatten();
+        match pixel_pt {
+            Some(size) if size < PIXELATED_MIN_PIXEL_PT => out.push_str(&line.replacen(PIXELATED_STYLE, "", 1)),
+            _ => out.push_str(line),
+        }
+    }
+    out
+}
+
+/// The size of a pixel (in points) of the `<image>` element on `line`,
+/// from its `matrix(...)` transform; `None` when there is no such element.
+fn image_pixel_pt(line: &str) -> Option<f64> {
+    let rest = &line[line.find("<image ")?..];
+    let matrix = &rest[rest.find("matrix(")? + "matrix(".len()..];
+    let values: Vec<f64> = matrix[..matrix.find(')')?]
+        .split([' ', ','])
+        .filter(|value| !value.is_empty())
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
+    let [x_scale, y_skew, x_skew, y_scale, ..] = values.as_slice() else {
+        return None;
+    };
+    Some((x_scale * y_scale - y_skew * x_skew).abs().sqrt())
 }
 
 /// Parses a line that draws a glyph: returns the referenced glyph id and
@@ -295,4 +343,23 @@ pub fn region_bitmap(rect: Rect, scale: f32) -> (f32, u32, u32) {
     let width = (rect.width() * scale).ceil().max(1.0) as u32;
     let height = (rect.height() * scale).ceil().max(1.0) as u32;
     (scale, width, height)
+}
+
+#[cfg(test)]
+mod smoothing_tests {
+    use super::smooth_fine_images;
+
+    #[test]
+    fn fine_pictures_are_smoothed_and_coarse_ones_stay_sharp() {
+        let line = |scale: f64| {
+            format!(
+                "<image transform=\"matrix({scale} 0 0 {scale} 10 20)\" xlink:href=\"data:image/png;base64,AAAA\" \
+width=\"484\" height=\"209\" preserveAspectRatio=\"none\" style=\"image-rendering: pixelated\"/>\n"
+            )
+        };
+        // A scanned figure: 0.59 pt per pixel, smoothed.
+        assert!(!smooth_fine_images(line(0.588843)).contains("pixelated"));
+        // A heat map of big cells: 1.8 pt per pixel, kept sharp.
+        assert!(smooth_fine_images(line(1.8)).contains("pixelated"));
+    }
 }

@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use paper2html::analysis::pipeline::Analysis;
 use paper2html::model::{Block, BlockKind, Loc};
 use paper2html::source::arxiv;
-use paper2html::{AnalyzeOptions, HtmlOptions, Mode, PageImage, Paper};
+use paper2html::{AnalyzeOptions, Equations, HtmlOptions, Mode, PageImage, Paper};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -65,6 +65,18 @@ enum Command {
         /// Local PDF file, arXiv id or arXiv URL
         input: String,
     },
+    /// Read pictures of formulas (black on white, as LaTeX renders them) and
+    /// print them as MathML. With several pictures, each line is the file
+    /// name, a tab and its MathML (empty when it cannot be read).
+    Formula {
+        /// Picture files (PNG or JPEG)
+        #[arg(required = true)]
+        images: Vec<PathBuf>,
+        /// Print how sure each reading is (weakest glyph, closest rival)
+        /// before its MathML, and give every reading whatever its confidence
+        #[arg(long, hide = true)]
+        scores: bool,
+    },
 }
 
 /// Values of `--mode`; the doc comments are the help texts.
@@ -104,7 +116,7 @@ enum ImagesArg {
 /// Values of `--fonts`; the doc comments are the help texts.
 #[derive(Clone, Copy, ValueEnum, PartialEq)]
 enum FontsArg {
-    /// Embed the reading fonts in friendly pages (works offline, about 250 KB)
+    /// Embed the reading fonts in friendly pages (works offline, about 250 KB) and the math font in pages with MathML (about 280 KB)
     Embed,
     /// Use the fonts installed on the reader's system (smaller files)
     System,
@@ -117,6 +129,15 @@ enum TablesArg {
     Auto,
     /// Never rebuild tables (pictures in medium/friendly, placed text in hard-95)
     Image,
+}
+
+/// Values of `--equations`; the doc comments are the help texts.
+#[derive(Clone, Copy, ValueEnum, PartialEq)]
+enum EquationsArg {
+    /// Pictures of the formulas
+    Image,
+    /// MathML rebuilt from the glyphs where the structure is clear, pictures elsewhere
+    Mathml,
 }
 
 /// Values of `--page-image`.
@@ -159,9 +180,12 @@ struct ConvertArgs {
     /// How tables are handled
     #[arg(long, value_enum, default_value = "auto")]
     tables: TablesArg,
-    /// Fonts of friendly mode
+    /// Fonts of friendly mode, and of the formulas of medium and friendly modes
     #[arg(long, value_enum, default_value = "embed")]
     fonts: FontsArg,
+    /// How medium and friendly modes show displayed formulas
+    #[arg(long, value_enum, default_value = "mathml")]
+    equations: EquationsArg,
     /// Also write the structured document as JSON (for translation tools)
     #[arg(long)]
     json: bool,
@@ -226,6 +250,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         Command::Inspect { input } => inspect(&input),
+        Command::Formula { images, scores } => formula(&images, scores),
     }
 }
 
@@ -351,6 +376,10 @@ fn write_mode(
         },
         jobs,
         embed_fonts: args.fonts == FontsArg::Embed,
+        equations: match args.equations {
+            EquationsArg::Image => Equations::Image,
+            EquationsArg::Mathml => Equations::MathMl,
+        },
     };
     let started = Instant::now();
     let out = paper.to_html(analysis, &opts);
@@ -371,6 +400,38 @@ fn write_mode(
         },
         started.elapsed().as_secs_f32()
     );
+    Ok(())
+}
+
+/// The `formula` subcommand: prints the MathML of the formulas pictured in `images`.
+///
+/// # Errors
+/// When a picture cannot be opened, or a single picture cannot be read.
+fn formula(images: &[PathBuf], scores: bool) -> Result<()> {
+    let cfg = paper2html::raster::RasterConfig::default();
+    let mut out = std::io::stdout().lock();
+    for path in images {
+        let image = image::open(path).with_context(|| format!("cannot open {}", path.display()))?;
+        if scores {
+            let read = paper2html::raster::formula_with_confidence(&image, &cfg);
+            let (weakest, closest, math) = read.map_or((f32::NAN, f32::NAN, String::new()), |(node, confidence)| {
+                (
+                    confidence.weakest,
+                    confidence.closest,
+                    paper2html::render::math_html(&node, ""),
+                )
+            });
+            writeln!(out, "{}\t{weakest:.3}\t{closest:.3}\t{math}", path.display())?;
+            continue;
+        }
+        let math = paper2html::raster::formula(&image, &cfg).map(|node| paper2html::render::math_html(&node, ""));
+        if images.len() == 1 {
+            let math = math.ok_or_else(|| anyhow!("cannot read the formula in {}", path.display()))?;
+            writeln!(out, "{math}")?;
+        } else {
+            writeln!(out, "{}\t{}", path.display(), math.unwrap_or_default())?;
+        }
+    }
     Ok(())
 }
 
@@ -419,7 +480,8 @@ fn shorten(text: String) -> String {
 }
 
 /// Short description of a block's kind for `inspect` ("H2", "EQ (3)
-/// [200x30]", ...), followed by the table's size for rebuilt tables.
+/// [200x30]", ...), followed by the table's size for rebuilt tables and by
+/// `<math>` for equations whose structure was rebuilt (MathML).
 fn block_label(block: &Block) -> String {
     let kind = kind_label(&block.kind);
     match &block.table {
@@ -429,6 +491,7 @@ fn block_label(block: &Block) -> String {
             table.n_cols,
             table.header_rows
         ),
+        None if block.math.is_some() => format!("{kind} <math>"),
         None => kind,
     }
 }

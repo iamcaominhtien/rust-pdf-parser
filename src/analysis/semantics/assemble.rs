@@ -503,6 +503,7 @@ fn new_block(id: usize, kind: BlockKind, loc: Loc, bbox: Rect) -> Block {
         inner_lines: Vec::new(),
         inner_spans: Vec::new(),
         eq_runs: Vec::new(),
+        math: None,
     }
 }
 

@@ -363,11 +363,12 @@ article>*{grid-column:text;min-width:0}
 .bk-window>article>*{max-width:var(--tw)}
 .bk-window :is(h2,h3,h4,h5){break-after:avoid;break-inside:avoid}
 .bk-window :is(figure,.eq,.algo,tr,.authors,.kicker,h1,ol.refs li){break-inside:avoid}
-/* A caption stays with its figure or table; one that cannot shrink to a page splits after its first rows. */
+/* A caption stays with its figure or table; one that cannot shrink to a page splits after its first rows.
+   A caption alone in its figure keeps nothing: its break-avoid would pass to the figure's edges and glue it to its neighbours. */
 .bk-window figure.bk-split{break-inside:auto}
 .bk-window ol.refs li.bk-long{break-inside:auto}
-.bk-window figure>figcaption:first-child{break-after:avoid}
-.bk-window figure>figcaption:last-child{break-before:avoid}
+.bk-window figure>figcaption:first-child:not(:last-child){break-after:avoid}
+.bk-window figure>figcaption:last-child:not(:first-child){break-before:avoid}
 .bk-window figure.bk-split>.tbl-wrap{overflow:visible}
 /* A table too tall for a page and too wide for the column cannot be split: it stays whole and scrolls. */
 .bk-window figure.bk-box>.tbl-wrap{overflow:auto}

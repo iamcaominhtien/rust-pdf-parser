@@ -7,12 +7,14 @@
 //! that only the position-preserving renderers need.
 
 pub mod line;
+pub mod math;
 pub mod style;
 
 use crate::common::geom::Rect;
 use serde::Serialize;
 
 pub use line::{Line, LineGlyph, RotatedText};
+pub use math::MathNode;
 pub use style::*;
 
 /// A run of text with uniform styling, the unit of all text content.
@@ -280,6 +282,11 @@ pub struct Block {
     /// Positioned glyph runs of an equation.
     #[serde(skip)]
     pub eq_runs: Vec<EqRun>,
+    /// Structure of an equation rebuilt from its glyphs and rules, when
+    /// every part of it could be explained (see
+    /// [`analysis::math`](crate::analysis::math)).
+    #[serde(skip)]
+    pub math: Option<MathNode>,
 }
 
 impl Block {

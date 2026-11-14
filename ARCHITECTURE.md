@@ -20,11 +20,13 @@ defined form of data and returns the next. The analysis side (PDF → `Document`
     │   blocks      lines → raw blocks (paragraphs, equations, footnotes)
     │   semantics/  classification (title, authors, headings, …), paragraph joining,
     │               reference linking, building the Document
+    │   crops       equation pictures that do not cut glyphs
+    │   math        structure of display formulas (MathNode trees, written as MathML)
     ▼
  Document (model)       fixed boundary between analysis and HTML output
     │
     ▼  render/        trait Renderer: one implementation per mode
- hard │ hard-95 │ medium │ friendly        shared: assets, escape, flow, table
+ hard │ hard-95 │ medium │ friendly        shared: assets, escape, flow, mathml, table
 ```
 
 ## Modules
@@ -41,6 +43,7 @@ defined form of data and returns the next. The analysis side (PDF → `Document`
 | `analysis/` | The analysis stages, orchestrated by `analysis/pipeline.rs` |
 | `model/` | `Document` and its sub-types: the output of analysis, the input of HTML output, and also JSON |
 | `render/` | HTML output: a `Renderer` for each mode, the `assets` image store, shared HTML parts |
+| `raster/` | Formulas from pictures (`paper2html formula`): pieces of ink recognised against the TeX fonts (`tex`, `templates`, `shape`, `recognize`), then rebuilt by `analysis::math` |
 
 Dependencies run in one direction only:
 

@@ -10,6 +10,8 @@ readable HTML with continuous text. The output works well as input for translati
   page numbers, and separates footnotes from the main text.
 - **Real tables**: rows, columns, cells merged across columns or rows, and rules are rebuilt as
   `<table>`.
+- **Real formulas**: display formulas are rebuilt as MathML (fractions, roots, scripts, limits,
+  aligned lines) in `medium` and `friendly`, with an embedded math font.
 - **Sharp images**: figures stay vector (SVG) or render at high resolution (216 dpi by default).
 - **Four modes** that follow the original at different levels of fidelity (see below).
 - Fast: a 15-page paper takes about 1–2 seconds for all four modes.
@@ -31,6 +33,30 @@ In all four modes, the text of a paragraph stays together in the DOM:
 - `hard`: each paragraph is a `<div class="b" data-kind="paragraph" data-block="N">` that contains
   the lines; the part of a paragraph that runs onto the next page has the same `data-block` and
   `data-continued="1"`.
+
+### Formulas as MathML in `medium` and `friendly`
+
+In `medium` and `friendly`, a display formula whose structure is clear is written as MathML: real
+text that reflows, zooms, can be searched and copied, and is read by screen readers. The other
+formulas are pictures of their area of the page, and `--equations image` makes every formula a
+picture. The structure
+is rebuilt from the positions of the glyphs and of the bars drawn among them: fractions, square
+roots and roots, subscripts and superscripts, limits above and below `∑`, `lim`, `max`, accents
+(`x̂`, `x̃`), tall brackets, operator names, text inside formulas (`where`, `and`), and multi-line
+displays aligned on their `=` or `≤`. Bold, calligraphic, blackboard and fraktur letters become the
+Unicode mathematical letters (`𝐱`, `ℒ`, `ℝ`, `𝔤`).
+
+A formula with anything that cannot be explained keeps its picture: a character without a Unicode
+code, symbols stacked without a bar or a tall bracket (`\underbrace`), a bar or a stray symbol
+that belongs to nothing, a drawing (a symbol drawn as a path, a diagram). Lines beside a tall
+bracket (`cases`, matrices) become a table. On 73 arXiv papers, 2608 of 2822 display formulas are
+written as MathML.
+
+MathML needs a math font. Pages with MathML embed a subset of Latin Modern Math, the math font of
+LaTeX (GUST Font License, about 280 KB), so formulas look as in the papers and the same on every
+machine, including Linux and Android, which have no math font of their own. With `--fonts system` it is not embedded: the reader's math
+font is used (Cambria Math on Windows, STIX Two Math on macOS), or a fallback font that draws
+formulas poorly.
 
 ### How `hard-95` works
 
@@ -107,7 +133,8 @@ or an arXiv URL (`https://arxiv.org/abs/1706.03762`).
 | `--scale <number>` | Resolution of figure/formula images, pixels per PDF point (default 3 ≈ 216 dpi) |
 | `--page-image <svg\|png>` | Page background in `hard` mode (default `svg`) |
 | `--tables <auto\|image>` | `auto` (default): build `<table>` when the table structure is clear. `image`: do not build (the table is an image in `medium`/`friendly`, and text placed by position in `hard-95`) |
-| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
+| `--equations <mathml\|image>` | How `medium` and `friendly` show display formulas. `mathml` (default): MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above). `image`: a picture of every formula |
+| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (Latin Modern Math, about 280 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
 | `--json` | Also write `<name>.json`, the document structure |
 | `-j, --jobs <N>` | Number of parallel threads. `0` (default): one thread per CPU core. `1`: no parallelism. The result is identical for every value |
 
@@ -122,7 +149,25 @@ paper2html inspect paper.pdf
 ```
 
 `fetch` only downloads the PDF. `inspect` prints the detected structure (title, headings,
-paragraphs, figures, formulas…), which helps when the result is not what you expect.
+paragraphs, figures, formulas…), which helps when the result is not what you expect. A formula
+marked `<math>` has a rebuilt structure (MathML in `medium` and `friendly`).
+
+```bash
+paper2html formula equation.png
+```
+
+`formula` reads pictures of formulas (black on white, as LaTeX renders them, for example from a
+web page) and prints their MathML. Each piece of ink is compared with the glyphs of the TeX fonts
+formulas are set in (Computer Modern, the AMS fonts, `dsfont`, `rsfs`, at their text and script
+sizes; embedded, about 800 KB), then the formula is rebuilt as a formula of a PDF is. A picture
+with a piece that matches no glyph well is not read (an error, or an empty line when several
+pictures are given). It works best on pictures of LaTeX formulas at 25 pixels per em or more;
+other fonts (Times) are read poorly or not at all. On the 2607 formula pictures of 73 arXiv
+papers, 58% are read, and 30% give exactly the text of the MathML rebuilt from the PDF (93% of the
+characters of the pictures read are right). The command is experimental: how sure a reading is
+(the likeness of its least sure glyph) does not yet tell a right reading from a wrong one well
+enough to keep only right ones (at 5% of the pictures, 77% are right on papers the threshold was
+not chosen on), so no threshold is applied.
 
 ### Speed and resources
 
@@ -243,8 +288,14 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
 6. **Document** (`document.rs`): title, authors, abstract, heading levels, lists, references;
    joins paragraphs across columns/pages; removes end-of-line hyphens based on the paper's own
    vocabulary; creates cross-links (`[12]`, `Figure 2`, `Section 3.1`, `Eq. (4)`, footnotes, URLs).
-7. **HTML** (`src/html`): four renderers share one document model (`model.rs`). `hard-95` takes its
+7. **Formula structure** (`analysis/math.rs`): rebuilds the tree of each display formula from its
+   glyphs and the rules among them: tall symbols drawn in pieces, accents, radicals (the bar starting
+   at the corner of the radical sign), fractions (inner ones first), limits of big operators, the
+   lines of a multi-line display, then scripts by size and baseline. A formula with anything left
+   unexplained gets no tree and stays a picture.
+8. **HTML** (`src/html`): four renderers share one document model (`model.rs`). `hard-95` takes its
    page background from the text-free SVG (`pdf/render.rs`) and then places HTML text on top.
+   `medium` and `friendly` write the formula trees as MathML (`render/mathml.rs`).
 
 ## Current limitations
 
@@ -255,7 +306,12 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
   image, and `hard-95` uses text placed by position. A cell with several lines of text appears as
   several rows when the table does not show clearly where the logical rows break. Cell background
   color is not kept.
-- **Display formulas**: real text in `hard-95`; still images in `medium` and `friendly`.
+- **Display formulas**: real text in `hard-95`; MathML in `medium` and `friendly` where the
+  structure is clear (2608 of 2822 formulas on 73 papers), pictures elsewhere. `\underbrace`,
+  formulas with a drawing and formulas whose picture also holds a piece of a neighbouring formula
+  stay pictures. A multi-line display is aligned on one relation per line; a second alignment point
+  (`alignat`) is not kept. Equation numbers inside a multi-line display stay at the end of their
+  line.
 - **Fonts**: `hard-95` uses the fonts already on the viewer's machine (Times/Helvetica/Courier
   families) and does not embed the PDF's fonts, so the letter shapes may differ slightly from the
   original; position and line width are matched.
@@ -283,20 +339,23 @@ cargo test
 
 There are three layers of tests:
 
-- **Unit tests:** hyphen removal, cross-links, font detection, arXiv IDs, splitting work in parallel.
+- **Unit tests:** hyphen removal, cross-links, font detection, arXiv IDs, splitting work in parallel,
+  rebuilding formulas from glyph positions, MathML output.
 - **End-to-end tests on small PDFs** generated inside the test: document structure, table building,
   the four modes, `hard-95` page background with no remaining characters, output that does not change
   with the number of threads, lazy-loaded background images.
 - **Tests on 8 real arXiv papers** (`tests/real_papers.rs`), with versions pinned in
   `tests/data/papers.txt`. For each paper: the title, the number of tables rebuilt, the number of
   paragraphs broken mid-sentence, the number of words that still have hyphens, the number of
-  characters left in the `hard-95` page background, and whether all four modes export. There are also
-  a few specific checks (the EN-DE/EN-FR columns of the Transformer table, the header rows of the BERT
-  tables at the top of a page). The thresholds are the current results: better passes, worse fails.
+  characters left in the `hard-95` page background, the number of formulas rebuilt as MathML, and
+  whether all four modes export. There are also a few specific checks (the EN-DE/EN-FR columns of
+  the Transformer table, the header rows of the BERT tables at the top of a page, the structure of
+  some formulas of the Transformer and Adam papers). The thresholds are the current results: better passes, worse fails.
   When you make an improvement, tighten the thresholds
   (`P2H_PRINT_METRICS=1 cargo test --test real_papers -- --nocapture` prints the measurements).
-- **Output snapshots** (also in `tests/real_papers.rs`): the sha256 hash of the HTML of each mode and
-  of the JSON, for each paper, stored in `tests/data/snapshots/`. If the output changes by even one
+- **Output snapshots** (also in `tests/real_papers.rs`): the sha256 hash of the HTML of each mode
+  (plus `friendly` with `--equations image`) and of the JSON, for each paper, stored in
+  `tests/data/snapshots/`. If the output changes by even one
   character, the test fails and names the paper and the mode that changed. When you reorganize code,
   the snapshots must stay the same. When you change the output on purpose, update them and commit
   them together with the code change:

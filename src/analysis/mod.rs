@@ -15,6 +15,7 @@
 //! 8. [`semantics`]: classification, paragraph merging, cross-reference links
 //!    and the assembly of the document.
 //! 9. [`crops`]: pictures of equations made clean (no cut glyphs).
+//! 10. [`math`]: the structure of displayed formulas, for MathML.
 //!
 //! Every stage takes its thresholds from its own struct in
 //! [`LayoutConfig`](crate::config::LayoutConfig).
@@ -24,6 +25,7 @@ pub mod crops;
 pub mod floats;
 pub mod furniture;
 pub mod lines;
+pub mod math;
 pub mod order;
 pub mod page;
 pub mod pipeline;

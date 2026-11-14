@@ -399,7 +399,11 @@ impl<'a> Device<'a> for Extractor<'_, 'a> {
                 continue;
             };
             let (unicode, advance, font, outline_box) = self.describe_glyph(glyph);
-            let mut text = glyph_text(unicode);
+            let info = &self.fonts.infos[font as usize];
+            let mut text = match info.mathabx {
+                Some(abx) => abx.text(glyph.char_code()).unwrap_or("\u{FFFD}").to_string(),
+                None => glyph_text(unicode),
+            };
             if text.is_empty() {
                 continue;
             }

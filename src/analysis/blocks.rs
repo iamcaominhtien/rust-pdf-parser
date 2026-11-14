@@ -146,6 +146,17 @@ pub struct BlocksConfig {
     /// a prose row, is the wrapped end of that paragraph: it is not
     /// promoted.
     pub weak_flush_max_indent_em: f32,
+    /// A row that is flush left (see `weak_flush_max_indent_em`) and ends
+    /// less than this many sizes from the right edge fills the column, as
+    /// lines of a paragraph do: with enough prose (see the next two fields),
+    /// it is no weak candidate.
+    pub weak_full_max_slack_em: f32,
+    /// ... with at least this many prose characters,
+    pub weak_full_min_prose_chars: f32,
+    /// ... or with some prose, on one baseline and at least this many
+    /// characters long (a short line with fractions above and below it,
+    /// like `where μ = (a)/(b) x + (c)/(d) y`, spans the column too).
+    pub weak_full_flat_min_chars: usize,
     /// Without a relation sign, a weak candidate has at least this fraction
     /// of math characters ...
     pub weak_min_math_ratio: f32,
@@ -157,6 +168,37 @@ pub struct BlocksConfig {
     /// Adjacent equation rows closer than this many leadings are merged into
     /// one equation (unless both are numbered).
     pub merge_max_gap_leading: f32,
+    /// An opening delimiter of an equation taller than this (em of its font
+    /// size) encloses the rows beside it: the lines of a `cases` or of a
+    /// matrix belong to the equation, even when one reads as text
+    /// ("−x, otherwise").
+    pub enclosing_min_height_em: f32,
+    /// How far (points) an enclosed row may reach past the top or the bottom
+    /// of the delimiter.
+    pub enclosing_tolerance_pt: f32,
+    /// A horizontal rule at most this thick (and at least
+    /// `fraction_bar_min_width_pt` wide) next to an equation may be a
+    /// fraction bar: a text row right above or below it, within its width,
+    /// is the numerator or denominator of the equation.
+    pub fraction_bar_max_thickness_pt: f32,
+    /// Narrowest fraction bar.
+    pub fraction_bar_min_width_pt: f32,
+    /// Largest gap between a fraction bar and its numerator or
+    /// denominator, in sizes of the row's font.
+    pub fraction_part_max_gap_em: f32,
+    /// A line of text holding the denominators of the fractions whose
+    /// numerators were taken for an equation is a line of a paragraph (the
+    /// fractions are inline) when it has at least this many characters;
+    /// a shorter one is the rest of the displayed formula.
+    pub inline_fraction_min_chars: usize,
+    /// A row without an equation number that has at least this many of the
+    /// little words of sentences ([`SENTENCE_WORDS`]) is prose, however much
+    /// math it holds (`For every a ∈ T, one has Γa ∈ T.`).
+    pub sentence_min_words: usize,
+    /// A text row right below or above a big operator (`∑`) of an
+    /// equation, overlapping it, with a font at most this fraction of the
+    /// equation's, is a limit of the operator.
+    pub limit_max_size_ratio: f32,
 
     // --- footnotes ---
     /// Footnote text is at least this much smaller than the body size.
@@ -269,10 +311,21 @@ impl Default for BlocksConfig {
             weak_max_prose_ratio: 0.85,
             weak_tiny_max_chars: 3,
             weak_flush_max_indent_em: 0.5,
+            weak_full_max_slack_em: 0.5,
+            weak_full_min_prose_chars: 6.0,
+            weak_full_flat_min_chars: 30,
             weak_min_math_ratio: 0.2,
             weak_math_max_prose_ratio: 0.3,
             promote_max_gap_leading: 0.9,
             merge_max_gap_leading: 0.9,
+            enclosing_min_height_em: 1.8,
+            enclosing_tolerance_pt: 1.0,
+            fraction_bar_max_thickness_pt: 1.2,
+            fraction_bar_min_width_pt: 2.0,
+            fraction_part_max_gap_em: 0.6,
+            inline_fraction_min_chars: 30,
+            sentence_min_words: 4,
+            limit_max_size_ratio: 0.85,
             footnote_size_drop_pt: 0.4,
             footnote_rule_min_width_pt: 20.0,
             footnote_rule_max_width_ratio: 0.62,
@@ -522,6 +575,9 @@ pub fn build_blocks(
         promote_weak_equations(&mut rows, &mut weak, stats, cfg);
         attach_stray_numbers(&mut rows, &extent, stats, cfg);
         let rows = merge_equation_rows(rows, stats, cfg);
+        let bars = fraction_bars(page, cfg);
+        let rows = inline_numerators(rows, &bars, ctx);
+        let rows = absorb_enclosed_rows(rows, &bars, cfg);
         let fn_start = footnote_start(ctx, leaf, &rows, &extent);
         emit_blocks(ctx, rows, fn_start, loc, &mut out);
     }
@@ -841,11 +897,18 @@ fn classify_text_row(
             lines.iter().collect()
         };
         let features = RowFeatures::measure(ctx, &content, extent, isolated, number.is_some());
-        let is_eq = is_equation(&features, ctx.cfg);
+        let sentence = number.is_none() && sentence_words(&content) >= ctx.cfg.sentence_min_words;
+        let is_eq = !sentence && is_equation(&features, ctx.cfg);
         // A formula-like line that did not qualify on its own; it is
         // promoted later if it sits right next to an equation row.
-        let weak_eq = !is_eq && weak_equation(&features, ctx.cfg);
         let flush = features.left_indent < ctx.cfg.weak_flush_max_indent_em * features.em;
+        // A line of prose that fills the column is a line of a paragraph,
+        // however much math it holds.
+        let prose_chars = features.prose_frac * features.n_chars as f32;
+        let prose = prose_chars >= ctx.cfg.weak_full_min_prose_chars
+            || (prose_chars > 0.0 && !features.multi && features.n_chars >= ctx.cfg.weak_full_flat_min_chars);
+        let full = flush && prose && features.right_slack < ctx.cfg.weak_full_max_slack_em * features.em;
+        let weak_eq = !is_eq && !full && !sentence && weak_equation(&features, ctx.cfg);
         let ink = content.iter().fold(Rect::EMPTY, |acc, line| acc.union(&line.ink));
         (is_eq, weak_eq, ink, flush)
     };
@@ -862,6 +925,28 @@ fn classify_text_row(
         let weak = weak_eq.then_some((lines.clone(), ink, flush));
         (Row::Text(merge_row(ctx.page.index, lines, ctx.lines_cfg)), weak)
     }
+}
+
+/// Big operators, whose limits are set above and below them.
+const BIG_OPERATORS: &[&str] = &["∑", "∏", "∐", "⋃", "⋂", "⨁", "⨂", "⨀", "⋁", "⋀", "⨄", "⨆"];
+
+/// Little words of English sentences, rare in displayed formulas.
+const SENTENCE_WORDS: &[&str] = &[
+    "the", "we", "is", "are", "that", "this", "which", "for", "and", "with", "have", "has", "be", "can", "then",
+    "when", "one", "of", "to", "in", "by", "as", "on", "from", "it", "its", "our", "every", "all", "now", "so",
+];
+
+/// How many words of `lines` are [`SENTENCE_WORDS`].
+fn sentence_words(lines: &[&Line]) -> usize {
+    lines
+        .iter()
+        .map(|line| {
+            line.text()
+                .split(|ch: char| !ch.is_ascii_alphabetic())
+                .filter(|word| SENTENCE_WORDS.iter().any(|known| known.eq_ignore_ascii_case(word)))
+                .count()
+        })
+        .sum()
 }
 
 /// The equation number of a row (lines sorted left to right): its last line
@@ -1124,6 +1209,150 @@ fn merge_equation_rows(rows: Vec<Row>, stats: &DocStats, cfg: &BlocksConfig) -> 
         });
     }
     merged
+}
+
+/// Moves into an equation the text rows that belong to it: those a tall
+/// opening delimiter of it encloses (beside it, within its height, above or
+/// below the line of the delimiter: the lines of `cases`, the rows of a
+/// matrix), and the numerator or denominator of one of its fractions (a row
+/// right above or below a fraction bar `bars` that reaches the equation,
+/// within the bar's width), and the limits of its big operators, which do
+/// not look like math on their own (`log(2)`).
+fn absorb_enclosed_rows(rows: Vec<Row>, bars: &[Rect], cfg: &BlocksConfig) -> Vec<Row> {
+    let tol = cfg.enclosing_tolerance_pt;
+    let belongs = |line: &Line, lines: &[Line], bbox: &Rect| {
+        let enclosed = enclosing_delimiters(lines, cfg)
+            .iter()
+            .any(|ink| line.ink.y0 >= ink.y0 - tol && line.ink.y1 <= ink.y1 + tol && line.ink.x0 >= ink.x1 - tol);
+        let gap = cfg.fraction_part_max_gap_em * line.size;
+        let fraction_part = bars.iter().any(|bar| {
+            let within = line.ink.x0 >= bar.x0 - tol && line.ink.x1 <= bar.x1 + tol;
+            let reaches = bar.x0 < bbox.x1 && bar.x1 > bbox.x0 && bar.y0 <= bbox.y1 + gap && bar.y1 >= bbox.y0 - gap;
+            let below = line.ink.y0 >= bar.y1 && line.ink.y0 - bar.y1 <= gap;
+            let above = line.ink.y1 <= bar.y0 && bar.y0 - line.ink.y1 <= gap;
+            within && reaches && (below || above)
+        });
+        let size = lines.iter().map(|line| line.size).fold(0.0, f32::max);
+        let limit = line.size <= cfg.limit_max_size_ratio * size
+            && lines
+                .iter()
+                .flat_map(|eq_line| &eq_line.glyphs)
+                .filter(|glyph| BIG_OPERATORS.contains(&glyph.text.as_str()))
+                .any(|op| {
+                    line.ink.x0 < op.ink.x1
+                        && line.ink.x1 > op.ink.x0
+                        && ((line.ink.y0 >= op.ink.y1 - tol && line.ink.y0 - op.ink.y1 <= gap)
+                            || (line.ink.y1 <= op.ink.y0 + tol && op.ink.y0 - line.ink.y1 <= gap))
+                });
+        enclosed || fraction_part || limit
+    };
+    let mut out: Vec<Row> = Vec::new();
+    for mut row in rows {
+        if let Row::Text(line) = &row
+            && let Some(Row::Equation { lines, bbox, .. }) = out.last_mut()
+            && belongs(line, lines, bbox)
+        {
+            *bbox = bbox.union(&line.ink);
+            if let Row::Text(line) = row {
+                lines.push(line);
+            }
+            continue;
+        }
+        // Rows above the equation come before it.
+        if let Row::Equation { lines, bbox, .. } = &mut row {
+            while let Some(Row::Text(line)) = out.last()
+                && belongs(line, lines, bbox)
+            {
+                *bbox = bbox.union(&line.ink);
+                if let Some(Row::Text(line)) = out.pop() {
+                    lines.insert(0, line);
+                }
+            }
+        }
+        out.push(row);
+    }
+    out
+}
+
+/// Joins an equation row made only of the numerators of fractions to the
+/// line of text right below it, which holds their denominators (each line
+/// of the row is just above a fraction bar over that line): a long line is
+/// a sentence with inline fractions (`v/α ≥ w/β`), and the numerators join
+/// it; a short one is the rest of the displayed formula, which joins the
+/// equation.
+fn inline_numerators(rows: Vec<Row>, bars: &[Rect], ctx: BlockContext) -> Vec<Row> {
+    let cfg = ctx.cfg;
+    let tol = cfg.enclosing_tolerance_pt;
+    let mut out: Vec<Row> = Vec::new();
+    for row in rows {
+        if let Row::Text(text) = &row
+            && let Some(Row::Equation {
+                lines, number: None, ..
+            }) = out.last()
+        {
+            let gap = cfg.fraction_part_max_gap_em * text.size;
+            let numerator = |line: &Line| {
+                bars.iter().any(|bar| {
+                    line.ink.x0 >= bar.x0 - tol
+                        && line.ink.x1 <= bar.x1 + tol
+                        && line.ink.y1 <= bar.y0
+                        && bar.y0 - line.ink.y1 <= gap
+                        && text.ink.y0 <= bar.y1 + gap
+                        && text.ink.y1 >= bar.y1
+                        && bar.x0 >= text.ink.x0 - tol
+                        && bar.x1 <= text.ink.x1 + tol
+                })
+            };
+            let inline = text.text().chars().count() >= cfg.inline_fraction_min_chars;
+            if lines.iter().all(numerator)
+                && let Some(Row::Equation { mut lines, bbox, .. }) = out.pop()
+                && let Row::Text(text) = row
+            {
+                if inline {
+                    lines.push(text);
+                    out.push(Row::Text(merge_row(ctx.page.index, lines, ctx.lines_cfg)));
+                } else {
+                    // The rest of a displayed formula that did not look like
+                    // one without its fractions.
+                    let bbox = bbox.union(&text.ink);
+                    lines.push(text);
+                    out.push(Row::Equation {
+                        lines,
+                        bbox,
+                        number: None,
+                        number_line: None,
+                    });
+                }
+                continue;
+            }
+        }
+        out.push(row);
+    }
+    out
+}
+
+/// The horizontal rules of `page` that may be fraction bars.
+fn fraction_bars(page: &PageData, cfg: &BlocksConfig) -> Vec<Rect> {
+    page.paths
+        .iter()
+        .filter(|path| !path.is_white())
+        .map(|path| path.bbox)
+        .filter(|bbox| {
+            bbox.height() <= cfg.fraction_bar_max_thickness_pt && bbox.width() >= cfg.fraction_bar_min_width_pt
+        })
+        .collect()
+}
+
+/// The ink of the tall opening delimiters (`{`, `(`, `[`) of the lines of an
+/// equation.
+fn enclosing_delimiters(lines: &[Line], cfg: &BlocksConfig) -> Vec<Rect> {
+    lines
+        .iter()
+        .flat_map(|line| &line.glyphs)
+        .filter(|glyph| matches!(glyph.text.as_str(), "{" | "(" | "["))
+        .filter(|glyph| glyph.ink.height() > cfg.enclosing_min_height_em * glyph.size)
+        .map(|glyph| glyph.ink)
+        .collect()
 }
 
 /// Index of the first row that belongs to the footnote area of the leaf

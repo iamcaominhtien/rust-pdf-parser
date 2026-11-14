@@ -311,6 +311,16 @@ fn equation_html(
     images: &mut ImageStore<'_>,
     ctx: &FlowCtx,
 ) -> String {
+    let num = number
+        .as_ref()
+        .map(|number| format!("<span class=\"eqno\">{}</span>", esc(number)))
+        .unwrap_or_default();
+    if images.opts.equations == Equations::MathMl
+        && let Some(math) = &block.math
+    {
+        let body = math_html(math, &plain(&block.spans));
+        return format!("<div class=\"eq\"{id}><span class=\"eq-body\">{body}</span>{num}</div>\n");
+    }
     let alt = esc(&plain(&block.spans));
     let img = format!(
         "<img src=\"{}\" alt=\"{alt}\"{} style=\"{}\" loading=\"lazy\">",
@@ -318,10 +328,6 @@ fn equation_html(
         images.region_size_attrs(image),
         ctx.unit.css(image.rect.width(), true)
     );
-    let num = number
-        .as_ref()
-        .map(|number| format!("<span class=\"eqno\">{}</span>", esc(number)))
-        .unwrap_or_default();
     format!("<div class=\"eq\"{id}><span class=\"eq-body\">{img}</span>{num}</div>\n")
 }
 

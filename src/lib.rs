@@ -22,9 +22,10 @@ pub mod common;
 pub mod config;
 pub mod model;
 pub mod paper;
+pub mod raster;
 pub mod render;
 pub mod source;
 
 pub use config::{AnalyzeOptions, LayoutConfig};
 pub use paper::{Paper, convert};
-pub use render::{HtmlOptions, HtmlOutput, Mode, PageImage};
+pub use render::{Equations, HtmlOptions, HtmlOutput, Mode, PageImage};

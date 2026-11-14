@@ -7,6 +7,7 @@ mod flow;
 mod friendly;
 mod hard;
 mod hard95;
+mod mathml;
 mod medium;
 mod options;
 mod table;
@@ -14,7 +15,9 @@ mod table;
 pub(crate) use assets::ImageStore;
 pub(crate) use escape::*;
 pub(crate) use flow::*;
-pub use options::{HtmlOptions, HtmlOutput, Mode, PageImage};
+pub(crate) use mathml::math_css;
+pub use mathml::math_html;
+pub use options::{Equations, HtmlOptions, HtmlOutput, Mode, PageImage};
 pub(crate) use table::*;
 
 use crate::analysis::pipeline::Analysis;
@@ -27,6 +30,17 @@ pub(crate) trait Renderer {
     /// requested from `images`, which returns their `src` and draws them
     /// afterwards.
     fn render(&self, analysis: &Analysis, images: &mut ImageStore<'_>) -> String;
+}
+
+/// One `@font-face` rule with the font `data` (woff2) embedded as a base64
+/// data URI.
+pub(crate) fn font_face(family: &str, style: &str, weight: &str, data: &[u8]) -> String {
+    use base64::Engine;
+    format!(
+        "@font-face{{font-family:\"{family}\";font-style:{style};font-weight:{weight};font-display:swap;\
+src:url(data:font/woff2;base64,{}) format(\"woff2\")}}\n",
+        base64::engine::general_purpose::STANDARD.encode(data)
+    )
 }
 
 /// The renderer of a mode: one implementation of [`Renderer`] per [`Mode`].

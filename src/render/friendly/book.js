@@ -85,14 +85,14 @@
   // A float the columns still cut in two (break-inside:avoid is not always
   // honoured) starts the next page: it fits one, or it would be split on purpose.
   function keepFloats(art){
-    [].forEach.call(art.querySelectorAll('[data-bkf]'),function(f){f.removeAttribute('data-bkf');f.style.breakBefore='';});
+    art.querySelectorAll('[data-bkf]').forEach(function(f){delete f.dataset.bkf;f.style.breakBefore='';});
     for(var round=0;round<4;round++){
-      var changed=false;
-      [].forEach.call(art.querySelectorAll('figure.float'),function(f){
-        var parts=[].filter.call(f.getClientRects(),function(r){return r.height>0;}).length;
-        if(parts<2||f.classList.contains('bk-split')||f.classList.contains('bk-box')||f.hasAttribute('data-bkf'))return;
-        f.setAttribute('data-bkf','');f.style.breakBefore='column';changed=true;
-      });
+      var changed=false,floats=art.querySelectorAll('figure.float');
+      for(var k=0;k<floats.length;k++){
+        var f=floats[k],parts=Array.from(f.getClientRects()).filter(function(r){return r.height>0;}).length;
+        if(parts<2||f.classList.contains('bk-split')||f.classList.contains('bk-box')||f.dataset.bkf!==undefined)continue;
+        f.dataset.bkf='';f.style.breakBefore='column';changed=true;
+      }
       if(!changed)break;
     }
   }
@@ -138,7 +138,9 @@
     var art=win.firstElementChild;art.style.setProperty('--bk-x','0px');
     // A page cannot scroll sideways: wide tables shrink further than in the scroll view.
     if(P.fitTables)P.fitTables(art,0.55);
-    fitFloats(art);fillGaps(art);keepFloats(art);keepHeads(art);if(P.cues)P.cues(art);if(observer)observer.takeRecords();
+    fitFloats(art);fillGaps(art);keepFloats(art);keepHeads(art);
+    if(P.cues){P.cues(art);}
+    if(observer){observer.takeRecords();}
     pages=Math.max(1,Math.round((art.scrollWidth+(step-g.tw))/step));
     // Entries of a bibliography that were mistaken for headings do not head a page.
     heads=[].filter.call(art.querySelectorAll('h2,h3,h4'),function(h){return !/^\[\d+\]/.test(h.textContent.trim());}).map(function(h){

@@ -191,7 +191,7 @@ fn primes(node: &MathNode) -> Option<String> {
         MathNode::Row(nodes) if !nodes.is_empty() => nodes.iter().map(primes).collect::<Option<String>>()?,
         _ => return None,
     };
-    text.chars().all(|ch| matches!(ch, '′' | '″' | '‴')).then_some(text)
+    text.chars().all(|ch| matches!(ch, '′'..='‴')).then_some(text)
 }
 
 /// Writes the element `tag` with attributes `attrs` around `children`.

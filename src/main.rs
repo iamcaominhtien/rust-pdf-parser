@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use paper2html::analysis::pipeline::Analysis;
 use paper2html::model::{Block, BlockKind, Loc};
 use paper2html::source::arxiv;
-use paper2html::{AnalyzeOptions, HtmlOptions, Mode, PageImage, Paper};
+use paper2html::{AnalyzeOptions, Equations, HtmlOptions, Mode, PageImage, Paper};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -119,6 +119,15 @@ enum TablesArg {
     Image,
 }
 
+/// Values of `--equations`; the doc comments are the help texts.
+#[derive(Clone, Copy, ValueEnum, PartialEq)]
+enum EquationsArg {
+    /// Pictures of the formulas
+    Image,
+    /// MathML rebuilt from the glyphs where the structure is clear, pictures elsewhere
+    Mathml,
+}
+
 /// Values of `--page-image`.
 #[derive(Clone, Copy, ValueEnum)]
 #[allow(
@@ -162,6 +171,9 @@ struct ConvertArgs {
     /// Fonts of friendly mode
     #[arg(long, value_enum, default_value = "embed")]
     fonts: FontsArg,
+    /// How medium and friendly modes show displayed formulas
+    #[arg(long, value_enum, default_value = "image")]
+    equations: EquationsArg,
     /// Also write the structured document as JSON (for translation tools)
     #[arg(long)]
     json: bool,
@@ -351,6 +363,10 @@ fn write_mode(
         },
         jobs,
         embed_fonts: args.fonts == FontsArg::Embed,
+        equations: match args.equations {
+            EquationsArg::Image => Equations::Image,
+            EquationsArg::Mathml => Equations::MathMl,
+        },
     };
     let started = Instant::now();
     let out = paper.to_html(analysis, &opts);
@@ -419,7 +435,8 @@ fn shorten(text: String) -> String {
 }
 
 /// Short description of a block's kind for `inspect` ("H2", "EQ (3)
-/// [200x30]", ...), followed by the table's size for rebuilt tables.
+/// [200x30]", ...), followed by the table's size for rebuilt tables and by
+/// `<math>` for equations whose structure was rebuilt (MathML).
 fn block_label(block: &Block) -> String {
     let kind = kind_label(&block.kind);
     match &block.table {
@@ -429,6 +446,7 @@ fn block_label(block: &Block) -> String {
             table.n_cols,
             table.header_rows
         ),
+        None if block.math.is_some() => format!("{kind} <math>"),
         None => kind,
     }
 }

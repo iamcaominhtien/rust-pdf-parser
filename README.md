@@ -32,6 +32,26 @@ In all four modes, the text of a paragraph stays together in the DOM:
   the lines; the part of a paragraph that runs onto the next page has the same `data-block` and
   `data-continued="1"`.
 
+### Formulas as MathML in `medium` and `friendly`
+
+By default, `medium` and `friendly` show each display formula as a picture of its area of the page.
+With `--equations mathml`, a formula whose structure is clear is written as MathML instead: real
+text that reflows, zooms, can be searched and copied, and is read by screen readers. The structure
+is rebuilt from the positions of the glyphs and of the bars drawn among them: fractions, square
+roots and roots, subscripts and superscripts, limits above and below `∑`, `lim`, `max`, accents
+(`x̂`, `x̃`), tall brackets, operator names, text inside formulas (`where`, `and`), and multi-line
+displays aligned on their `=` or `≤`. Bold, calligraphic, blackboard and fraktur letters become the
+Unicode mathematical letters (`𝐱`, `ℒ`, `ℝ`, `𝔤`).
+
+A formula with anything that cannot be explained keeps its picture: a character without a Unicode
+code, symbols stacked without a bar (matrices, `cases`, `\underbrace`), a bar or a stray symbol
+that belongs to nothing. On 13 arXiv papers (the 8 test papers and 5 papers full of formulas),
+138 of 147 display formulas are written as MathML.
+
+MathML needs a math font on the reader's machine: Windows (Cambria Math) and macOS (STIX Two Math)
+have one; on Linux and Android, install Latin Modern Math or STIX Two Math, or the formulas are drawn
+with a fallback font.
+
 ### How `hard-95` works
 
 Each page is redrawn from the PDF **after removing all text**, so the page background keeps only
@@ -107,6 +127,7 @@ or an arXiv URL (`https://arxiv.org/abs/1706.03762`).
 | `--scale <number>` | Resolution of figure/formula images, pixels per PDF point (default 3 ≈ 216 dpi) |
 | `--page-image <svg\|png>` | Page background in `hard` mode (default `svg`) |
 | `--tables <auto\|image>` | `auto` (default): build `<table>` when the table structure is clear. `image`: do not build (the table is an image in `medium`/`friendly`, and text placed by position in `hard-95`) |
+| `--equations <image\|mathml>` | How `medium` and `friendly` show display formulas. `image` (default): a picture of the formula. `mathml`: MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above) |
 | `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
 | `--json` | Also write `<name>.json`, the document structure |
 | `-j, --jobs <N>` | Number of parallel threads. `0` (default): one thread per CPU core. `1`: no parallelism. The result is identical for every value |
@@ -122,7 +143,8 @@ paper2html inspect paper.pdf
 ```
 
 `fetch` only downloads the PDF. `inspect` prints the detected structure (title, headings,
-paragraphs, figures, formulas…), which helps when the result is not what you expect.
+paragraphs, figures, formulas…), which helps when the result is not what you expect. A formula
+marked `<math>` has a rebuilt structure (MathML with `--equations mathml`).
 
 ### Speed and resources
 
@@ -243,8 +265,15 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
 6. **Document** (`document.rs`): title, authors, abstract, heading levels, lists, references;
    joins paragraphs across columns/pages; removes end-of-line hyphens based on the paper's own
    vocabulary; creates cross-links (`[12]`, `Figure 2`, `Section 3.1`, `Eq. (4)`, footnotes, URLs).
-7. **HTML** (`src/html`): four renderers share one document model (`model.rs`). `hard-95` takes its
+7. **Formula structure** (`analysis/math.rs`): rebuilds the tree of each display formula from its
+   glyphs and the rules among them: tall symbols drawn in pieces, accents, radicals (the bar starting
+   at the corner of the radical sign), fractions (inner ones first), limits of big operators, the
+   lines of a multi-line display, then scripts by size and baseline. A formula with anything left
+   unexplained gets no tree and stays a picture.
+8. **HTML** (`src/html`): four renderers share one document model (`model.rs`). `hard-95` takes its
    page background from the text-free SVG (`pdf/render.rs`) and then places HTML text on top.
+   With `--equations mathml`, `medium` and `friendly` write the formula trees as MathML
+   (`render/mathml.rs`).
 
 ## Current limitations
 
@@ -255,7 +284,12 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
   image, and `hard-95` uses text placed by position. A cell with several lines of text appears as
   several rows when the table does not show clearly where the logical rows break. Cell background
   color is not kept.
-- **Display formulas**: real text in `hard-95`; still images in `medium` and `friendly`.
+- **Display formulas**: real text in `hard-95`; pictures in `medium` and `friendly`, or MathML with
+  `--equations mathml` where the structure is clear (138 of 147 formulas on 13 papers). Matrices,
+  `cases`, `\underbrace` and formulas whose picture also holds a piece of a neighbouring formula
+  stay pictures. A multi-line display is aligned on one relation per line; a second alignment point
+  (`alignat`) is not kept. Equation numbers inside a multi-line display stay at the end of their
+  line.
 - **Fonts**: `hard-95` uses the fonts already on the viewer's machine (Times/Helvetica/Courier
   families) and does not embed the PDF's fonts, so the letter shapes may differ slightly from the
   original; position and line width are matched.
@@ -283,20 +317,23 @@ cargo test
 
 There are three layers of tests:
 
-- **Unit tests:** hyphen removal, cross-links, font detection, arXiv IDs, splitting work in parallel.
+- **Unit tests:** hyphen removal, cross-links, font detection, arXiv IDs, splitting work in parallel,
+  rebuilding formulas from glyph positions, MathML output.
 - **End-to-end tests on small PDFs** generated inside the test: document structure, table building,
   the four modes, `hard-95` page background with no remaining characters, output that does not change
   with the number of threads, lazy-loaded background images.
 - **Tests on 8 real arXiv papers** (`tests/real_papers.rs`), with versions pinned in
   `tests/data/papers.txt`. For each paper: the title, the number of tables rebuilt, the number of
   paragraphs broken mid-sentence, the number of words that still have hyphens, the number of
-  characters left in the `hard-95` page background, and whether all four modes export. There are also
-  a few specific checks (the EN-DE/EN-FR columns of the Transformer table, the header rows of the BERT
-  tables at the top of a page). The thresholds are the current results: better passes, worse fails.
+  characters left in the `hard-95` page background, the number of formulas rebuilt as MathML, and
+  whether all four modes export. There are also a few specific checks (the EN-DE/EN-FR columns of
+  the Transformer table, the header rows of the BERT tables at the top of a page, the structure of
+  some formulas of the Transformer and Adam papers). The thresholds are the current results: better passes, worse fails.
   When you make an improvement, tighten the thresholds
   (`P2H_PRINT_METRICS=1 cargo test --test real_papers -- --nocapture` prints the measurements).
-- **Output snapshots** (also in `tests/real_papers.rs`): the sha256 hash of the HTML of each mode and
-  of the JSON, for each paper, stored in `tests/data/snapshots/`. If the output changes by even one
+- **Output snapshots** (also in `tests/real_papers.rs`): the sha256 hash of the HTML of each mode
+  (plus `friendly` with `--equations mathml`) and of the JSON, for each paper, stored in
+  `tests/data/snapshots/`. If the output changes by even one
   character, the test fails and names the paper and the mode that changed. When you reorganize code,
   the snapshots must stay the same. When you change the output on purpose, update them and commit
   them together with the code change:

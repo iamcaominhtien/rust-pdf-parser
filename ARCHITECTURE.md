@@ -20,11 +20,13 @@ defined form of data and returns the next. The analysis side (PDF → `Document`
     │   blocks      lines → raw blocks (paragraphs, equations, footnotes)
     │   semantics/  classification (title, authors, headings, …), paragraph joining,
     │               reference linking, building the Document
+    │   crops       equation pictures that do not cut glyphs
+    │   math        structure of display formulas (MathNode trees, written as MathML)
     ▼
  Document (model)       fixed boundary between analysis and HTML output
     │
     ▼  render/        trait Renderer: one implementation per mode
- hard │ hard-95 │ medium │ friendly        shared: assets, escape, flow, table
+ hard │ hard-95 │ medium │ friendly        shared: assets, escape, flow, mathml, table
 ```
 
 ## Modules

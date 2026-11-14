@@ -4,6 +4,7 @@ use crate::analysis::blocks::BlocksConfig;
 use crate::analysis::floats::FloatsConfig;
 use crate::analysis::furniture::FurnitureConfig;
 use crate::analysis::lines::LinesConfig;
+use crate::analysis::math::MathConfig;
 use crate::analysis::order::OrderConfig;
 use crate::analysis::page::PageConfig;
 use crate::analysis::semantics::SemanticsConfig;
@@ -51,4 +52,6 @@ pub struct LayoutConfig {
     pub blocks: BlocksConfig,
     /// Classification, paragraph merging and assembly of the document.
     pub semantics: SemanticsConfig,
+    /// Rebuilding the structure of displayed formulas.
+    pub math: MathConfig,
 }

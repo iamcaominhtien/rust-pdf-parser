@@ -22,8 +22,8 @@
 //! diff then shows which papers and modes changed. For papers whose licence
 //! allows it the full JSON is kept too, so `git diff` shows what changed.
 
-use paper2html::model::{BlockKind, FloatKind, Span};
-use paper2html::{AnalyzeOptions, HtmlOptions, Mode, Paper};
+use paper2html::model::{BlockKind, FloatKind, MathNode, Span};
+use paper2html::{AnalyzeOptions, Equations, HtmlOptions, Mode, Paper};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -37,6 +37,8 @@ struct Expect {
     max_split_words: usize,
     max_glyphs_left: usize,
     max_hyphenated: usize,
+    /// Fewest displayed formulas whose structure is rebuilt (MathML).
+    min_math: usize,
 }
 
 #[derive(Debug)]
@@ -47,6 +49,7 @@ struct Metrics {
     split_words: usize,
     glyphs_left: usize,
     hyphenated: usize,
+    math: usize,
 }
 
 fn data_dir() -> PathBuf {
@@ -191,6 +194,7 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
         .map(|b| plain(&b.spans))
         .unwrap_or_default();
     let tables = doc.blocks.iter().filter(|b| b.table.is_some()).count();
+    let math = doc.blocks.iter().filter(|b| b.math.is_some()).count();
 
     // A paragraph that stops mid-sentence and is followed by one that
     // continues it: the text was split where it should not have been.
@@ -257,6 +261,23 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
             glyphs_left = in_pictures.saturating_sub(figure_text_chars(&out.html));
         }
     }
+    // Friendly mode with the formulas as MathML, where their structure was
+    // rebuilt (pictures elsewhere).
+    let out = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            mode: Mode::Friendly,
+            inline_images: false,
+            equations: Equations::MathMl,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        out.html.matches("<math ").count(),
+        math,
+        "every rebuilt formula is written as MathML"
+    );
+    fingerprints.push(("friendly-mathml", fingerprint(&out.html, &out.files)));
     fingerprints.push(("json", hex(Sha256::digest(json.as_bytes()))));
     let metrics = Metrics {
         title,
@@ -265,6 +286,7 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
         split_words,
         glyphs_left,
         hyphenated,
+        math,
     };
     (metrics, Snapshot { fingerprints, json })
 }
@@ -311,6 +333,13 @@ fn check(e: &Expect) -> Option<Metrics> {
         m.hyphenated,
         e.max_hyphenated
     );
+    assert!(
+        m.math >= e.min_math,
+        "{}: {} formulas rebuilt as MathML, expected at least {}",
+        e.id,
+        m.math,
+        e.min_math
+    );
     check_snapshot(e.id, &snapshot);
     Some(m)
 }
@@ -343,7 +372,7 @@ fn table(id: &str, label: &str) -> Option<Vec<Vec<String>>> {
 }
 
 macro_rules! paper_test {
-    ($name:ident, $id:literal, $title:literal, tables >= $t:literal, broken <= $b:literal, split <= $s:literal, glyphs <= $g:literal, hyphenated <= $h:literal) => {
+    ($name:ident, $id:literal, $title:literal, tables >= $t:literal, broken <= $b:literal, split <= $s:literal, glyphs <= $g:literal, hyphenated <= $h:literal, math >= $m:literal) => {
         #[test]
         fn $name() {
             check(&Expect {
@@ -354,6 +383,7 @@ macro_rules! paper_test {
                 max_split_words: $s,
                 max_glyphs_left: $g,
                 max_hyphenated: $h,
+                min_math: $m,
             });
         }
     };
@@ -368,7 +398,8 @@ paper_test!(
     split <= 0,
     glyphs <= 85,
     // "sequence-aligned" twice, broken at its hyphen.
-    hyphenated <= 91
+    hyphenated <= 91,
+    math >= 5
 );
 paper_test!(
     resnet,
@@ -378,7 +409,8 @@ paper_test!(
     broken <= 0,
     split <= 0,
     glyphs <= 0,
-    hyphenated <= 87
+    hyphenated <= 87,
+    math >= 2
 );
 paper_test!(
     bert,
@@ -388,7 +420,8 @@ paper_test!(
     broken <= 3,
     split <= 0,
     glyphs <= 0,
-    hyphenated <= 228
+    hyphenated <= 228,
+    math >= 1
 );
 paper_test!(
     vit,
@@ -398,7 +431,8 @@ paper_test!(
     broken <= 2,
     split <= 0,
     glyphs <= 2381,
-    hyphenated <= 186
+    hyphenated <= 186,
+    math >= 6
 );
 paper_test!(
     ligo,
@@ -410,7 +444,9 @@ paper_test!(
     glyphs <= 3,
     // Two compounds ("gravitational-wave", "signal-to-noise") are in the
     // column beside Fig. 2, which the figure no longer swallows.
-    hyphenated <= 78
+    hyphenated <= 78,
+    // Its one formula has brackets without a Unicode value: a picture.
+    math >= 0
 );
 paper_test!(
     faster_rcnn,
@@ -424,7 +460,8 @@ paper_test!(
     // labels at the top of p12-p13 are in them since they stopped being taken
     // for running heads (15 more glyphs).
     glyphs <= 410,
-    hyphenated <= 162
+    hyphenated <= 162,
+    math >= 2
 );
 paper_test!(
     gpt4,
@@ -434,7 +471,8 @@ paper_test!(
     broken <= 46,
     split <= 0,
     glyphs <= 498,
-    hyphenated <= 302
+    hyphenated <= 302,
+    math >= 7
 );
 paper_test!(
     adam,
@@ -444,7 +482,8 @@ paper_test!(
     broken <= 0,
     split <= 0,
     glyphs <= 806,
-    hyphenated <= 54
+    hyphenated <= 54,
+    math >= 34
 );
 
 /// Table 2 of the Transformer paper: "EN-DE" and "EN-FR" are two columns
@@ -1078,6 +1117,156 @@ fn ligo_radical_is_a_square_root() {
         .collect();
     assert!(!text.contains("pffi"), "radical bar read as text");
     assert!(text.contains("= √2"), "radical sign missing");
+}
+
+/// A rebuilt formula written in a compact TeX-like notation, to compare
+/// structures in tests: `\frac{a}{b}`, `\sqrt{a}`, `x_{i}^{2}`,
+/// `\sum\limits_{i=1}^{n}`, `\accent{^}{x}`, rows of a table separated by
+/// `\\` and cells by `&`.
+fn tex(node: &MathNode) -> String {
+    let group = |node: &MathNode| format!("{{{}}}", tex(node));
+    match node {
+        MathNode::Ident { text, .. } | MathNode::Number(text) => text.clone(),
+        MathNode::Operator { text, .. } => text.clone(),
+        MathNode::Text(text) => format!("\\text{{{text}}}"),
+        MathNode::Space(_) => " ".into(),
+        MathNode::Row(nodes) => nodes.iter().map(tex).collect(),
+        MathNode::Frac { num, den } => format!("\\frac{}{}", group(num), group(den)),
+        MathNode::Sqrt(base) => format!("\\sqrt{}", group(base)),
+        MathNode::Root { base, index } => format!("\\sqrt[{}]{}", tex(index), group(base)),
+        MathNode::Scripts { base, sub, sup } => {
+            let mut out = tex(base);
+            if let Some(sub) = sub {
+                out.push_str(&format!("_{}", group(sub)));
+            }
+            if let Some(sup) = sup {
+                out.push_str(&format!("^{}", group(sup)));
+            }
+            out
+        }
+        MathNode::UnderOver {
+            base,
+            over: Some(over),
+            accent: true,
+            ..
+        } => format!("\\accent{}{}", group(over), group(base)),
+        MathNode::UnderOver { base, under, over, .. } => {
+            let mut out = format!("{}\\limits", tex(base));
+            if let Some(under) = under {
+                out.push_str(&format!("_{}", group(under)));
+            }
+            if let Some(over) = over {
+                out.push_str(&format!("^{}", group(over)));
+            }
+            out
+        }
+        MathNode::Table { rows, .. } => rows
+            .iter()
+            .map(|row| row.iter().map(tex).collect::<Vec<_>>().join("&"))
+            .collect::<Vec<_>>()
+            .join("\\\\"),
+    }
+}
+
+/// The rebuilt formulas of a paper, in the notation of [`tex`] (`None` for
+/// the formulas that stay pictures), or `None` when the paper is not
+/// downloaded.
+fn formulas(id: &str) -> Option<Vec<Option<String>>> {
+    let paper = load(id)?;
+    let analysis = paper.analyze();
+    let all = analysis
+        .doc
+        .blocks
+        .iter()
+        .filter(|block| matches!(block.kind, BlockKind::Equation { .. }))
+        .map(|block| block.math.as_ref().map(tex))
+        .collect();
+    Some(all)
+}
+
+/// Scaled dot-product attention (Eq. 1 of the Transformer paper) is a
+/// fraction over a square root, and the two lines of multi-head attention
+/// are aligned on their "=", the second starting with text.
+#[test]
+fn attention_formulas_are_rebuilt() {
+    let Some(all) = formulas("1706.03762v7") else { return };
+    assert_eq!(
+        all[0].as_deref(),
+        Some(r"Attention(Q,K,V)=softmax(\frac{QK^{T}}{\sqrt{d_{k}}})V")
+    );
+    assert_eq!(
+        all[1].as_deref(),
+        Some(
+            r"MultiHead(Q,K,V)&=Concat(head_{1},…,head_{h})W^{O}\\\text{where} head_{i}&=Attention(QW_{i}^{Q},KW_{i}^{K},V W_{i}^{V})"
+        )
+    );
+}
+
+/// Adam's formulas: sums and `lim` with limits above and below, scripts
+/// stacked on one base, tall parentheses whose scripts go to the whole
+/// group, hats and nested radicals, lines aligned on their relation.
+#[test]
+fn adam_formulas_are_rebuilt() {
+    let Some(all) = formulas("1412.6980v9") else { return };
+    assert_eq!(
+        all[0].as_deref(),
+        Some(r"v_{t}=(1−β_{2})∑\limits_{i=1}^{t} β_{2}^{t−i}·g_{i}^{2}")
+    );
+    // Eqs. (8) to (10); the numbers of the last two are inside the display.
+    assert_eq!(
+        all[9].as_deref(),
+        Some(concat!(
+            r"u_{t}=lim\limits_{p→∞}(v_{t})^{1/p}&=lim\limits_{p→∞}((1−β_{2}^{p})∑\limits_{i=1}^{t} β_{2}^{p(t−i)}·|g_{i}|^{p})^{1/p}\\",
+            r"&=lim\limits_{p→∞}(1−β_{2}^{p})^{1/p}(∑\limits_{i=1}^{t} β_{2}^{p(t−i)}·|g_{i}|^{p})^{1/p}(9)\\",
+            r"&=lim\limits_{p→∞}(∑\limits_{i=1}^{t}(β_{2}^{(t−i)}·|g_{i}|)^{p})^{1/p}(10)"
+        ))
+    );
+    assert_eq!(
+        all[19].as_deref(),
+        Some(
+            r"∑\limits_{t=1}^{T}\frac{\accent{^}{m}_{t,i}^{2}}{\sqrt{t\accent{^}{v}_{t,i}}}≤\frac{2}{1−γ}\frac{1}{\sqrt{1−β_{2}}}‖g_{1:T,i}‖_{2}"
+        )
+    );
+    // The picture of this formula also holds the upper limit of the sum
+    // of the next one: it stays a picture.
+    assert_eq!(all[1], None);
+}
+
+/// Bold, calligraphic and blackboard letters are written with the Unicode
+/// mathematical alphabets.
+#[test]
+fn math_alphabets_are_unicode_letters() {
+    if let Some(all) = formulas("2010.11929v2") {
+        assert_eq!(all[0].as_deref(), Some(r"𝐄∈ℝ^{(P^{2}·C)×D},𝐄_{pos}∈ℝ^{(N+1)×D}"));
+    }
+    if let Some(all) = formulas("1512.03385v1") {
+        assert_eq!(all[0].as_deref(), Some(r"𝐲=ℱ(𝐱,{W_{i}})+𝐱."));
+    }
+}
+
+/// The LIGO formula has big brackets without a Unicode value: it stays a
+/// picture, also when formulas are written as MathML.
+#[test]
+fn ligo_formula_with_unmapped_brackets_stays_a_picture() {
+    let Some(paper) = load("1602.03837v1") else { return };
+    let analysis = paper.analyze();
+    let equations: Vec<_> = analysis
+        .doc
+        .blocks
+        .iter()
+        .filter(|block| matches!(block.kind, BlockKind::Equation { .. }))
+        .collect();
+    assert_eq!(equations.len(), 1);
+    assert!(equations[0].math.is_none());
+    let out = paper.to_html(
+        &analysis,
+        &HtmlOptions {
+            equations: Equations::MathMl,
+            ..Default::default()
+        },
+    );
+    assert!(!out.html.contains("<math "));
+    assert!(out.html.contains("<div class=\"eq\""));
 }
 
 /// Figure 2 of the Transformer paper (two diagrams, each with a title above

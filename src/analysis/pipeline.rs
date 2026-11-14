@@ -70,6 +70,8 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
     let (mut doc, loose) = build_document(nodes, &pages, &stats, fonts, meta, furniture.lines, opts);
     // Pictures of equations and figures that cut glyphs are made clean.
     crate::analysis::crops::fit_equation_crops(&mut doc, &loose);
+    // Displayed formulas get their structure, for MathML.
+    crate::analysis::math::build_math(&mut doc, &pages, fonts, &layout.math);
     Analysis { doc, loose, rotated }
 }
 

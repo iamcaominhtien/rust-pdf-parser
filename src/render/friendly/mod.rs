@@ -124,11 +124,14 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let mut content = render_flow(&front_rest, images, &ctx);
     content.push_str(&render_flow(body, images, &ctx));
 
-    let fonts = match (images.opts.embed_fonts, content.contains("<pre class=\"listing")) {
+    let mut fonts = match (images.opts.embed_fonts, content.contains("<pre class=\"listing")) {
         (false, _) => String::new(),
         (true, false) => FONT_FACES.clone(),
         (true, true) => format!("{}{}", *FONT_FACES, *MONO_FACES),
     };
+    if content.contains("<math ") {
+        fonts.push_str(MATH_CSS);
+    }
     let page = Page {
         title: &title,
         topbar: &topbar(doc, &title),

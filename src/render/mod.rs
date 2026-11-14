@@ -7,6 +7,7 @@ mod flow;
 mod friendly;
 mod hard;
 mod hard95;
+mod mathml;
 mod medium;
 mod options;
 mod table;
@@ -14,7 +15,8 @@ mod table;
 pub(crate) use assets::ImageStore;
 pub(crate) use escape::*;
 pub(crate) use flow::*;
-pub use options::{HtmlOptions, HtmlOutput, Mode, PageImage};
+pub(crate) use mathml::{MATH_CSS, math_html};
+pub use options::{Equations, HtmlOptions, HtmlOutput, Mode, PageImage};
 pub(crate) use table::*;
 
 use crate::analysis::pipeline::Analysis;

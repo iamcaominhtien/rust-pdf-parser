@@ -87,9 +87,9 @@
   function keepFloats(art){
     art.querySelectorAll('[data-bkf]').forEach(function(f){delete f.dataset.bkf;f.style.breakBefore='';});
     for(var round=0;round<4;round++){
-      var changed=false,floats=art.querySelectorAll('figure.float');
-      for(var k=0;k<floats.length;k++){
-        var f=floats[k],parts=Array.from(f.getClientRects()).filter(function(r){return r.height>0;}).length;
+      var changed=false;
+      for(var f of art.querySelectorAll('figure.float')){
+        var parts=Array.from(f.getClientRects()).filter(function(r){return r.height>0;}).length;
         if(parts<2||f.classList.contains('bk-split')||f.classList.contains('bk-box')||f.dataset.bkf!==undefined)continue;
         f.dataset.bkf='';f.style.breakBefore='column';changed=true;
       }

@@ -401,9 +401,9 @@ debugging table building.
 
 ## Releases and contributing
 
-The version, `CHANGELOG.md` and the GitHub Release (with executables for Linux, macOS, Windows) are
-created automatically from commits that follow the Conventional Commits standard. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Every merge into `main` is released: the version, `CHANGELOG.md` and the GitHub Release (with
+executables for Linux, macOS, Windows) are created automatically from commits that follow the
+Conventional Commits standard. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

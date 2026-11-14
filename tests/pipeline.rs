@@ -433,3 +433,53 @@ fn code_becomes_a_coloured_listing() {
     assert!(html.contains("font-family:\"IBM Plex Mono\""), "code font embedded");
     assert!(!paper.to_html(&analysis, &HtmlOptions::default()).html.is_empty());
 }
+
+/// A paper with a Python listing set in two columns side by side, as
+/// Listing 1 of the PyTorch paper is.
+fn two_column_code_pdf() -> Vec<u8> {
+    let content = "\
+BT /F2 20 Tf 190 700 Td (A Paper With Code) Tj ET
+BT /F1 10 Tf 250 670 Td (Ada Lovelace) Tj ET
+BT /F2 12 Tf 72 640 Td (1 Method) Tj ET
+BT /F1 10 Tf 72 625 Td (The model below is written in Python, in two columns to save space on the page.) Tj ET
+BT /F3 9 Tf 72 612 Td (class Layer\\(Module\\):) Tj ET
+BT /F3 9 Tf 82.8 601 Td (def forward\\(self, x\\):) Tj ET
+BT /F3 9 Tf 93.6 590 Td (y = self.w * x) Tj ET
+BT /F3 9 Tf 93.6 579 Td (return y + self.b) Tj ET
+BT /F3 9 Tf 320 612 Td (class Model\\(Module\\):) Tj ET
+BT /F3 9 Tf 330.8 601 Td (def forward\\(self, x\\):) Tj ET
+BT /F3 9 Tf 341.6 590 Td (h = self.layer\\(x\\)) Tj ET
+BT /F3 9 Tf 341.6 579 Td (return relu\\(h\\)) Tj ET
+BT /F1 10 Tf 72 550 Td (The listing ends here and the text goes on in a normal paragraph of prose.) Tj ET
+";
+    build_pdf(content)
+}
+
+#[test]
+fn code_in_two_columns_is_indented_column_by_column() {
+    let paper = Paper::from_bytes(two_column_code_pdf()).expect("valid pdf");
+    let html = paper.to_html(&paper.analyze(), &HtmlOptions::default()).html;
+    let start = html.find("<pre class=\"listing").expect("a listing");
+    let pre = &html[start..start + html[start..].find("</pre>").unwrap()];
+    let tags = regex::Regex::new(r"<[^>]+>").unwrap();
+    let lines: Vec<String> = pre
+        .split("<span class=\"l\">")
+        .skip(1)
+        .map(|line| tags.replace_all(line, "").into_owned())
+        .collect();
+    // The right column is indented from its own edge, not from the left
+    // column's.
+    assert_eq!(
+        lines,
+        [
+            "class Layer(Module):",
+            "  def forward(self, x):",
+            "    y = self.w * x",
+            "    return y + self.b",
+            "class Model(Module):",
+            "  def forward(self, x):",
+            "    h = self.layer(x)",
+            "    return relu(h)",
+        ]
+    );
+}

@@ -5,7 +5,7 @@
 mod highlight;
 
 use super::*;
-use crate::model::{Line, MONO, Span};
+use crate::model::{HLine, Line, MONO, Span};
 use highlight::{Carry, Lang, detect, highlight_line};
 
 /// Width of a monospaced character in em, for fonts whose glyph widths
@@ -69,36 +69,66 @@ pub(crate) fn is_code_paragraph(block: &Block) -> bool {
 
 /// The lines of code of consecutive code paragraphs, with their
 /// indentation rebuilt from the positions of the lines. An empty line is
-/// kept where the gap between two paragraphs is more than
+/// kept where the gap between two lines is more than
 /// [`BLANK_LINE_MIN_PITCHES`] line pitches.
+///
+/// Code set in two columns (side by side, or running on from one column to
+/// the next) is indented column by column, each part from its own left
+/// edge: a part starts where a line lies wholly right (or left) of all the
+/// lines of the part before it.
 pub(crate) fn listing_lines(blocks: &[&Block]) -> Vec<String> {
-    let all: Vec<&Line> = blocks.iter().flat_map(|block| block.lines.iter()).collect();
+    let pitch = line_pitch(blocks);
+    let mut parts: Vec<Vec<(&Line, &HLine)>> = Vec::new();
+    // The left and right ends of the current part's lines on their page.
+    let mut hull: Option<(usize, f32, f32)> = None;
+    for block in blocks {
+        for (line, hline) in block.lines.iter().zip(&block.hlines) {
+            // On a new page too: the code goes on in the same column, or
+            // it moved (from the right column to the left one of the next
+            // page).
+            let moves = hull.is_some_and(|(_, x0, x1)| line.bbox.x0 >= x1 || line.bbox.x1 <= x0);
+            match parts.last_mut() {
+                Some(part) if !moves => part.push((line, hline)),
+                _ => parts.push(vec![(line, hline)]),
+            }
+            hull = Some(match hull {
+                Some((page, x0, x1)) if !moves && page == line.page => {
+                    (page, x0.min(line.bbox.x0), x1.max(line.bbox.x1))
+                }
+                _ => (line.page, line.bbox.x0, line.bbox.x1),
+            });
+        }
+    }
+    parts.iter().flat_map(|part| part_lines(part, pitch)).collect()
+}
+
+/// The text of the lines of one column of a listing, indented from its
+/// left edge.
+fn part_lines(part: &[(&Line, &HLine)], pitch: f32) -> Vec<String> {
+    let all: Vec<&Line> = part.iter().map(|(line, _)| *line).collect();
     let starts = indent_starts(&all);
     let base = starts.first().copied().unwrap_or(0.0);
     let width = listing_char_width(&all);
-    let pitch = line_pitch(blocks);
     let mut lines = Vec::new();
     let mut previous: Option<&Line> = None;
-    for block in blocks {
-        for (line, hline) in block.lines.iter().zip(&block.hlines) {
-            if let Some(prev) = previous
-                && prev.page == line.page
-                && line.baseline - prev.baseline > BLANK_LINE_MIN_PITCHES * pitch
-            {
-                lines.push(String::new());
-            }
-            let mut text: String = hline.spans.iter().map(|span| span.text.as_str()).collect();
-            if text.ends_with(' ') {
-                text.pop();
-            }
-            if hline.soft_hyphen {
-                text.push('-');
-            }
-            let start = indent_start(&starts, line.bbox.x0);
-            let indent = ((start - base) / width).round().max(0.0) as usize;
-            lines.push(format!("{}{}", " ".repeat(indent), text.trim_start()));
-            previous = Some(line);
+    for (line, hline) in part {
+        if let Some(prev) = previous
+            && prev.page == line.page
+            && line.baseline - prev.baseline > BLANK_LINE_MIN_PITCHES * pitch
+        {
+            lines.push(String::new());
         }
+        let mut text: String = hline.spans.iter().map(|span| span.text.as_str()).collect();
+        if text.ends_with(' ') {
+            text.pop();
+        }
+        if hline.soft_hyphen {
+            text.push('-');
+        }
+        let start = indent_start(&starts, line.bbox.x0);
+        let indent = ((start - base) / width).round().max(0.0) as usize;
+        lines.push(format!("{}{}", " ".repeat(indent), text.trim_start()));
+        previous = Some(line);
     }
     lines
 }

@@ -43,6 +43,12 @@ const ALGORITHM_OPENERS: [&str; 12] = [
     "repeat",
     "Data",
 ];
+/// Words that start a control line of pseudocode (`repeat`, `until`, ...).
+const ALGORITHM_CONTROL_WORDS: [&str; 10] = [
+    "repeat", "until", "for", "while", "if", "else", "end", "return", "do", "loop",
+];
+/// Assignment signs of pseudocode.
+const ALGORITHM_ASSIGNMENTS: [&str; 2] = ["\u{2190}", ":="];
 /// Words of the unnumbered header lines of an algorithm (inputs, outputs).
 const ALGORITHM_HEADERS: [&str; 5] = ["Require", "Ensure", "Input", "Output", "Data"];
 
@@ -216,7 +222,9 @@ struct AlgoLine {
 /// The algorithm of a float rebuilt as text (`<div class="algo">`), when
 /// its text layer reads as pseudocode: at least [`ALGORITHM_MIN_LINES`]
 /// lines, the first one starting with one of [`ALGORITHM_OPENERS`] or a
-/// line number. `None` otherwise (the float keeps its picture).
+/// line number, or else lines that assign (`x ← ...`) and lines of control
+/// (`repeat`, `return`, ...). `None` otherwise (the float keeps its
+/// picture).
 pub(crate) fn algorithm_html(block: &Block) -> Option<String> {
     let mut lines: Vec<AlgoLine> = block
         .inner_lines
@@ -229,7 +237,8 @@ pub(crate) fn algorithm_html(block: &Block) -> Option<String> {
         .collect();
     merge_orphans(&mut lines);
     lines.retain(|algo| !plain(&algo.spans).is_empty());
-    if lines.len() < ALGORITHM_MIN_LINES || !opens_algorithm(&plain(&lines[0].spans)) {
+    let texts: Vec<String> = lines.iter().map(|algo| plain(&algo.spans)).collect();
+    if lines.len() < ALGORITHM_MIN_LINES || !reads_as_pseudocode(&texts) {
         return None;
     }
     let levels = indent_levels(&lines);
@@ -256,6 +265,21 @@ pub(crate) fn algorithm_html(block: &Block) -> Option<String> {
     }
     out.push_str("</div>");
     Some(out)
+}
+
+/// Whether the lines of a float (their text) read as pseudocode: the
+/// first one opens an algorithm, or some line assigns and some line starts
+/// with a control word ("θ, φ ← Initialize parameters", "repeat", ...,
+/// "return θ, φ").
+fn reads_as_pseudocode(texts: &[String]) -> bool {
+    let assigns = texts
+        .iter()
+        .any(|text| ALGORITHM_ASSIGNMENTS.iter().any(|sign| text.contains(sign)));
+    let controls = texts.iter().any(|text| {
+        let word: String = text.trim_start().chars().take_while(|ch| ch.is_alphabetic()).collect();
+        ALGORITHM_CONTROL_WORDS.contains(&word.as_str())
+    });
+    texts.first().is_some_and(|first| opens_algorithm(first)) || (assigns && controls)
 }
 
 /// Whether the first line of a float's text opens an algorithm.
@@ -438,4 +462,42 @@ fn indent_levels(lines: &[AlgoLine]) -> Vec<usize> {
                 .min(ALGORITHM_MAX_INDENT)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The lines as owned strings.
+    fn texts(lines: &[&str]) -> Vec<String> {
+        lines.iter().map(|line| (*line).to_string()).collect()
+    }
+
+    #[test]
+    fn pseudocode_without_an_opener_is_recognised() {
+        // Algorithm 1 of the VAE paper (arXiv:1312.6114).
+        let vae = texts(&[
+            "θ, φ ← Initialize parameters",
+            "repeat",
+            "XM ← Random minibatch of M datapoints",
+            "until convergence of parameters (θ, φ)",
+            "return θ, φ",
+        ]);
+        assert!(reads_as_pseudocode(&vae));
+        assert!(reads_as_pseudocode(&texts(&["Require: α", "m0 ← 0", "end while"])));
+        assert!(reads_as_pseudocode(&texts(&["1: x := 0", "2: y := 1", "3: z := 2"])));
+    }
+
+    #[test]
+    fn text_that_is_not_pseudocode_keeps_its_picture() {
+        // Labels of a diagram: an arrow but no control line.
+        assert!(!reads_as_pseudocode(&texts(&["Encoder ← input", "Decoder", "Loss"])));
+        // Control words but no assignment.
+        assert!(!reads_as_pseudocode(&texts(&[
+            "If the input is long",
+            "the model",
+            "returns early"
+        ])));
+        assert!(!reads_as_pseudocode(&[]));
+    }
 }

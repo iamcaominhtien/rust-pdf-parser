@@ -66,7 +66,8 @@ fn inks(lines: &[Line]) -> impl Iterator<Item = Rect> + '_ {
 }
 
 /// The glyph inks of a page, each with the index of the block it belongs
-/// to (`None` for loose lines: running heads, page numbers).
+/// to (`None` for loose lines: running heads, page numbers; and for the
+/// captions of figures, which are not part of their pictures).
 fn page_glyphs(doc: &Document, loose: &[Vec<PLine>], page: usize) -> Vec<(Rect, Option<usize>)> {
     page_glyph_texts(doc, loose, page)
         .into_iter()
@@ -87,13 +88,18 @@ fn page_glyph_texts(doc: &Document, loose: &[Vec<PLine>], page: usize) -> Vec<(R
     // A paragraph that runs on to the next page has lines on both: each
     // line knows its page.
     for (idx, block) in doc.blocks.iter().enumerate() {
-        for line in block
-            .lines
-            .iter()
-            .chain(&block.inner_lines)
-            .filter(|line| line.page == page)
-        {
-            out.extend(visible(line).into_iter().map(|(ink, text)| (ink, Some(idx), text)));
+        // The caption of a figure is set apart from its picture, so to the
+        // picture it is text like any other: its descenders must not show at
+        // the picture's edge.
+        let caption_owner = if matches!(block.kind, BlockKind::Figure { .. }) {
+            None
+        } else {
+            Some(idx)
+        };
+        let own = block.lines.iter().map(|line| (line, caption_owner));
+        let inner = block.inner_lines.iter().map(|line| (line, Some(idx)));
+        for (line, owner) in own.chain(inner).filter(|(line, _)| line.page == page) {
+            out.extend(visible(line).into_iter().map(|(ink, text)| (ink, owner, text)));
         }
     }
     if let Some(lines) = loose.get(page) {
@@ -126,8 +132,8 @@ fn picture(block: &Block) -> Option<(Rect, &'static str)> {
 }
 
 /// The pictures that cut glyphs of another block (or of the page's loose
-/// text), with how many. Glyphs of the block itself (labels inside a
-/// figure) are not counted: they are drawn in the picture.
+/// text), with how many. Glyphs inside a figure (its labels) are not
+/// counted: they are drawn in the picture. Its caption is counted.
 pub fn cut_glyphs(doc: &Document, loose: &[Vec<PLine>]) -> Vec<Cut> {
     let mut out = Vec::new();
     for page in 0..doc.pages.len() {

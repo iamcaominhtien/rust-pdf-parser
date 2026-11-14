@@ -72,6 +72,10 @@ enum Command {
         /// Picture files (PNG or JPEG)
         #[arg(required = true)]
         images: Vec<PathBuf>,
+        /// Print how sure each reading is (weakest glyph, closest rival)
+        /// before its MathML, and give every reading whatever its confidence
+        #[arg(long, hide = true)]
+        scores: bool,
     },
 }
 
@@ -246,7 +250,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         Command::Inspect { input } => inspect(&input),
-        Command::Formula { images } => formula(&images),
+        Command::Formula { images, scores } => formula(&images, scores),
     }
 }
 
@@ -403,11 +407,23 @@ fn write_mode(
 ///
 /// # Errors
 /// When a picture cannot be opened, or a single picture cannot be read.
-fn formula(images: &[PathBuf]) -> Result<()> {
+fn formula(images: &[PathBuf], scores: bool) -> Result<()> {
     let cfg = paper2html::raster::RasterConfig::default();
     let mut out = std::io::stdout().lock();
     for path in images {
         let image = image::open(path).with_context(|| format!("cannot open {}", path.display()))?;
+        if scores {
+            let read = paper2html::raster::formula_with_confidence(&image, &cfg);
+            let (weakest, closest, math) = read.map_or((f32::NAN, f32::NAN, String::new()), |(node, confidence)| {
+                (
+                    confidence.weakest,
+                    confidence.closest,
+                    paper2html::render::math_html(&node, ""),
+                )
+            });
+            writeln!(out, "{}\t{weakest:.3}\t{closest:.3}\t{math}", path.display())?;
+            continue;
+        }
         let math = paper2html::raster::formula(&image, &cfg).map(|node| paper2html::render::math_html(&node, ""));
         if images.len() == 1 {
             let math = math.ok_or_else(|| anyhow!("cannot read the formula in {}", path.display()))?;

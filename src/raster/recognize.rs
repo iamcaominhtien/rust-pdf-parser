@@ -63,6 +63,11 @@ pub struct RasterConfig {
     pub script_baseline_tolerance_em: f32,
     /// ... and is given this penalty.
     pub script_on_baseline_penalty: f32,
+    /// A formula is given only when every glyph matches its template at
+    /// least this well...
+    pub min_weakest_score: f32,
+    /// ... and better than the template of any other glyph by this much.
+    pub min_closest_margin: f32,
     /// Penalty of rare glyphs (bold and Fraktur letters, [`RARE`]) against
     /// common ones that look alike.
     pub rare_penalty: f32,
@@ -92,6 +97,8 @@ impl Default for RasterConfig {
             script_baseline_tolerance_em: 0.08,
             script_on_baseline_penalty: 0.3,
             rare_penalty: 0.05,
+            min_weakest_score: 0.0,
+            min_closest_margin: 0.0,
         }
     }
 }
@@ -124,6 +131,18 @@ pub struct Reading {
     pub glyphs: Vec<LineGlyph>,
     /// Horizontal rules (fraction bars, overlines, radical bars).
     pub rules: Vec<Rect>,
+    /// How sure the reading is.
+    pub confidence: Confidence,
+}
+
+/// How sure the reading of a picture is: by its least sure glyph.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Confidence {
+    /// The lowest likeness of a glyph to its template.
+    pub weakest: f32,
+    /// The smallest lead of a glyph's template over the best template of
+    /// another glyph.
+    pub closest: f32,
 }
 
 /// A piece of ink of the picture (one or more connected pieces read as one
@@ -193,6 +212,8 @@ struct Match {
     em_px: f32,
     /// The size it is set at, against the text.
     level: f32,
+    /// How much better it matches than the best template of another glyph.
+    margin: f32,
 }
 
 /// Reads the glyphs of the formula pictured in `gray` (grey levels, row by
@@ -257,7 +278,16 @@ pub fn read(gray: &[u8], width: usize, cfg: &RasterConfig) -> Option<Reading> {
         }
     }
     fix_positions(&mut glyphs, cfg.main_size_pt);
-    Some(Reading { glyphs, rules })
+    let found = placed.iter().filter_map(|(_, found)| found.as_ref());
+    let confidence = Confidence {
+        weakest: found.clone().map(|found| found.score).fold(1.0, f32::min),
+        closest: found.map(|found| found.margin).fold(1.0, f32::min),
+    };
+    Some(Reading {
+        glyphs,
+        rules,
+        confidence,
+    })
 }
 
 /// The size of the em of the text of the formula, in pixels: the median of
@@ -290,28 +320,7 @@ fn classify(
 ) -> Option<Match> {
     let height = piece.rect.height();
     if let Some(forced) = piece.forced {
-        // The same glyph, of the same style, in the font of the size that
-        // fits best.
-        let (text, style) = (&TEMPLATES[forced].text, TEMPLATES[forced].font);
-        return TEMPLATES
-            .iter()
-            .enumerate()
-            .filter(|(_, template)| template.text == *text && template.font == style)
-            .map(|(template, candidate)| {
-                let em_px = implied_em(piece, candidate);
-                let (penalty, level) = size_penalty(candidate, em_px, em);
-                (
-                    penalty,
-                    Match {
-                        template,
-                        score: 1.0,
-                        em_px,
-                        level,
-                    },
-                )
-            })
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-            .map(|(_, found)| found);
+        return forced_match(piece, forced, em);
     }
     if let Some(em) = em
         && piece.rect.width().max(height) <= cfg.dot_max_em * em
@@ -322,12 +331,13 @@ fn classify(
             score: 1.0,
             em_px: em,
             level: 1.0,
+            margin: 1.0,
         });
     }
     let shape = Shape::of(&piece.mask());
     let ink: f32 = piece.pixels.iter().map(|&(.., cover)| cover).sum();
     let tall = em.is_some_and(|em| height > cfg.tall_min_height_em * em);
-    TEMPLATES
+    let matches = TEMPLATES
         .iter()
         .enumerate()
         .filter(|(_, template)| allowed(template))
@@ -367,9 +377,56 @@ fn classify(
                 score,
                 em_px,
                 level,
+                margin: 0.0,
             }
         })
-        .max_by(|a, b| a.score.total_cmp(&b.score))
+        .collect::<Vec<Match>>();
+    best_with_margin(&matches)
+}
+
+/// The match of a piece whose glyph was decided before (`forced`, an index
+/// into [`TEMPLATES`]): the same glyph, of the same style, in the font of
+/// the size that fits best.
+fn forced_match(piece: &Piece, forced: usize, em: Option<f32>) -> Option<Match> {
+    // The same glyph, of the same style, in the font of the size that
+    // fits best.
+    let (text, style) = (&TEMPLATES[forced].text, TEMPLATES[forced].font);
+    TEMPLATES
+        .iter()
+        .enumerate()
+        .filter(|(_, template)| template.text == *text && template.font == style)
+        .map(|(template, candidate)| {
+            let em_px = implied_em(piece, candidate);
+            let (penalty, level) = size_penalty(candidate, em_px, em);
+            (
+                penalty,
+                Match {
+                    template,
+                    score: 1.0,
+                    em_px,
+                    level,
+                    margin: 1.0,
+                },
+            )
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, found)| found)
+}
+
+/// The best of `matches`, with its lead over the best match of another
+/// glyph.
+fn best_with_margin(matches: &[Match]) -> Option<Match> {
+    let best = *matches.iter().max_by(|a, b| a.score.total_cmp(&b.score))?;
+    let glyph = |found: &Match| (&TEMPLATES[found.template].text, TEMPLATES[found.template].font);
+    let rival = matches
+        .iter()
+        .filter(|found| glyph(found) != glyph(&best))
+        .map(|found| found.score)
+        .fold(f32::NEG_INFINITY, f32::max);
+    Some(Match {
+        margin: best.score - rival,
+        ..best
+    })
 }
 
 /// The size of the em, in pixels, that reading `piece` as `template`

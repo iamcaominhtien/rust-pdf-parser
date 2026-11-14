@@ -7,7 +7,7 @@ mod shape;
 mod templates;
 mod tex;
 
-pub use recognize::{RasterConfig, Reading, read};
+pub use recognize::{Confidence, RasterConfig, Reading, read};
 
 use crate::analysis::math::formula_from_glyphs;
 use crate::backend::FontInfo;
@@ -26,8 +26,16 @@ static FONTS: LazyLock<Vec<FontInfo>> = LazyLock::new(|| {
 });
 
 /// The formula pictured in `image` (any colour picture: transparent parts
-/// count as white), or `None` when it cannot be read with confidence.
+/// count as white), or `None` when it cannot be read with the confidence
+/// `cfg` asks for.
 pub fn formula(image: &image::DynamicImage, cfg: &RasterConfig) -> Option<MathNode> {
+    let (node, confidence) = formula_with_confidence(image, cfg)?;
+    (confidence.weakest >= cfg.min_weakest_score && confidence.closest >= cfg.min_closest_margin).then_some(node)
+}
+
+/// The formula pictured in `image` with how sure its reading is, whatever
+/// that is; `None` when some piece cannot be read at all.
+pub fn formula_with_confidence(image: &image::DynamicImage, cfg: &RasterConfig) -> Option<(MathNode, Confidence)> {
     let rgba = image.to_rgba8();
     let gray: Vec<u8> = rgba
         .pixels()
@@ -38,7 +46,8 @@ pub fn formula(image: &image::DynamicImage, cfg: &RasterConfig) -> Option<MathNo
         })
         .collect();
     let reading = read(&gray, rgba.width() as usize, cfg)?;
-    formula_from_glyphs(reading.glyphs, &reading.rules, &FONTS)
+    let node = formula_from_glyphs(reading.glyphs, &reading.rules, &FONTS)?;
+    Some((node, reading.confidence))
 }
 
 #[cfg(test)]

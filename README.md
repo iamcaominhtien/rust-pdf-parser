@@ -164,7 +164,10 @@ with a piece that matches no glyph well is not read (an error, or an empty line 
 pictures are given). It works best on pictures of LaTeX formulas at 25 pixels per em or more;
 other fonts (Times) are read poorly or not at all. On the 2607 formula pictures of 73 arXiv
 papers, 58% are read, and 30% give exactly the text of the MathML rebuilt from the PDF (93% of the
-characters of the pictures read are right).
+characters of the pictures read are right). The command is experimental: how sure a reading is
+(the likeness of its least sure glyph) does not yet tell a right reading from a wrong one well
+enough to keep only right ones (at 5% of the pictures, 77% are right on papers the threshold was
+not chosen on), so no threshold is applied.
 
 ### Speed and resources
 

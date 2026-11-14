@@ -1178,10 +1178,17 @@ impl Parser<'_> {
                         .find(|edge| (edge - x).abs() <= tol)
                         .unwrap_or_else(|| {
                             let start = row.iter().map(|item| item.left).fold(f32::INFINITY, f32::min);
+                            let end = row.iter().map(|item| item.right).fold(f32::NEG_INFINITY, f32::max);
                             if start >= x - tol {
                                 f32::NEG_INFINITY
-                            } else {
+                            } else if end <= x + tol {
                                 f32::INFINITY
+                            } else {
+                                // A line without the relation that runs past
+                                // it (the left side alone, before lines that
+                                // start with `=`) keeps its place: what is
+                                // right of the relation goes to the right.
+                                x
                             }
                         });
                     let (left, right): (Vec<Item>, Vec<Item>) =
@@ -2008,6 +2015,38 @@ mod tests {
     #[test]
     fn cjk_angle_brackets_are_math_ones() {
         assert_eq!(math_text("\u{3008}h\u{3009}µ"), "⟨h⟩μ");
+    }
+
+    #[test]
+    fn a_first_line_without_the_relation_keeps_its_place() {
+        // f(x)          (a left side alone)
+        //   = a
+        //   = b
+        let math = formula(
+            &[
+                line(vec![
+                    glyph("f", 0, 10.0, 100.0, 10.0, None),
+                    glyph("x", 0, 30.0, 100.0, 10.0, None),
+                ]),
+                line(vec![
+                    glyph("=", 1, 20.0, 115.0, 10.0, None),
+                    glyph("a", 0, 28.0, 115.0, 10.0, None),
+                ]),
+                line(vec![
+                    glyph("=", 1, 20.0, 130.0, 10.0, None),
+                    glyph("b", 0, 28.0, 130.0, 10.0, None),
+                ]),
+            ],
+            &[],
+            &fonts(),
+            &MathConfig::default(),
+        );
+        let Some(MathNode::Table { rows, align }) = math else {
+            panic!("not a table: {math:?}");
+        };
+        assert_eq!(align, vec!["right", "left"]);
+        assert_eq!(rows[0], vec![ident("f"), ident("x")]);
+        assert_eq!(rows[1][1], MathNode::Row(vec![operator("="), ident("a")]));
     }
 
     #[test]

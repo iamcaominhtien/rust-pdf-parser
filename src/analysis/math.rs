@@ -1021,8 +1021,7 @@ impl Parser<'_> {
         }
         items.sort_by(|a, b| a.left.total_cmp(&b.left));
         let size = items.iter().map(|item| item.size).fold(0.0, f32::max);
-        let baseline = self.main_baseline(&items, size);
-        let places: Vec<Place> = items.iter().map(|item| self.place(item, size, baseline)).collect();
+        let places = self.places(&items, size);
         self.check_stacks(&items, &places)?;
         let mut out: Vec<MathNode> = Vec::new();
         let mut pending: Vec<&Glyph> = Vec::new();
@@ -1151,6 +1150,41 @@ impl Parser<'_> {
                     Place::Lowered
                 }
             }
+        }
+    }
+
+    /// Where each item of a row (sorted left to right, font size `size`)
+    /// sits: on the main baseline, or raised or lowered as a script.
+    fn places(&self, items: &[Item], size: f32) -> Vec<Place> {
+        let baseline = self.main_baseline(items, size);
+        let mut places: Vec<Place> = items.iter().map(|item| self.place(item, size, baseline)).collect();
+        self.join_scripts(items, &mut places, size);
+        places
+    }
+
+    /// A small item that happens to sit on the main baseline right after a
+    /// script belongs to the scripts: the prime of `s′` in the subscript of
+    /// `𝔼_{s′∼ε}` is raised from the subscript just up to the baseline. It
+    /// joins the script of the run (superscripts or subscripts) whose
+    /// baseline is nearest its own.
+    fn join_scripts(&self, items: &[Item], places: &mut [Place], size: f32) {
+        for idx in 1..items.len() {
+            let small = items[idx].size < size * self.cfg.script_max_size_ratio;
+            let gap = items[idx].left - items[idx - 1].right;
+            if places[idx] != Place::Base
+                || places[idx - 1] == Place::Base
+                || !small
+                || gap >= self.cfg.word_max_gap_em * size
+            {
+                continue;
+            }
+            let own = items[idx].baseline.unwrap_or(items[idx].ink.y1);
+            let run = (0..idx).rev().take_while(|&k| places[k] != Place::Base);
+            let nearest = run.min_by(|&a, &b| {
+                let off = |k: usize| (items[k].baseline.unwrap_or(items[k].ink.y1) - own).abs();
+                off(a).total_cmp(&off(b))
+            });
+            places[idx] = nearest.map_or(places[idx - 1], |k| places[k]);
         }
     }
 
@@ -1599,6 +1633,31 @@ mod tests {
             },
             ident("x"),
         ]);
+        assert_eq!(math, Some(expected));
+    }
+
+    #[test]
+    fn a_small_glyph_on_the_baseline_after_a_subscript_belongs_to_it() {
+        let math = rebuild(
+            vec![
+                glyph("E", 1, 10.0, 100.0, 10.0, None),
+                glyph("s", 0, 17.0, 101.5, 7.0, Some(Rect::new(17.0, 98.0, 20.0, 101.5))),
+                glyph("′", 2, 20.5, 100.0, 5.0, Some(Rect::new(20.5, 96.5, 21.5, 99.0))),
+            ],
+            &[],
+        );
+        let expected = MathNode::Scripts {
+            base: Box::new(MathNode::Ident {
+                text: "E".into(),
+                upright: true,
+            }),
+            sub: Some(Box::new(MathNode::Scripts {
+                base: Box::new(ident("s")),
+                sub: None,
+                sup: Some(Box::new(operator("′"))),
+            })),
+            sup: None,
+        };
         assert_eq!(math, Some(expected));
     }
 

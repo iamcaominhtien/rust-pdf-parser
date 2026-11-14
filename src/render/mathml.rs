@@ -24,6 +24,10 @@ const UNSPACED: &[&str] = &[
     "(", ")", "[", "]", "{", "}", "|", "‖", "⟨", "⟩", "⌊", "⌋", "⌈", "⌉", "/", "\\",
 ];
 
+/// How far a prime above a subscript is lowered: written as a superscript,
+/// it would be raised twice (the glyph sits high already).
+const PRIME_DROP: &str = "-0.45em";
+
 /// Style of the formulas: the math font (the embedded one first, then
 /// those of the usual systems) and a size close to the one of the pictures.
 const MATH_STYLE: &str =
@@ -83,11 +87,23 @@ fn write_node(node: &MathNode, out: &mut String) {
         MathNode::Frac { num, den } => element("mfrac", "", &[num.as_ref(), den.as_ref()], out),
         MathNode::Sqrt(base) => element("msqrt", "", &[base.as_ref()], out),
         MathNode::Root { base, index } => element("mroot", "", &[base.as_ref(), index.as_ref()], out),
-        MathNode::Scripts { base, sub, sup } => match (sub, sup) {
-            (Some(sub), Some(sup)) => element("msubsup", "", &[base.as_ref(), sub.as_ref(), sup.as_ref()], out),
-            (Some(sub), None) => element("msub", "", &[base.as_ref(), sub.as_ref()], out),
-            (None, Some(sup)) => element("msup", "", &[base.as_ref(), sup.as_ref()], out),
-            (None, None) => write_node(base, out),
+        MathNode::Scripts { base, sub, sup } => match (sub, sup.as_deref().and_then(primes)) {
+            // A prime is drawn raised already: as a superscript it would be
+            // raised twice.
+            (None, Some(primes)) => {
+                out.push_str("<mrow>");
+                write_node(base, out);
+                out.push_str(&format!("<mo lspace=\"0\" rspace=\"0\">{primes}</mo></mrow>"));
+            }
+            (Some(sub), Some(primes)) => {
+                out.push_str("<msubsup>");
+                write_node(base, out);
+                write_node(sub, out);
+                out.push_str(&format!(
+                    "<mpadded voffset=\"{PRIME_DROP}\"><mo lspace=\"0\" rspace=\"0\">{primes}</mo></mpadded></msubsup>"
+                ));
+            }
+            (sub, None) => write_scripts(base, sub.as_deref(), sup.as_deref(), out),
         },
         MathNode::UnderOver {
             base,
@@ -113,7 +129,7 @@ fn write_node(node: &MathNode, out: &mut String) {
                 out.push_str("<mtr>");
                 for (col, cell) in row.iter().enumerate() {
                     let align = align.get(col).copied().unwrap_or("center");
-                    out.push_str(&format!("<mtd columnalign=\"{align}\" style=\"text-align:{align}\">"));
+                    out.push_str(&format!("<mtd columnalign=\"{align}\">"));
                     write_node(cell, out);
                     out.push_str("</mtd>");
                 }
@@ -122,6 +138,26 @@ fn write_node(node: &MathNode, out: &mut String) {
             out.push_str("</mtable>");
         }
     }
+}
+
+/// Writes a base with its subscript and/or superscript.
+fn write_scripts(base: &MathNode, sub: Option<&MathNode>, sup: Option<&MathNode>, out: &mut String) {
+    match (sub, sup) {
+        (Some(sub), Some(sup)) => element("msubsup", "", &[base, sub, sup], out),
+        (Some(sub), None) => element("msub", "", &[base, sub], out),
+        (None, Some(sup)) => element("msup", "", &[base, sup], out),
+        (None, None) => write_node(base, out),
+    }
+}
+
+/// The text of a superscript made of primes only (`′`, `″`), or `None`.
+fn primes(node: &MathNode) -> Option<String> {
+    let text = match node {
+        MathNode::Operator { text, .. } => text.clone(),
+        MathNode::Row(nodes) if !nodes.is_empty() => nodes.iter().map(primes).collect::<Option<String>>()?,
+        _ => return None,
+    };
+    text.chars().all(|ch| matches!(ch, '′' | '″' | '‴')).then_some(text)
 }
 
 /// Writes the element `tag` with attributes `attrs` around `children`.
@@ -183,6 +219,24 @@ mod tests {
     }
 
     #[test]
+    fn primes_are_not_raised_twice() {
+        let prime = |sub: Option<MathNode>| MathNode::Scripts {
+            base: Box::new(mi("x")),
+            sub: sub.map(Box::new),
+            sup: Some(Box::new(op("′", None))),
+        };
+        let mut out = String::new();
+        write_node(&prime(None), &mut out);
+        assert_eq!(out, "<mrow><mi>x</mi><mo lspace=\"0\" rspace=\"0\">′</mo></mrow>");
+        let mut out = String::new();
+        write_node(&prime(Some(mi("i"))), &mut out);
+        assert_eq!(
+            out,
+            "<msubsup><mi>x</mi><mi>i</mi><mpadded voffset=\"-0.45em\"><mo lspace=\"0\" rspace=\"0\">′</mo></mpadded></msubsup>"
+        );
+    }
+
+    #[test]
     fn upright_single_letters_say_so() {
         let mut out = String::new();
         write_node(
@@ -213,6 +267,6 @@ mod tests {
             align: vec!["right", "left"],
         };
         write_node(&table, &mut out);
-        assert!(out.starts_with("<mtable displaystyle=\"true\"><mtr><mtd columnalign=\"right\""));
+        assert!(out.starts_with("<mtable displaystyle=\"true\"><mtr><mtd columnalign=\"right\"><mi>x</mi></mtd>"));
     }
 }

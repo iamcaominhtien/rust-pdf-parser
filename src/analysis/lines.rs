@@ -10,6 +10,13 @@ use crate::model::{Line, LineGlyph, RotatedText};
 use std::collections::{HashMap, HashSet};
 use unicode_normalization::UnicodeNormalization;
 
+/// A line of at most this many glyphs, all brackets or separators (")",
+/// "})"), can close a code listing.
+const FIXED_PITCH_BRACKETS_MAX: usize = 3;
+/// Equal open gaps in a row that make a short spread word ("err"), enough
+/// for a line next to a code listing to belong to it.
+const FIXED_PITCH_SHORT_RUN: usize = 2;
+
 /// The default thresholds, as a constant so that [`merge_row`] and
 /// [`split_at_gaps`] (called from later stages that do not hold a
 /// [`LinesConfig`]) build their lines with the same values as
@@ -63,6 +70,13 @@ const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     tight_space_gap_em: 0.085,
     tight_space_min_count: 3,
     tight_space_ratio: 3.0,
+    fixed_pitch_min_run: 3,
+    fixed_pitch_gap_tolerance_pt: 0.05,
+    fixed_pitch_min_gap_em: 0.03,
+    fixed_pitch_max_gap_em: 0.4,
+    fixed_pitch_space_gap_em: 0.45,
+    fixed_pitch_min_lines: 3,
+    fixed_pitch_max_line_gap_em: 4.0,
     space_lookback_count: 3,
     line_box_ascent_em: 0.75,
     line_box_descent_em: 0.25,
@@ -221,6 +235,32 @@ pub struct LinesConfig {
     /// How many times wider than the median gap between neighbouring glyphs
     /// of its line a gap must be to count as a tight word space.
     pub tight_space_ratio: f32,
+    /// A code listing set in a proportional font on fixed columns (the
+    /// LaTeX `listings` package) spreads the letters of each word evenly
+    /// over its columns. A word with a run of this many or more equal gaps
+    /// between its letters (see
+    /// [`fixed_pitch_gap_tolerance_pt`](Self::fixed_pitch_gap_tolerance_pt))
+    /// is spread.
+    pub fixed_pitch_min_run: usize,
+    /// Gaps between letters that differ by less than this (points) are equal.
+    pub fixed_pitch_gap_tolerance_pt: f32,
+    /// The equal gaps of a spread word are wider than this (in font sizes):
+    /// the letters of ordinary text touch.
+    pub fixed_pitch_min_gap_em: f32,
+    /// A gap narrower than this (in font sizes) can be inside a spread word;
+    /// wider, it separates words.
+    pub fixed_pitch_max_gap_em: f32,
+    /// In a line of spread words, a gap is a word space only when wider than
+    /// this (in font sizes, about one column): narrower gaps are the spread
+    /// letters and the space beside a narrow character.
+    pub fixed_pitch_space_gap_em: f32,
+    /// Fewest lines of spread words that make a listing; fewer are headings
+    /// set letter-spaced.
+    pub fixed_pitch_min_lines: usize,
+    /// Lines of spread words this far apart or closer (baseline to baseline,
+    /// in font sizes) belong to one listing, across a blank line and a line
+    /// of brackets.
+    pub fixed_pitch_max_line_gap_em: f32,
     /// How many preceding glyphs are considered for the right edge from which
     /// a gap is measured (overlapping accents and stacked scripts).
     pub space_lookback_count: usize,
@@ -288,7 +328,7 @@ impl Line {
         if font.italic {
             style |= ITALIC;
         }
-        if font.mono {
+        if font.mono || self.fixed_pitch {
             style |= MONO;
         }
         if font.math {
@@ -462,6 +502,7 @@ pub fn merge_row(page: usize, lines: Vec<Line>, cfg: &LinesConfig) -> Line {
         .max_by_key(|line| line.glyphs.len())
         .map(|line| (line.baseline, line.size))
         .unwrap();
+    let fixed_pitch = lines.iter().any(|line| line.fixed_pitch);
     let mut glyphs = Vec::new();
     for line in lines {
         let dy = line.baseline - main.0;
@@ -474,7 +515,19 @@ pub fn merge_row(page: usize, lines: Vec<Line>, cfg: &LinesConfig) -> Line {
             glyphs.push(glyph);
         }
     }
-    finalize(page, Segment::from_glyphs(glyphs, cfg), cfg)
+    let mut row = finalize(page, Segment::from_glyphs(glyphs, cfg), cfg);
+    if fixed_pitch {
+        set_fixed_pitch(&mut row, cfg);
+    }
+    row
+}
+
+/// Marks a line as set on fixed columns, with its word spaces measured
+/// against the columns.
+fn set_fixed_pitch(line: &mut Line, cfg: &LinesConfig) {
+    line.fixed_pitch = true;
+    let size = line.size;
+    mark_spaces(&mut line.glyphs, size, true, cfg);
 }
 
 /// Splits a line at horizontal gaps of at least `min_gap` points. Used
@@ -552,6 +605,7 @@ pub fn build_lines(raw: &RawPage, cfg: &LinesConfig) -> (Vec<Line>, Vec<RotatedT
         .map(|segment| finalize(raw.index, segment, cfg))
         .collect();
     lines.sort_by(|a, b| a.baseline.total_cmp(&b.baseline).then(a.bbox.x0.total_cmp(&b.bbox.x0)));
+    mark_fixed_pitch(&mut lines, cfg);
     (lines, rotated)
 }
 
@@ -754,7 +808,7 @@ fn finalize(page: usize, mut segment: Segment, cfg: &LinesConfig) -> Line {
     compose_accents(&mut segment.glyphs, cfg);
     segment.refresh(cfg);
     let size = segment.size;
-    mark_spaces(&mut segment.glyphs, size, cfg);
+    mark_spaces(&mut segment.glyphs, size, false, cfg);
     let ink = segment
         .glyphs
         .iter()
@@ -783,6 +837,152 @@ fn finalize(page: usize, mut segment: Segment, cfg: &LinesConfig) -> Line {
         size,
         font,
         glyphs: segment.glyphs,
+        fixed_pitch: false,
+    }
+}
+
+/// Finds the code listings of a page set on fixed columns in a
+/// proportional font (see [`LinesConfig::fixed_pitch_min_run`]) and marks
+/// their lines [`Line::fixed_pitch`], with word spaces measured against
+/// the columns.
+///
+/// A listing is first found as at least [`LinesConfig::fixed_pitch_min_lines`]
+/// lines with [`Spread::Columns`], each within
+/// [`LinesConfig::fixed_pitch_max_line_gap_em`] of the next and overlapping
+/// the others horizontally. It then takes in the lines between them and,
+/// above and below, the neighbouring lines that have a spread word or only
+/// brackets ("import (", ")"). A lone line of spread letters is a heading
+/// set letter-spaced, and is left alone. `lines` are sorted by baseline.
+fn mark_fixed_pitch(lines: &mut [Line], cfg: &LinesConfig) {
+    let spreads: Vec<Spread> = lines
+        .iter()
+        .map(|line| spread_of(&line.glyphs, line.size, cfg))
+        .collect();
+    // Groups of lines with spread columns, each with the union of its boxes.
+    let mut groups: Vec<(Vec<usize>, Rect)> = Vec::new();
+    for idx in (0..lines.len()).filter(|&idx| spreads[idx] == Spread::Columns) {
+        let line = &lines[idx];
+        let joins = groups.last().is_some_and(|(group, hull)| {
+            let prev = &lines[group[group.len() - 1]];
+            line.baseline - prev.baseline <= cfg.fixed_pitch_max_line_gap_em * line.size && overlaps(&line.bbox, hull)
+        });
+        match groups.last_mut() {
+            Some((group, hull)) if joins => {
+                group.push(idx);
+                *hull = hull.union(&line.bbox);
+            }
+            _ => groups.push((vec![idx], line.bbox)),
+        }
+    }
+    let mut marked = vec![false; lines.len()];
+    for (group, hull) in groups
+        .iter()
+        .filter(|(group, _)| group.len() >= cfg.fixed_pitch_min_lines)
+    {
+        let (first, last) = (group[0], group[group.len() - 1]);
+        for idx in first..=last {
+            marked[idx] |= overlaps(&lines[idx].bbox, hull);
+        }
+        // Extend over the neighbouring lines of the listing, up then down.
+        let neighbour = |from: usize, to: usize| {
+            (lines[to].baseline - lines[from].baseline).abs() <= cfg.fixed_pitch_max_line_gap_em * lines[to].size
+        };
+        let mut edge = first;
+        for idx in (0..first).rev() {
+            if !overlaps(&lines[idx].bbox, hull) {
+                continue;
+            }
+            if spreads[idx] == Spread::None || !neighbour(edge, idx) {
+                break;
+            }
+            marked[idx] = true;
+            edge = idx;
+        }
+        let mut edge = last;
+        for idx in last + 1..lines.len() {
+            if !overlaps(&lines[idx].bbox, hull) {
+                continue;
+            }
+            if spreads[idx] == Spread::None || !neighbour(edge, idx) {
+                break;
+            }
+            marked[idx] = true;
+            edge = idx;
+        }
+    }
+    for (line, _) in lines.iter_mut().zip(&marked).filter(|(_, marked)| **marked) {
+        set_fixed_pitch(line, cfg);
+    }
+}
+
+/// Whether two boxes overlap horizontally.
+fn overlaps(a: &Rect, b: &Rect) -> bool {
+    a.x0 < b.x1 && b.x0 < a.x1
+}
+
+/// How the letters of a line are spread (see [`spread_of`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Spread {
+    /// No spread word: ordinary text.
+    None,
+    /// Spread words that all share one spacing, or only brackets: part of
+    /// a listing when next to one.
+    Some,
+    /// Words spread with different spacings: set on fixed columns.
+    Columns,
+}
+
+/// How the letters of a line (glyphs sorted left to right) are spread. The
+/// LaTeX `listings` package sets code in a proportional font on fixed
+/// columns, spreading each word evenly over its columns: a spread word
+/// holds a run of [`LinesConfig::fixed_pitch_min_run`] or more equal, open
+/// gaps between its letters. Words spread with different spacings are
+/// [`Spread::Columns`]; one shared spacing is [`Spread::Some`] (it is also
+/// letter-spaced text), as are a line with a short spread word only and a
+/// line of brackets only.
+fn spread_of(glyphs: &[LineGlyph], size: f32, cfg: &LinesConfig) -> Spread {
+    let tolerance = cfg.fixed_pitch_gap_tolerance_pt;
+    let mut trackings: Vec<f32> = Vec::new();
+    // A short spread word ("err", "nil"): two equal open gaps.
+    let mut short_word = false;
+    // The current run of equal gaps: its gap and length.
+    let mut run: Option<(f32, usize)> = None;
+    let mut close_run = |run: &mut Option<(f32, usize)>| {
+        if let Some((gap, len)) = run.take()
+            && gap > cfg.fixed_pitch_min_gap_em * size
+        {
+            if len >= cfg.fixed_pitch_min_run {
+                trackings.push(gap);
+            } else if len >= FIXED_PITCH_SHORT_RUN {
+                short_word = true;
+            }
+        }
+    };
+    for pair in glyphs.windows(2) {
+        let gap = pair[1].x0 - pair[0].x1;
+        if gap > cfg.fixed_pitch_max_gap_em * size {
+            close_run(&mut run);
+            continue;
+        }
+        match run {
+            Some((first, len)) if (gap - first).abs() < tolerance => run = Some((first, len + 1)),
+            _ => {
+                close_run(&mut run);
+                run = Some((gap, 1));
+            }
+        }
+    }
+    close_run(&mut run);
+    let brackets = !glyphs.is_empty()
+        && glyphs.len() <= FIXED_PITCH_BRACKETS_MAX
+        && glyphs
+            .iter()
+            .all(|glyph| glyph.text.chars().all(|ch| "(){}[];,".contains(ch)));
+    match trackings.first() {
+        Some(&first) if trackings.iter().any(|tracking| (tracking - first).abs() >= tolerance) => Spread::Columns,
+        Some(_) => Spread::Some,
+        None if brackets || short_word => Spread::Some,
+        None => Spread::None,
     }
 }
 
@@ -796,7 +996,7 @@ fn finalize(page: usize, mut segment: Segment, cfg: &LinesConfig) -> Line {
 /// least [`LinesConfig::tight_space_min_count`] of them and each is well
 /// above the usual gap between the letters of the line; a single such gap
 /// in a line of normal spaces is kerning (math italics, "WH").
-fn mark_spaces(glyphs: &mut [LineGlyph], size: f32, cfg: &LinesConfig) {
+fn mark_spaces(glyphs: &mut [LineGlyph], size: f32, fixed_pitch: bool, cfg: &LinesConfig) {
     let n = glyphs.len();
     let usual_gap = median_glyph_gap(glyphs).max(0.0);
     // The gap before each glyph (index 0 has none) and the font size it is
@@ -839,7 +1039,11 @@ fn mark_spaces(glyphs: &mut [LineGlyph], size: f32, cfg: &LinesConfig) {
         .collect();
     let tight_spaces = tight.iter().filter(|&&is_space| is_space).count() >= cfg.tight_space_min_count;
     for (i, glyph) in glyphs.iter_mut().enumerate() {
-        glyph.space_before = gaps[i].0 > cfg.space_gap_em * gaps[i].1 || (tight_spaces && tight[i]);
+        glyph.space_before = if fixed_pitch {
+            gaps[i].0 > cfg.fixed_pitch_space_gap_em * gaps[i].1
+        } else {
+            gaps[i].0 > cfg.space_gap_em * gaps[i].1 || (tight_spaces && tight[i])
+        };
     }
     if let Some(glyph) = glyphs.first_mut() {
         glyph.space_before = false;

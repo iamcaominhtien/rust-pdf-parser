@@ -1149,3 +1149,44 @@ fn bert_four_panel_figure_is_one_picture() {
         image.rect
     );
 }
+
+/// The Go listing of the GPT-4 report (appendix F.4) is set in a
+/// proportional font on fixed columns, its words spread over them. It is
+/// read as one listing of Go, with whole words ("string", not
+/// "s t r i n g"), and nothing else in the report is.
+#[test]
+fn gpt4_go_listing_is_code() {
+    let Some(paper) = load("2303.08774v6") else { return };
+    let html = paper.to_html(&paper.analyze(), &HtmlOptions::default()).html;
+    assert_eq!(html.matches("<pre class=\"listing").count(), 1, "one listing");
+    assert!(html.contains("data-lang=\"go\""), "recognised as Go");
+    let text = html_text(&html);
+    for line in [
+        "type User struct {",
+        "func main() {",
+        "if err != nil {",
+        "\"github.com/gorilla/mux\"",
+    ] {
+        assert!(text.contains(line), "{line:?} missing from the listing");
+    }
+    assert!(!text.contains("s t r i n g"), "words of the listing still spread");
+}
+
+/// The text of some HTML: tags removed, the usual entities decoded.
+fn html_text(html: &str) -> String {
+    let mut text = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => text.push(ch),
+            _ => {}
+        }
+    }
+    text.replace("&quot;", "\"")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+}

@@ -56,6 +56,9 @@ pub struct Line {
     pub font: u16,
     /// The glyphs, left to right.
     pub glyphs: Vec<LineGlyph>,
+    /// Set on fixed columns in a proportional font, like a code listing of
+    /// the LaTeX `listings` package: its text counts as monospaced.
+    pub fixed_pitch: bool,
 }
 
 /// A run of rotated text (axis labels, the arXiv margin stamp), kept apart

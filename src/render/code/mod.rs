@@ -14,6 +14,9 @@ const MONO_ADVANCE_EM: f32 = 0.6;
 /// A gap of more than this many line pitches between two lines of code is
 /// an empty line of the listing.
 const BLANK_LINE_MIN_PITCHES: f32 = 1.6;
+/// Lines of a listing that start less than this apart (in font sizes) are
+/// at the same indentation level.
+const INDENT_LEVEL_TOLERANCE_EM: f32 = 0.4;
 /// Line pitch assumed for a listing of one line, in em of its font size.
 const LONE_LINE_PITCH_EM: f32 = 1.2;
 /// Listings with at least this many lines get line numbers.
@@ -69,11 +72,10 @@ pub(crate) fn is_code_paragraph(block: &Block) -> bool {
 /// kept where the gap between two paragraphs is more than
 /// [`BLANK_LINE_MIN_PITCHES`] line pitches.
 pub(crate) fn listing_lines(blocks: &[&Block]) -> Vec<String> {
-    let base = blocks
-        .iter()
-        .flat_map(|block| block.lines.iter())
-        .map(|line| line.bbox.x0)
-        .fold(f32::INFINITY, f32::min);
+    let all: Vec<&Line> = blocks.iter().flat_map(|block| block.lines.iter()).collect();
+    let starts = indent_starts(&all);
+    let base = starts.first().copied().unwrap_or(0.0);
+    let width = listing_char_width(&all);
     let pitch = line_pitch(blocks);
     let mut lines = Vec::new();
     let mut previous: Option<&Line> = None;
@@ -92,7 +94,8 @@ pub(crate) fn listing_lines(blocks: &[&Block]) -> Vec<String> {
             if hline.soft_hyphen {
                 text.push('-');
             }
-            let indent = ((line.bbox.x0 - base) / char_width(line)).round().max(0.0) as usize;
+            let start = indent_start(&starts, line.bbox.x0);
+            let indent = ((start - base) / width).round().max(0.0) as usize;
             lines.push(format!("{}{}", " ".repeat(indent), text.trim_start()));
             previous = Some(line);
         }
@@ -147,6 +150,46 @@ pub(crate) fn float_listing_lines(block: &Block) -> Option<Vec<String>> {
             })
             .collect(),
     )
+}
+
+/// The left edges at which the lines of a listing start, one per
+/// indentation level: edges within [`INDENT_LEVEL_TOLERANCE_EM`] of each
+/// other are one level (code set on fixed columns in a proportional font
+/// starts its lines a little apart), represented by the leftmost.
+fn indent_starts(lines: &[&Line]) -> Vec<f32> {
+    let mut edges: Vec<(f32, f32)> = lines.iter().map(|line| (line.bbox.x0, line.size)).collect();
+    edges.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut starts: Vec<f32> = Vec::new();
+    let mut last = f32::NEG_INFINITY;
+    for (edge, size) in edges {
+        if edge - last > INDENT_LEVEL_TOLERANCE_EM * size {
+            starts.push(edge);
+        }
+        last = edge;
+    }
+    starts
+}
+
+/// The indentation level (its start) of a line starting at `x0`.
+fn indent_start(starts: &[f32], x0: f32) -> f32 {
+    starts.iter().rev().find(|start| **start <= x0).copied().unwrap_or(x0)
+}
+
+/// The advance of one character of a listing, in points: the median over
+/// all its lines, so that every line is indented on the same columns.
+fn listing_char_width(lines: &[&Line]) -> f32 {
+    let mut widths: Vec<f32> = lines
+        .iter()
+        .flat_map(|line| line.glyphs.iter())
+        .filter(|glyph| glyph.text.chars().count() == 1)
+        .map(|glyph| glyph.x1 - glyph.x0)
+        .filter(|width| *width > 0.0)
+        .collect();
+    widths.sort_by(f32::total_cmp);
+    widths
+        .get(widths.len() / 2)
+        .copied()
+        .unwrap_or_else(|| MONO_ADVANCE_EM * lines.first().map_or(1.0, |line| line.size.max(1.0)))
 }
 
 /// The advance of one character of a monospaced line, in points.

@@ -217,6 +217,7 @@ mod tests {
             size: 10.0,
             font: 0,
             glyphs,
+            fixed_pitch: false,
         }
     }
 

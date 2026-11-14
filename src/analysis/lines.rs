@@ -7,7 +7,7 @@ use crate::backend::{Dir, FontInfo, Glyph, RawPage};
 use crate::common::geom::{Rect, median, weighted_mode};
 use crate::model::style::{BOLD, ITALIC, MATH, MONO, SANS, SUB, SUP};
 use crate::model::{Line, LineGlyph, RotatedText};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use unicode_normalization::UnicodeNormalization;
 
 /// A line of at most this many glyphs, all brackets or separators (")",
@@ -16,6 +16,14 @@ const FIXED_PITCH_BRACKETS_MAX: usize = 3;
 /// Equal open gaps in a row that make a short spread word ("err"), enough
 /// for a line next to a code listing to belong to it.
 const FIXED_PITCH_SHORT_RUN: usize = 2;
+/// Height (in points) of the bands of baselines in which copies of a glyph
+/// are looked for; a copy is looked for in its band and the two next to it,
+/// so offsets up to this height are found.
+const DUPLICATE_BAND_PT: f32 = 8.0;
+/// Glyphs without a Unicode value all have the text U+FFFD, so two
+/// different ones can sit close together: such a glyph is a copy of another
+/// only when their origins are within this distance (in points).
+const UNKNOWN_DUPLICATE_MAX_OFFSET_PT: f32 = 0.25;
 
 /// The default thresholds, as a constant so that [`merge_row`] and
 /// [`split_at_gaps`] (called from later stages that do not hold a
@@ -24,7 +32,7 @@ const FIXED_PITCH_SHORT_RUN: usize = 2;
 const DEFAULT_CONFIG: LinesConfig = LinesConfig {
     page_margin_pt: 5.0,
     near_black_max_value: 48,
-    duplicate_grid_per_pt: 4.0,
+    duplicate_max_offset_em: 0.1,
     rotated_max_angle_diff_deg: 2.0,
     rotated_max_offset_em: 0.25,
     rotated_max_backstep_em: 0.3,
@@ -93,10 +101,12 @@ pub struct LinesConfig {
     /// Colours whose three channels are all below this value are treated as
     /// black, so that text set in a very dark grey is not marked as coloured.
     pub near_black_max_value: u8,
-    /// Resolution (cells per point) of the grid on which glyph origins are
-    /// compared to find duplicates: the same text drawn twice within a
-    /// quarter point (fake bold, shadows) is kept once.
-    pub duplicate_grid_per_pt: f32,
+    /// The same text drawn again with its origin at most this far (in em of
+    /// its font size, horizontally and vertically) from an earlier copy is
+    /// one glyph drawn several times (fake bold, shadows, the white halo
+    /// that clears an underline around descenders) and is kept once. Two
+    /// real glyphs of the same text are at least a narrow advance apart.
+    pub duplicate_max_offset_em: f32,
     /// Largest difference (in degrees) between the angles of two rotated
     /// glyphs of the same run.
     pub rotated_max_angle_diff_deg: f32,
@@ -614,7 +624,7 @@ pub fn build_lines(raw: &RawPage, cfg: &LinesConfig) -> (Vec<Line>, Vec<RotatedT
 /// into line glyphs (in drawing order).
 fn collect_glyphs(raw: &RawPage, cfg: &LinesConfig) -> (Vec<LineGlyph>, Vec<RotatedText>) {
     let has_visible = raw.glyphs.iter().any(|glyph| !glyph.invisible);
-    let mut seen: HashSet<(i32, i32, u64)> = HashSet::new();
+    let mut copies = GlyphCopies::default();
     let mut glyphs: Vec<LineGlyph> = Vec::new();
     let mut rotated = RotatedRuns::default();
 
@@ -632,26 +642,41 @@ fn collect_glyphs(raw: &RawPage, cfg: &LinesConfig) -> (Vec<LineGlyph>, Vec<Rota
             rotated.push(glyph, cfg);
             continue;
         }
-        if !seen.insert(duplicate_key(glyph, cfg)) {
+        if let Some(kept) = copies.find(glyph, cfg) {
+            // The copy drawn last is the one on top, the one that is seen.
+            if glyphs[kept].color == display_color(glyph.color, cfg) {
+                glyphs[kept].extra.push((glyph.x, glyph.y));
+            } else {
+                let under = std::mem::replace(&mut glyphs[kept], line_glyph(glyph, cfg));
+                glyphs[kept].extra = under.extra;
+                glyphs[kept].extra.push((under.ox, under.oy));
+            }
             continue;
         }
-        glyphs.push(LineGlyph {
-            text: glyph.text.clone(),
-            x0: glyph.x,
-            x1: glyph.x + glyph.adv.max(0.0),
-            y: glyph.y,
-            size: glyph.size,
-            font: glyph.font,
-            script: 0,
-            space_before: false,
-            ink: glyph.ink,
-            ox: glyph.x,
-            oy: glyph.y,
-            extra: None,
-            color: display_color(glyph.color, cfg),
-        });
+        copies.insert(glyph, glyphs.len());
+        glyphs.push(line_glyph(glyph, cfg));
     }
     (glyphs, rotated.runs)
+}
+
+/// A glyph of the page as a glyph of a line (not yet raised, lowered or
+/// spaced).
+fn line_glyph(glyph: &Glyph, cfg: &LinesConfig) -> LineGlyph {
+    LineGlyph {
+        text: glyph.text.clone(),
+        x0: glyph.x,
+        x1: glyph.x + glyph.adv.max(0.0),
+        y: glyph.y,
+        size: glyph.size,
+        font: glyph.font,
+        script: 0,
+        space_before: false,
+        ink: glyph.ink,
+        ox: glyph.x,
+        oy: glyph.y,
+        extra: Vec::new(),
+        color: display_color(glyph.color, cfg),
+    }
 }
 
 /// Whether the glyph's origin lies clearly outside the page.
@@ -662,17 +687,49 @@ fn is_off_page(glyph: &Glyph, raw: &RawPage, cfg: &LinesConfig) -> bool {
         || glyph.y > raw.height + cfg.page_margin_pt
 }
 
-/// Key identifying a glyph drawn twice at (nearly) the same place: its
-/// origin on a fine grid and a hash of its text.
-fn duplicate_key(glyph: &Glyph, cfg: &LinesConfig) -> (i32, i32, u64) {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    glyph.text.hash(&mut hasher);
-    (
-        (glyph.x * cfg.duplicate_grid_per_pt).round() as i32,
-        (glyph.y * cfg.duplicate_grid_per_pt).round() as i32,
-        hasher.finish(),
-    )
+/// A kept glyph: its index among the line glyphs and its origin.
+type KeptGlyph = (usize, f32, f32);
+
+/// The glyphs kept so far on a page, by text and band of baselines, to find
+/// a glyph drawn again at (nearly) the same place.
+#[derive(Default)]
+struct GlyphCopies {
+    /// (hash of the text, band of the baseline) -> the kept glyphs.
+    by_band: HashMap<(u64, i32), Vec<KeptGlyph>>,
+}
+
+impl GlyphCopies {
+    /// Index of a kept glyph of which `glyph` is a copy (see
+    /// [`LinesConfig::duplicate_max_offset_em`]), if any.
+    fn find(&self, glyph: &Glyph, cfg: &LinesConfig) -> Option<usize> {
+        let tol = if glyph.text.contains('\u{FFFD}') {
+            UNKNOWN_DUPLICATE_MAX_OFFSET_PT
+        } else {
+            cfg.duplicate_max_offset_em * glyph.size
+        };
+        let (hash, band) = Self::key(glyph);
+        (band - 1..=band + 1)
+            .filter_map(|band| self.by_band.get(&(hash, band)))
+            .flatten()
+            .find(|(_, x, y)| (glyph.x - x).abs() <= tol && (glyph.y - y).abs() <= tol)
+            .map(|&(idx, _, _)| idx)
+    }
+
+    /// Records `glyph`, kept at index `idx`.
+    fn insert(&mut self, glyph: &Glyph, idx: usize) {
+        self.by_band
+            .entry(Self::key(glyph))
+            .or_default()
+            .push((idx, glyph.x, glyph.y));
+    }
+
+    /// Hash of the text and band of the baseline of a glyph.
+    fn key(glyph: &Glyph) -> (u64, i32) {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        glyph.text.hash(&mut hasher);
+        (hasher.finish(), (glyph.y / DUPLICATE_BAND_PT).floor() as i32)
+    }
 }
 
 /// The colour a glyph is shown in: near-black becomes black.
@@ -750,8 +807,10 @@ fn compose_accents(glyphs: &mut Vec<LineGlyph>, cfg: &LinesConfig) {
         let (accent_x0, accent_x1) = (glyphs[i].x0, glyphs[i].x1);
         let ink = glyphs[i].ink;
         let accent_origin = (glyphs[i].ox, glyphs[i].oy);
+        let accent_copies = std::mem::take(&mut glyphs[i].extra);
         let letter = &mut glyphs[target];
-        letter.extra = Some(accent_origin);
+        letter.extra.push(accent_origin);
+        letter.extra.extend(accent_copies);
         letter.text = composed;
         letter.x0 = letter.x0.min(accent_x0);
         letter.x1 = letter.x1.max(accent_x1);
@@ -1579,4 +1638,69 @@ fn find_host(slots: &[Option<Segment>], script_idx: usize, cfg: &LinesConfig) ->
         }
     }
     best.map(|(host_idx, _)| host_idx)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A horizontal glyph of 10 pt type at (`x`, 100) in `color`.
+    fn glyph(text: &str, x: f32, color: [u8; 3]) -> Glyph {
+        Glyph {
+            text: text.to_string(),
+            x,
+            y: 100.0,
+            adv: 5.0,
+            size: 10.0,
+            font: 0,
+            dir: Dir::Horizontal,
+            angle: 0.0,
+            invisible: false,
+            color,
+            ink: Rect::new(x, 93.0, x + 5.0, 100.0),
+        }
+    }
+
+    /// A page of 200 × 200 pt with these glyphs.
+    fn page(glyphs: Vec<Glyph>) -> RawPage {
+        RawPage {
+            width: 200.0,
+            height: 200.0,
+            glyphs,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn white_halo_copies_give_way_to_the_text_on_top() {
+        // An underlined "g": white copies shifted by half a point clear the
+        // rule around the descender, then the black letter is drawn on top.
+        let white = [255; 3];
+        let raw = page(vec![
+            glyph("g", 49.5, white),
+            glyph("g", 50.5, white),
+            glyph("g", 50.0, [0; 3]),
+        ]);
+        let (glyphs, _) = collect_glyphs(&raw, &LinesConfig::default());
+        assert_eq!(glyphs.len(), 1);
+        assert_eq!(glyphs[0].color, [0; 3]);
+        assert_eq!(glyphs[0].ox, 50.0);
+        let mut copies = glyphs[0].extra.clone();
+        copies.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert_eq!(copies, vec![(49.5, 100.0), (50.5, 100.0)]);
+    }
+
+    #[test]
+    fn neighbouring_equal_letters_are_not_copies() {
+        let raw = page(vec![glyph("l", 50.0, [0; 3]), glyph("l", 52.8, [0; 3])]);
+        let (glyphs, _) = collect_glyphs(&raw, &LinesConfig::default());
+        assert_eq!(glyphs.len(), 2);
+    }
+
+    #[test]
+    fn close_glyphs_without_unicode_are_kept() {
+        let raw = page(vec![glyph("\u{FFFD}", 50.0, [0; 3]), glyph("\u{FFFD}", 50.6, [0; 3])]);
+        let (glyphs, _) = collect_glyphs(&raw, &LinesConfig::default());
+        assert_eq!(glyphs.len(), 2);
+    }
 }

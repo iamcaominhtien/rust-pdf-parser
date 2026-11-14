@@ -58,7 +58,13 @@ impl Paper {
             source: self.source.clone(),
             ..Default::default()
         };
-        analyze(raw, &fonts, meta, opts)
+        let mut analysis = analyze(raw, &fonts, meta, opts);
+        // A cover that is a picture holds no title text: the document
+        // information of the PDF names the document then.
+        if analysis.doc.meta.title.is_none() {
+            analysis.doc.meta.title = self.pdf.info_title();
+        }
+        analysis
     }
 
     /// A renderer for pictures of pages and page regions. Not thread-safe:

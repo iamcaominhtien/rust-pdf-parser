@@ -141,6 +141,10 @@ pub struct FloatsConfig {
     /// Images covering more than this fraction of the page are page
     /// backgrounds (scans, watermarks) and are ignored.
     pub background_image_area_ratio: f32,
+    /// ... except on the first page when it has at most this many lines of
+    /// text: that is the cover of a book, a picture with its title and
+    /// authors on it, and it is kept as a figure.
+    pub cover_max_lines_count: usize,
     /// Paths spanning more than this fraction of the page in both
     /// directions are page frames or backgrounds and are ignored.
     pub background_path_extent_ratio: f32,
@@ -282,6 +286,14 @@ pub struct FloatsConfig {
     /// ... or a piece of the formula is within this many font sizes of
     /// the bar's end.
     pub inline_rule_max_gap_em: f32,
+    /// A horizontal rule at most this far (in em of the line's font size)
+    /// below the baseline of a text line ...
+    pub underline_max_drop_em: f32,
+    /// ... and within that line's extent, give or take this (in em), is an
+    /// underline of the text: not a table rule or a drawing. Table rules are
+    /// at least a strut's depth below the baseline of the row above them and
+    /// span several cells.
+    pub underline_overhang_em: f32,
 
     // --- tables without graphics ---
     /// A line with at least this many characters ...
@@ -424,6 +436,7 @@ impl Default for FloatsConfig {
             grid_cell_pt: 4.0,
             cluster_dilate_pt: 3.0,
             background_image_area_ratio: 0.92,
+            cover_max_lines_count: 12,
             background_path_extent_ratio: 0.95,
             min_path_alpha: 8,
             ruled_min_paths_count: 3,
@@ -470,6 +483,8 @@ impl Default for FloatsConfig {
             graphic_merge_pt: 8.0,
             inline_rule_band_ratio: 0.2,
             inline_rule_max_gap_em: 0.6,
+            underline_max_drop_em: 0.3,
+            underline_overhang_em: 0.5,
             fallback_prose_min_chars: 50,
             fallback_prose_width_ratio: 0.8,
             fallback_prose_min_width_pt: 150.0,
@@ -1176,14 +1191,15 @@ fn cluster_graphics(page: &PageData, cfg: &FloatsConfig) -> Vec<Component> {
 }
 
 /// The graphic elements of the page that can be part of a float: images
-/// that are not page backgrounds, rotated text (axis labels belong to the
+/// that are not page backgrounds (a book cover is not a background), rotated text (axis labels belong to the
 /// drawing they are part of, arXiv stamps do not), and visible paths that
 /// are not page frames or white fills.
 fn graphic_elements(page: &PageData, cfg: &FloatsConfig) -> Vec<GraphicElement> {
     let page_area = page.width * page.height;
     let mut elements: Vec<GraphicElement> = Vec::new();
+    let cover = page.index == 0 && page.lines.len() <= cfg.cover_max_lines_count;
     for image in &page.images {
-        if image.bbox.area() > cfg.background_image_area_ratio * page_area {
+        if image.bbox.area() > cfg.background_image_area_ratio * page_area && !cover {
             continue;
         }
         elements.push(GraphicElement {
@@ -1215,7 +1231,7 @@ fn graphic_elements(page: &PageData, cfg: &FloatsConfig) -> Vec<GraphicElement> 
         if path.color[3] < cfg.min_path_alpha {
             continue;
         }
-        if path.is_hrule() && inline_rule(page, &path.bbox, cfg) {
+        if path.is_hrule() && (inline_rule(page, &path.bbox, cfg) || underline(page, &path.bbox, cfg)) {
             continue;
         }
         elements.push(GraphicElement {
@@ -1225,6 +1241,20 @@ fn graphic_elements(page: &PageData, cfg: &FloatsConfig) -> Vec<GraphicElement> 
         });
     }
     elements
+}
+
+/// Whether a horizontal rule underlines text: it lies just below the
+/// baseline of a line and within that line's extent (see
+/// [`FloatsConfig::underline_max_drop_em`]).
+fn underline(page: &PageData, rule: &Rect, cfg: &FloatsConfig) -> bool {
+    let cy = rule.cy();
+    page.lines.iter().any(|line| {
+        let overhang = cfg.underline_overhang_em * line.size;
+        cy > line.baseline
+            && cy - line.baseline <= cfg.underline_max_drop_em * line.size
+            && rule.x0 >= line.bbox.x0 - overhang
+            && rule.x1 <= line.bbox.x1 + overhang
+    })
 }
 
 /// Whether a horizontal rule is a fraction bar in an equation

@@ -950,7 +950,7 @@ fn add_origins(set: &mut HashSet<(i32, i32)>, line: &Line) {
             continue;
         }
         set.insert(origin_key(glyph.ox, glyph.oy));
-        if let Some((x, y)) = glyph.extra {
+        for &(x, y) in &glyph.extra {
             set.insert(origin_key(x, y));
         }
     }

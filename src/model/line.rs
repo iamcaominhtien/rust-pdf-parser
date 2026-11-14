@@ -32,8 +32,10 @@ pub struct LineGlyph {
     pub ox: f32,
     /// Vertical coordinate of that origin (see [`LineGlyph::ox`]).
     pub oy: f32,
-    /// Origin of an accent glyph that was folded into this one.
-    pub extra: Option<(f32, f32)>,
+    /// Origins of other glyphs drawn as part of this one: an accent folded
+    /// into it, copies of it drawn at (nearly) the same place (fake bold, a
+    /// halo). The page picture without text leaves them out with it.
+    pub extra: Vec<(f32, f32)>,
     /// Fill colour as RGB.
     pub color: [u8; 3],
 }

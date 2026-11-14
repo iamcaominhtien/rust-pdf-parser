@@ -1800,7 +1800,7 @@ mod tests {
             ink: ink.unwrap_or(Rect::new(x, baseline - 0.7 * size, x1, baseline)),
             ox: x,
             oy: baseline,
-            extra: None,
+            extra: Vec::new(),
             color: [0; 3],
         }
     }

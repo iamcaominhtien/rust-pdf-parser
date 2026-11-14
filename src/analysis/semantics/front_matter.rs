@@ -197,7 +197,7 @@ pub(crate) fn classify_front_matter(
 /// The range of node indices (inclusive) of the title: the consecutive
 /// nodes on the first page, in its upper part, whose size is close to the
 /// largest size found there. Returns `None` when the largest text is not
-/// clearly larger than the body text.
+/// clearly larger than the body text, or is a known heading ("Contents").
 fn find_title(
     nodes: &[Node],
     first_page: usize,
@@ -233,7 +233,15 @@ fn find_title(
             }
         }
     }
-    title_range
+    // A heading such as "Contents" is not a title: the first page with text
+    // is then not a title page (the title is on a cover that is a picture).
+    title_range.filter(|&(start, end)| {
+        let text: Vec<String> = nodes[start..=end]
+            .iter()
+            .filter_map(|node| node.text_block().map(|block| block_text(&block.lines)))
+            .collect();
+        !KNOWN_HEADINGS.is_match(text.join(" ").trim())
+    })
 }
 
 /// Finds where the author block after the title ends: at the first text

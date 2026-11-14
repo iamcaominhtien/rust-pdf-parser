@@ -10,6 +10,11 @@ use hayro_interpret::{InterpreterCache, InterpreterSettings};
 use hayro_syntax::Pdf;
 use std::collections::HashMap;
 
+/// Endings and beginnings of document-info titles that name the file the
+/// PDF was made from rather than the document ("paper.tex", "Microsoft
+/// Word - draft.docx"); such a title is not used.
+const FILE_NAME_TITLE_MARKS: [&str; 7] = [".tex", ".dvi", ".pdf", ".doc", ".docx", ".indd", "Microsoft Word - "];
+
 /// A parsed PDF with at least one page.
 pub struct PdfFile {
     /// The parsed file.
@@ -67,6 +72,44 @@ impl PdfFile {
         );
         unify_fonts(extracted)
     }
+
+    /// The title in the document information of the PDF, with its
+    /// whitespace normalised; `None` when there is none or when it is a
+    /// file name (see [`FILE_NAME_TITLE_MARKS`]).
+    pub fn info_title(&self) -> Option<String> {
+        let raw = self.pdf.metadata().title.as_deref()?;
+        let title = decode_text_string(raw).split_whitespace().collect::<Vec<_>>().join(" ");
+        let is_file_name = FILE_NAME_TITLE_MARKS
+            .iter()
+            .any(|mark| title.ends_with(mark) || title.starts_with(mark));
+        (!title.is_empty() && !is_file_name).then_some(title)
+    }
+}
+
+/// A PDF text string as text: UTF-16 when it starts with a byte order mark,
+/// UTF-8 when it is valid UTF-8, otherwise PDFDocEncoding (read as Latin-1,
+/// which it matches for letters).
+fn decode_text_string(raw: &[u8]) -> String {
+    let utf16 = |bytes: &[u8], big_endian: bool| {
+        let units: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|pair| {
+                if big_endian {
+                    u16::from_be_bytes([pair[0], pair[1]])
+                } else {
+                    u16::from_le_bytes([pair[0], pair[1]])
+                }
+            })
+            .collect();
+        String::from_utf16_lossy(&units)
+    };
+    match raw {
+        [0xFE, 0xFF, rest @ ..] => utf16(rest, true),
+        [0xFF, 0xFE, rest @ ..] => utf16(rest, false),
+        _ => {
+            std::str::from_utf8(raw).map_or_else(|_| raw.iter().map(|&byte| char::from(byte)).collect(), str::to_string)
+        }
+    }
 }
 
 /// The fonts `page` refers to, as (index in the worker's registry, font
@@ -111,4 +154,17 @@ fn unify_fonts(extracted: Vec<(RawPage, Vec<(u16, FontInfo)>)>) -> (Vec<RawPage>
         raw.push(page);
     }
     (raw, infos)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_text_string;
+
+    #[test]
+    fn text_strings_are_decoded() {
+        assert_eq!(decode_text_string(b"Plain title"), "Plain title");
+        assert_eq!(decode_text_string(&[0xFE, 0xFF, 0x00, 0x4D, 0x00, 0xE9]), "Mé");
+        assert_eq!(decode_text_string(&[0x4D, 0xE9]), "Mé");
+        assert_eq!(decode_text_string("Mé".as_bytes()), "Mé");
+    }
 }

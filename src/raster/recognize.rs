@@ -645,7 +645,7 @@ fn placed_glyph(text: &str, font: u16, rect: &Rect, baseline: f32, size: f32, sc
         ink,
         ox: ink.x0,
         oy: baseline * scale,
-        extra: None,
+        extra: Vec::new(),
         color: [0; 3],
     }
 }

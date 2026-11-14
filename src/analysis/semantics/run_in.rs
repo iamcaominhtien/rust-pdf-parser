@@ -202,7 +202,7 @@ mod tests {
                     ink: Rect::new(x, baseline - 8.0, x + 10.0, baseline),
                     ox: x,
                     oy: baseline,
-                    extra: None,
+                    extra: Vec::new(),
                     color: [0, 0, 0],
                 });
                 x += 10.0;

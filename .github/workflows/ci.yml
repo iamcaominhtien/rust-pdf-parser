@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch or PR cancels the run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  # No debug info: smaller cache, faster linking.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+
+jobs:
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: lint
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    name: tests (real papers + browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: test
+
+      # The arXiv papers used by the tests. They are downloaded once, then
+      # restored from the repository's private cache (they are not committed
+      # because their licences do not allow redistribution).
+      - name: Restore test papers
+        id: papers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: tests/data/*.pdf
+          key: test-papers-${{ hashFiles('tests/data/papers.txt') }}
+      - name: Download test papers
+        if: steps.papers.outputs.cache-hit != 'true'
+        run: scripts/fetch-test-pdfs.sh
+
+      - name: cargo test
+        run: cargo test
+        env:
+          P2H_REQUIRE_ALL_PAPERS: "1"
+
+      # Behaviour that only a browser can check, with the Chrome preinstalled
+      # on the runner: hard-95 line fitting and reflow after translation;
+      # friendly themes, contents, phone widths and the book view; medium
+      # and friendly pages that stay still while their pictures load
+      # (inline and as separate files).
+      - name: Browser checks
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright-core@1.63.0
+          mkdir -p out out/files
+          for p in 1706.03762v7 1512.03385v1 1602.03837v1 1412.6980v9; do
+            target/debug/paper2html convert "tests/data/$p.pdf" -m hard-95 -o "out/$p.hard-95.html"
+            target/debug/paper2html convert "tests/data/$p.pdf" -m friendly -o "out/$p.friendly.html"
+            target/debug/paper2html convert "tests/data/$p.pdf" -m medium -o "out/$p.medium.html"
+          done
+          target/debug/paper2html convert tests/data/1412.6980v9.pdf -m friendly --images files -o out/files/1412.6980v9.friendly.html
+          node tests/browser/check-hard95.js out/*.hard-95.html
+          node tests/browser/check-friendly.js out/*.friendly.html
+          node tests/browser/check-stable.js out/*.medium.html out/*.friendly.html out/files/*.friendly.html
+        env:
+          P2H_CHROME_CHANNEL: chrome

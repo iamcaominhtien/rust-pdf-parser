@@ -104,20 +104,18 @@ const RARE: &[&str] = &["υ", "ο", "ϖ", "ϱ", "ϑ", "⌊", "⌋", "⌈", "⌉"
 /// from its width.
 const FLAT_MIN_ASPECT: f32 = 1.5;
 
+/// A mark this many times higher than wide is a comma or a prime, not a
+/// dot.
+const TALL_MARK_RATIO: f32 = 1.5;
+
 /// Least coverage of the pixels that make the box of a piece.
 const CORE_MIN_COVER: f32 = 0.4;
 
 /// The small symbols a small piece is read among.
-const SMALL: &[&str] = &[
-    ".", ",", "′", "'", "˙", "`", "ˆ", "˜", "¯", "¨", "ˇ", "˘", "−", "∘", "·",
-];
+const SMALL: &[&str] = &[".", ",", "′", "'", "˙", "ˆ", "˜", "¯", "¨", "ˇ", "˘", "−", "∘", "·"];
 
-/// Sizes of letters relative to the text: text, script, script of script.
-const LEVELS: [f32; 3] = [1.0, 0.7, 0.5];
-
-/// How much heavier the strokes of letters at each of the [`LEVELS`] are
-/// than those of the text font scaled to that size.
-const SCRIPT_WEIGHT_GAIN: [f32; 3] = [1.0, 1.2, 1.35];
+/// Size of scripts against the text.
+const SCRIPT_LEVEL: f32 = 0.7;
 
 /// The glyphs and rules read from a picture, in points.
 #[derive(Debug, Clone, Default)]
@@ -193,7 +191,7 @@ struct Match {
     score: f32,
     /// Size of the em the piece implies, in pixels.
     em_px: f32,
-    /// The size level it is set at (see [`LEVELS`]).
+    /// The size it is set at, against the text.
     level: f32,
 }
 
@@ -291,15 +289,29 @@ fn classify(
     allowed: impl Fn(&Template) -> bool,
 ) -> Option<Match> {
     let height = piece.rect.height();
-    if let Some(template) = piece.forced {
-        let em_px = implied_em(piece, &TEMPLATES[template]);
-        let (_, level) = size_penalty(&TEMPLATES[template], em_px, em);
-        return Some(Match {
-            template,
-            score: 1.0,
-            em_px,
-            level,
-        });
+    if let Some(forced) = piece.forced {
+        // The same glyph, of the same style, in the font of the size that
+        // fits best.
+        let (text, style) = (&TEMPLATES[forced].text, TEMPLATES[forced].font);
+        return TEMPLATES
+            .iter()
+            .enumerate()
+            .filter(|(_, template)| template.text == *text && template.font == style)
+            .map(|(template, candidate)| {
+                let em_px = implied_em(piece, candidate);
+                let (penalty, level) = size_penalty(candidate, em_px, em);
+                (
+                    penalty,
+                    Match {
+                        template,
+                        score: 1.0,
+                        em_px,
+                        level,
+                    },
+                )
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, found)| found);
     }
     if let Some(em) = em
         && piece.rect.width().max(height) <= cfg.dot_max_em * em
@@ -329,15 +341,11 @@ fn classify(
                 rows.iter()
                     .any(|row| (row - baseline).abs() <= cfg.script_baseline_tolerance_em * em)
             });
-            // Scripts are set in fonts of their own size (cmmi7, cmmi5),
-            // with heavier strokes than the text font scaled down.
-            let gain = LEVELS
-                .iter()
-                .zip(SCRIPT_WEIGHT_GAIN)
-                .find(|(size, _)| **size == level)
-                .map_or(1.0, |(_, gain)| gain);
-            let weight = (ink / (em_px * em_px) / (gain * template.ink_em2).max(1e-4)).ln().abs();
-            let rare = if matches!(template.font, font::BOLD | font::BOLD_ITALIC | font::FRAKTUR)
+            let weight = (ink / (em_px * em_px) / template.ink_em2.max(1e-4)).ln().abs();
+            let rare = if matches!(
+                template.font,
+                font::BOLD | font::BOLD_ITALIC | font::FRAKTUR | font::SCRIPT
+            ) || (template.font == font::SYMBOL && template.kind == Kind::Letter)
                 || RARE.contains(&template.text.as_str())
             {
                 cfg.rare_penalty
@@ -376,19 +384,16 @@ fn implied_em(piece: &Piece, template: &Template) -> f32 {
     }
 }
 
-/// How far the em `em_px` a template implies is from the sizes it may be
-/// set at (the logarithm of the ratio), and the nearest of them.
+/// How far the em `em_px` a template implies is from the size of its font
+/// in the formula (the logarithm of the ratio), and that size.
 fn size_penalty(template: &Template, em_px: f32, em: Option<f32>) -> (f32, f32) {
-    let Some(em) = em else { return (0.0, 1.0) };
+    let Some(em) = em else { return (0.0, template.level) };
     match template.kind {
-        Kind::Letter | Kind::Symbol | Kind::Accent => LEVELS
-            .iter()
-            .map(|&level| ((em_px / (em * level)).ln().abs(), level))
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-            .unwrap_or((0.0, 1.0)),
-        // Big operators and delimiters may be larger than the text, not
-        // smaller than a script.
-        Kind::BigOp | Kind::Delimiter => ((em_px / (em * LEVELS[1])).ln().min(0.0).abs(), 1.0),
+        Kind::Letter | Kind::Symbol | Kind::Accent => ((em_px / (em * template.level)).ln().abs(), template.level),
+        // Delimiters may be larger than the text, not smaller than a
+        // script; big operators are not smaller than the text.
+        Kind::Delimiter => ((em_px / (em * SCRIPT_LEVEL)).ln().min(0.0).abs(), 1.0),
+        Kind::BigOp => ((em_px / em).ln().min(0.0).abs(), 1.0),
     }
 }
 
@@ -601,16 +606,23 @@ fn fix_positions(glyphs: &mut [LineGlyph], main: f32) {
             continue;
         }
         let ink = glyph.ink;
+        // A dot is round; a comma or a prime is tall.
+        let tall = ink.height() > TALL_MARK_RATIO * ink.width();
         let Some(&(_, baseline, size)) = letters
             .iter()
             .filter(|(_, baseline, _)| (baseline - ink.cy()).abs() <= 0.8 * main)
             .min_by(|a, b| (a.0.cx() - ink.cx()).abs().total_cmp(&(b.0.cx() - ink.cx()).abs()))
         else {
+            // Nothing to compare with: a tall mark is a comma.
+            if tall && matches!(glyph.text.as_str(), "." | "·") {
+                glyph.text = ",".to_string();
+                glyph.font = font::ROMAN;
+            }
             continue;
         };
         let (text, font) = match glyph.text.as_str() {
-            "." | "·" if ink.cy() < baseline - 0.15 * size => ("·", font::SYMBOL),
-            "." | "·" => (".", font::ROMAN),
+            "." | "·" if !tall && ink.cy() < baseline - 0.15 * size => ("·", font::SYMBOL),
+            "." | "·" if !tall => (".", font::ROMAN),
             _ if ink.y1 > baseline - 0.1 * size => (",", font::ROMAN),
             _ => ("′", font::SYMBOL),
         };

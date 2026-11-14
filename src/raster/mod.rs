@@ -1,11 +1,11 @@
 //! Formulas from pictures: the ink of a picture of a formula (white
 //! background, black glyphs, as LaTeX renders them) recognised glyph by
-//! glyph against Latin Modern Math, then rebuilt like a formula of a PDF.
+//! glyph against the TeX fonts, then rebuilt like a formula of a PDF.
 
 mod recognize;
 mod shape;
 mod templates;
-mod woff2;
+mod tex;
 
 pub use recognize::{RasterConfig, Reading, read};
 
@@ -55,9 +55,9 @@ mod tests {
     /// then averaged: anti-aliased, like real pictures).
     const SUPER: usize = 4;
 
-    /// A picture of characters of the math font, each placed at (x, baseline)
-    /// in ems with a scale, and of bars (x0, x1, y in ems).
-    fn picture(glyphs: &[(char, f32, f32, f32)], bars: &[(f32, f32, f32)]) -> DynamicImage {
+    /// A picture of glyphs of TeX fonts (font, glyph name), each placed at
+    /// (x, baseline) in ems with a scale, and of bars (x0, x1, y in ems).
+    fn picture(glyphs: &[(&str, &str, f32, f32, f32)], bars: &[(f32, f32, f32)]) -> DynamicImage {
         let (width, height) = (5 * PX as usize, 3 * PX as usize);
         let big = PX * SUPER as f32;
         let mut ink = vec![0u32; width * SUPER * height * SUPER];
@@ -66,8 +66,8 @@ mod tests {
                 ink[y * width * SUPER + x] = 1;
             }
         };
-        for &(ch, x, baseline, scale) in glyphs {
-            let (mask, _) = templates::draw(ch, big * scale).expect("glyph");
+        for &(font, glyph, x, baseline, scale) in glyphs {
+            let (mask, _) = templates::draw(font, glyph, big * scale).expect("glyph");
             for row in 0..mask.height {
                 for col in 0..mask.width {
                     if mask.cover(col, row) > 0.0 {
@@ -104,33 +104,48 @@ mod tests {
     }
 
     #[test]
-    fn the_math_font_unpacks() {
-        let data = woff2::decode(crate::render::LATIN_MODERN_MATH).expect("woff2");
-        assert_eq!(&data[..4], b"OTTO");
-        assert!(templates::TEMPLATES.len() > 300);
+    fn the_tex_fonts_give_templates() {
+        assert!(templates::TEMPLATES.len() > 1000);
     }
 
     #[test]
     fn letters_and_operators() {
-        let img = picture(&[('𝑥', 0.5, 1.5, 1.0), ('+', 1.3, 1.5, 1.0), ('𝑦', 2.4, 1.5, 1.0)], &[]);
+        let img = picture(
+            &[
+                ("cmmi10", "x", 0.5, 1.5, 1.0),
+                ("cmr10", "plus", 1.3, 1.5, 1.0),
+                ("cmmi10", "y", 2.4, 1.5, 1.0),
+            ],
+            &[],
+        );
         assert!(read_math(&img).contains("<mi>x</mi><mo>+</mo><mi>y</mi>"));
     }
 
     #[test]
     fn a_bar_with_letters_above_and_below_is_a_fraction() {
-        let img = picture(&[('𝑎', 0.7, 1.1, 1.0), ('𝑏', 0.75, 2.1, 1.0)], &[(0.5, 1.5, 1.25)]);
+        let img = picture(
+            &[("cmmi10", "a", 0.7, 1.1, 1.0), ("cmmi10", "b", 0.75, 2.1, 1.0)],
+            &[(0.5, 1.5, 1.25)],
+        );
         assert!(read_math(&img).contains("<mfrac><mi>a</mi><mi>b</mi></mfrac>"));
     }
 
     #[test]
     fn a_small_raised_digit_is_a_superscript() {
-        let img = picture(&[('𝑥', 0.5, 1.5, 1.0), ('2', 1.1, 1.15, 0.7)], &[]);
+        let img = picture(&[("cmmi10", "x", 0.5, 1.5, 1.0), ("cmr7", "two", 1.1, 1.15, 0.7)], &[]);
         assert!(read_math(&img).contains("<msup><mi>x</mi><mn>2</mn></msup>"));
     }
 
     #[test]
     fn two_bars_are_an_equals_sign() {
-        let img = picture(&[('𝑎', 0.5, 1.5, 1.0), ('=', 1.3, 1.5, 1.0), ('1', 2.3, 1.5, 1.0)], &[]);
+        let img = picture(
+            &[
+                ("cmmi10", "a", 0.5, 1.5, 1.0),
+                ("cmr10", "equal", 1.3, 1.5, 1.0),
+                ("cmr10", "one", 2.3, 1.5, 1.0),
+            ],
+            &[],
+        );
         assert!(read_math(&img).contains("<mi>a</mi><mo>=</mo><mn>1</mn>"));
     }
 }

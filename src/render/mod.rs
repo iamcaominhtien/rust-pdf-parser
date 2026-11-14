@@ -8,7 +8,6 @@ mod friendly;
 mod hard;
 mod hard95;
 mod mathml;
-pub(crate) use mathml::LATIN_MODERN_MATH;
 mod medium;
 mod options;
 mod table;

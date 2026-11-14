@@ -1,13 +1,11 @@
-//! The glyphs a picture of a formula is compared with: the symbols of
-//! Latin Modern Math (the font of LaTeX formulas), drawn once from its
+//! The glyphs a picture of a formula is compared with: the glyphs of the
+//! TeX fonts formulas are set in, at their sizes, drawn once from their
 //! outlines.
 
 use super::shape::{Mask, Shape};
-use super::woff2;
-use crate::render::LATIN_MODERN_MATH;
-use skrifa::instance::{LocationRef, Size};
-use skrifa::outline::{DrawSettings, OutlinePen};
-use skrifa::{FontRef, MetadataProvider};
+use super::tex::{self, TEX_FONTS};
+use skrifa::outline::OutlinePen;
+use skrifa::{DrawMemory, Font, ScalerFont};
 use std::sync::LazyLock;
 
 /// Indices into the font table the rebuilt glyphs refer to (see
@@ -29,6 +27,8 @@ pub mod font {
     pub const BOLD_ITALIC: u16 = 6;
     /// Fraktur letters (`eufm`).
     pub const FRAKTUR: u16 = 7;
+    /// Script capitals (`rsfs`).
+    pub const SCRIPT: u16 = 8;
 }
 
 /// What a template is, for the way its size is judged.
@@ -64,6 +64,8 @@ pub struct Template {
     pub shape: Shape,
     /// Its number of separate pieces of ink (2 for `i`, `=`, `≤`).
     pub parts: usize,
+    /// The size of its font against the text (0.7 for the script fonts).
+    pub level: f32,
     /// Its amount of ink, in square ems (bold glyphs have more).
     pub ink_em2: f32,
     /// Space before the ink, in ems (the left side bearing).
@@ -86,193 +88,72 @@ const DRAW_PX_PER_EM: f32 = 96.0;
 /// Every template, built once.
 pub static TEMPLATES: LazyLock<Vec<Template>> = LazyLock::new(build);
 
-/// The math font, unpacked once.
-static FONT_DATA: LazyLock<Option<Vec<u8>>> = LazyLock::new(|| woff2::decode(LATIN_MODERN_MATH));
-
-/// The ink of the character `drawn` of the math font at `px_per_em` pixels
-/// per em, placed against its origin on the baseline (y downwards), and its
-/// advance in pixels.
-pub fn draw(drawn: char, px_per_em: f32) -> Option<(Mask, f32)> {
-    let font_ref = FontRef::new(FONT_DATA.as_deref()?).ok()?;
-    let id = font_ref.charmap().map(drawn)?;
-    let glyph = font_ref.outline_glyphs().get(id)?;
+/// The ink of the glyph `glyph` of the TeX font `font` (`cmmi10`) at
+/// `px_per_em` pixels per em, placed against its origin on the baseline (y
+/// downwards), and its advance in pixels.
+#[cfg(test)]
+pub fn draw(font: &str, glyph: &str, px_per_em: f32) -> Option<(Mask, f32)> {
+    let tex_font = TEX_FONTS.iter().find(|tex_font| tex_font.name == font)?;
+    let loaded = Font::new(tex_font.data, 0)?;
+    let id = loaded.glyph_by_name(glyph)?;
     let mut pen = Polygons::default();
-    glyph
-        .draw(
-            DrawSettings::unhinted(Size::new(px_per_em), LocationRef::default()),
-            &mut pen,
-        )
-        .ok()?;
-    let mask = pen.fill()?;
-    let metrics = font_ref.glyph_metrics(Size::new(px_per_em), LocationRef::default());
-    let advance = metrics.advance_width(id).unwrap_or(mask.width as f32);
-    Some((mask, advance))
+    let scaler = ScalerFont::unhinted(loaded.clone(), Some(px_per_em));
+    scaler.outline(id)?.draw(DrawMemory::Scratch, &mut pen).ok()?;
+    let advance = loaded.glyph_metrics().h_advance(id) * px_per_em / f32::from(loaded.units_per_em().max(1));
+    Some((pen.fill()?, advance))
 }
 
-/// Draws the templates of [`symbols`].
+/// Draws the templates of the glyphs of the TeX fonts that formulas use.
 fn build() -> Vec<Template> {
-    symbols()
-        .into_iter()
-        .filter_map(|(drawn, text, font, kind)| {
-            let (mask, advance) = draw(drawn, DRAW_PX_PER_EM)?;
-            let (top, bottom) = (mask.origin_y, mask.origin_y + mask.height as f32);
-            let before = mask.origin_x;
-            let after = advance - before - mask.width as f32;
-            Some(Template {
-                text,
-                font,
-                kind,
-                top_em: top / DRAW_PX_PER_EM,
-                bottom_em: bottom / DRAW_PX_PER_EM,
-                parts: mask.parts(),
-                ink_em2: mask.ink.iter().sum::<f32>() / (DRAW_PX_PER_EM * DRAW_PX_PER_EM),
-                before_em: before / DRAW_PX_PER_EM,
-                after_em: after / DRAW_PX_PER_EM,
-                shape: Shape::of(&mask),
-            })
-        })
-        .collect()
-}
-
-/// The symbols: the character drawn, the text it stands for, its font and
-/// kind.
-fn symbols() -> Vec<(char, String, u16, Kind)> {
-    let mut out = letters();
-    let mut add = |drawn: char, text: &str, font: u16, kind: Kind| out.push((drawn, text.to_string(), font, kind));
-    for symbol in "+=()[],.;:!?/%'".chars() {
-        let kind = if "()[]".contains(symbol) {
-            Kind::Delimiter
-        } else {
-            Kind::Symbol
-        };
-        add(symbol, &symbol.to_string(), font::ROMAN, kind);
-    }
-    for symbol in "−×·÷±∓≤≥≠≈∼≃≅≡∝∈∉∋⊂⊃⊆⊇∪∩∧∨¬→←↔⇒⇐⇔↦∞∂∇∀∃∅′∗∘⊗⊕⊙⊥⊤≪≫≺≻⪯⪰↑↓≲≳∖⋆†⋯…⋮⋱<>∣".chars()
-    {
-        add(symbol, &symbol.to_string(), font::SYMBOL, Kind::Symbol);
-    }
-    for symbol in "{}|‖⟨⟩⌊⌋⌈⌉√".chars() {
-        add(symbol, &symbol.to_string(), font::SYMBOL, Kind::Delimiter);
-    }
-    for symbol in "∑∏∐∫∮⋃⋂⨁⨂".chars() {
-        add(symbol, &symbol.to_string(), font::EXTENSION, Kind::BigOp);
-    }
-    for (drawn, text) in [
-        ('ˆ', "ˆ"),
-        ('˜', "˜"),
-        ('¯', "¯"),
-        ('˙', "˙"),
-        ('¨', "¨"),
-        ('ˇ', "ˇ"),
-        ('˘', "˘"),
-    ] {
-        add(drawn, text, font::ROMAN, Kind::Accent);
-    }
-    out
-}
-
-/// The letters and digits of every alphabet: the character drawn, the
-/// text it stands for, its font and kind.
-fn letters() -> Vec<(char, String, u16, Kind)> {
     let mut out = Vec::new();
-    let mut add = |drawn: char, text: &str, font: u16, kind: Kind| out.push((drawn, text.to_string(), font, kind));
-    for (offset, letter) in ('a'..='z').enumerate() {
-        let italic = if letter == 'h' { 'ℎ' } else { shifted('𝑎', offset) };
-        add(italic, &letter.to_string(), font::ITALIC, Kind::Letter);
-        add(letter, &letter.to_string(), font::ROMAN, Kind::Letter);
-        add(shifted('𝐚', offset), &letter.to_string(), font::BOLD, Kind::Letter);
-        add(
-            shifted('𝒂', offset),
-            &letter.to_string(),
-            font::BOLD_ITALIC,
-            Kind::Letter,
-        );
-        add(fraktur(letter), &letter.to_string(), font::FRAKTUR, Kind::Letter);
-    }
-    for (offset, letter) in ('A'..='Z').enumerate() {
-        add(shifted('𝐴', offset), &letter.to_string(), font::ITALIC, Kind::Letter);
-        add(letter, &letter.to_string(), font::ROMAN, Kind::Letter);
-        add(shifted('𝐀', offset), &letter.to_string(), font::BOLD, Kind::Letter);
-        add(
-            shifted('𝑨', offset),
-            &letter.to_string(),
-            font::BOLD_ITALIC,
-            Kind::Letter,
-        );
-        add(script(letter), &letter.to_string(), font::SYMBOL, Kind::Letter);
-        add(fraktur(letter), &letter.to_string(), font::FRAKTUR, Kind::Letter);
-    }
-    for (offset, digit) in ('0'..='9').enumerate() {
-        add(digit, &digit.to_string(), font::ROMAN, Kind::Letter);
-        add(shifted('𝟎', offset), &digit.to_string(), font::BOLD, Kind::Letter);
-    }
-    for (offset, greek) in ('α'..='ω').enumerate() {
-        if greek != 'ς' {
-            add(shifted('𝛼', offset), &greek.to_string(), font::ITALIC, Kind::Letter);
+    for tex_font in TEX_FONTS {
+        let Some(loaded) = Font::new(tex_font.data, 0) else {
+            continue;
+        };
+        let scale = DRAW_PX_PER_EM / f32::from(loaded.units_per_em().max(1));
+        let scaler = ScalerFont::unhinted(loaded.clone(), Some(DRAW_PX_PER_EM));
+        for (id, name) in loaded.glyph_names() {
+            let Some((text, kind)) = tex::glyph(tex_font.role, name.as_str()) else {
+                continue;
+            };
+            let mut pen = Polygons::default();
+            let Some(outline) = scaler.outline(id) else { continue };
+            if outline.draw(DrawMemory::Scratch, &mut pen).is_err() {
+                continue;
+            }
+            let Some(mask) = pen.fill() else { continue };
+            let advance = loaded.glyph_metrics().h_advance(id) * scale;
+            out.push(template(
+                mask,
+                advance,
+                text,
+                tex::output_font(tex_font.role),
+                kind,
+                tex_font.level,
+            ));
         }
     }
-    for (drawn, text) in [
-        ('𝜕', "∂"),
-        ('𝜖', "ϵ"),
-        ('𝜗', "ϑ"),
-        ('𝜙', "ϕ"),
-        ('𝜚', "ϱ"),
-        ('𝜛', "ϖ"),
-        ('ℓ', "ℓ"),
-    ] {
-        add(drawn, text, font::ITALIC, Kind::Letter);
-    }
-    for greek in "ΓΔΘΛΞΠΣΥΦΨΩ".chars() {
-        add(greek, &greek.to_string(), font::ROMAN, Kind::Letter);
-    }
-    for (drawn, text) in [
-        ('ℝ', "R"),
-        ('ℕ', "N"),
-        ('ℤ', "Z"),
-        ('ℚ', "Q"),
-        ('ℂ', "C"),
-        ('𝔼', "E"),
-        ('ℙ', "P"),
-    ] {
-        add(drawn, text, font::DOUBLE_STRUCK, Kind::Letter);
-    }
     out
 }
 
-/// The character `offset` places after `first` (in an alphabet of the
-/// mathematical alphanumerics block).
-fn shifted(first: char, offset: usize) -> char {
-    u32::try_from(offset)
-        .ok()
-        .and_then(|offset| char::from_u32(u32::from(first) + offset))
-        .unwrap_or(first)
-}
-
-/// The Fraktur form of `letter`.
-fn fraktur(letter: char) -> char {
-    match letter {
-        'C' => 'ℭ',
-        'H' => 'ℌ',
-        'I' => 'ℑ',
-        'R' => 'ℜ',
-        'Z' => 'ℨ',
-        'a'..='z' => shifted('𝔞', usize::from(u8::try_from(letter).unwrap_or(b'a') - b'a')),
-        _ => shifted('𝔄', usize::from(u8::try_from(letter).unwrap_or(b'A') - b'A')),
-    }
-}
-
-/// The script capital of `letter`.
-fn script(letter: char) -> char {
-    match letter {
-        'B' => 'ℬ',
-        'E' => 'ℰ',
-        'F' => 'ℱ',
-        'H' => 'ℋ',
-        'I' => 'ℐ',
-        'L' => 'ℒ',
-        'M' => 'ℳ',
-        'R' => 'ℛ',
-        _ => shifted('𝒜', usize::from(u8::try_from(letter).unwrap_or(b'A') - b'A')),
+/// The template of a glyph drawn as `mask` at [`DRAW_PX_PER_EM`], `advance`
+/// pixels wide.
+fn template(mask: Mask, advance: f32, text: String, font: u16, kind: Kind, level: f32) -> Template {
+    let (top, bottom) = (mask.origin_y, mask.origin_y + mask.height as f32);
+    let before = mask.origin_x;
+    let after = advance - before - mask.width as f32;
+    Template {
+        text,
+        font,
+        kind,
+        top_em: top / DRAW_PX_PER_EM,
+        bottom_em: bottom / DRAW_PX_PER_EM,
+        parts: mask.parts(),
+        level,
+        ink_em2: mask.ink.iter().sum::<f32>() / (DRAW_PX_PER_EM * DRAW_PX_PER_EM),
+        before_em: before / DRAW_PX_PER_EM,
+        after_em: after / DRAW_PX_PER_EM,
+        shape: Shape::of(&mask),
     }
 }
 

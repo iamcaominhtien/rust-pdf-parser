@@ -9,6 +9,7 @@ use super::semantics::*;
 use crate::analysis::blocks::{RawBlock, build_blocks};
 use crate::analysis::floats::{Float, FloatsConfig, detect_floats, join_caption_labels, table_caption_votes};
 use crate::analysis::furniture::remove_furniture;
+use crate::analysis::lines::join_math_letters;
 use crate::analysis::order::order_page;
 use crate::analysis::page::{DocStats, PageData, compute_stats};
 use crate::backend::{FontInfo, RawPage};
@@ -45,6 +46,9 @@ pub fn analyze(raw_pages: Vec<RawPage>, fonts: &[FontInfo], mut meta: Meta, opts
         .into_iter()
         .map(|raw| PageData::from_raw(raw, &layout.lines))
         .collect();
+    for page in &mut pages {
+        join_math_letters(&mut page.lines, fonts, &layout.lines);
+    }
     let stats = compute_stats(&pages, &layout.page);
     let furniture = remove_furniture(&mut pages, &layout.furniture);
     meta.arxiv_id = meta.arxiv_id.or(furniture.arxiv_id);

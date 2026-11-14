@@ -34,7 +34,7 @@ const MATH_STYLE: &str =
     "math.eq-math{font-family:\"Latin Modern Math\",\"STIX Two Math\",\"Cambria Math\",math;font-size:1.05em}\n";
 
 /// The `@font-face` rule of the embedded math font, built once.
-static MATH_FACE: LazyLock<String> =
+pub(crate) static MATH_FACE: LazyLock<String> =
     LazyLock::new(|| font_face("Latin Modern Math", "normal", "400", LATIN_MODERN_MATH));
 
 /// The styles a page with MathML formulas needs, with the math font

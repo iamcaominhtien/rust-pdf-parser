@@ -3,7 +3,10 @@
   --psans:Helvetica,Arial,"Nimbus Sans","Liberation Sans",sans-serif;
   --pmono:"Courier New",Courier,"Nimbus Mono PS","Liberation Mono",monospace;
   --math:"STIX Two Math","Cambria Math","Latin Modern Math","Times New Roman",Times,serif}
-body.cm{--serif:"Latin Modern Roman","CMU Serif","Computer Modern Serif","Times New Roman",Times,serif}
+body.cm{--serif:"P2H LM Roman","Latin Modern Roman","CMU Serif","Computer Modern Serif","Times New Roman",Times,serif;
+  --pmono:"P2H LM Mono","Latin Modern Mono","Courier New",Courier,monospace;
+  --math:"P2H LM Roman","Latin Modern Math","STIX Two Math","Cambria Math","Times New Roman",Times,serif}
+body.tm{--math:"P2H LM Roman","Latin Modern Math","STIX Two Math","Cambria Math","Times New Roman",Times,serif}
 @media (prefers-color-scheme:dark){:root{--desk:#24262b}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--desk)}
@@ -33,6 +36,7 @@ body.fit .page{width:min(100%,calc(var(--pw)*var(--zoom)*1px))}
 .b[data-kind="figure-text"],.b[data-kind="figure-text"] *{color:transparent!important}
 .rt{transform-origin:0 .84em}
 .ph,.tab{display:inline-block}
+.ph{color:transparent}
 /* Stacked glyphs in a line (inline fractions), each at its place in the PDF. */
 .sg{display:inline-block;position:relative;white-space:pre}
 .g{transform-origin:0 0}

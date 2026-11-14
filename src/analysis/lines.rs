@@ -20,6 +20,9 @@ const FIXED_PITCH_SHORT_RUN: usize = 2;
 /// are looked for; a copy is looked for in its band and the two next to it,
 /// so offsets up to this height are found.
 const DUPLICATE_BAND_PT: f32 = 8.0;
+/// The combining long solidus overlay, which TeX fonts give the slash that
+/// negates a relation (`\neq`, `\notin`).
+const NEGATION: char = '\u{0338}';
 /// Glyphs without a Unicode value all have the text U+FFFD, so two
 /// different ones can sit close together: such a glyph is a copy of another
 /// only when their origins are within this distance (in points).
@@ -619,6 +622,33 @@ pub fn build_lines(raw: &RawPage, cfg: &LinesConfig) -> (Vec<Line>, Vec<RotatedT
     (lines, rotated)
 }
 
+/// Removes the word spaces found after a letter of a math font that are
+/// only its italic correction: TeX math sets a product of letters ("Var",
+/// "xy") or a function and its argument ("f(x)") without space, but after
+/// a slanted letter it adds the part of the letter's ink that overhangs its
+/// advance, a gap as wide as a thin word space. The gap is measured again
+/// from the ink of the letter; the space stays when it is still wider than
+/// [`LinesConfig::space_gap_em`], and before a word of a text font.
+pub fn join_math_letters(lines: &mut [Line], fonts: &[FontInfo], cfg: &LinesConfig) {
+    let math = |glyph: &LineGlyph| fonts.get(glyph.font as usize).is_some_and(|font| font.math);
+    let letter = |glyph: &LineGlyph| {
+        let mut chars = glyph.text.chars();
+        matches!((chars.next(), chars.next()), (Some(ch), None) if ch.is_alphabetic())
+    };
+    for line in lines {
+        for i in 1..line.glyphs.len() {
+            let (prev, cur) = (&line.glyphs[i - 1], &line.glyphs[i]);
+            if !cur.space_before || !math(prev) || !letter(prev) || (letter(cur) && !math(cur)) {
+                continue;
+            }
+            let gap = cur.x0 - prev.x1.max(prev.ink.x1);
+            if gap <= cfg.space_gap_em * line.size {
+                line.glyphs[i].space_before = false;
+            }
+        }
+    }
+}
+
 /// Reads the glyphs of a page: drops hidden, blank, off-page and duplicate
 /// glyphs, collects rotated glyphs into runs, and turns the remaining ones
 /// into line glyphs (in drawing order).
@@ -794,7 +824,12 @@ fn compose_accents(glyphs: &mut Vec<LineGlyph>, cfg: &LinesConfig) {
             i += 1;
             continue;
         };
-        let Some(target) = accent_target(glyphs, i, cfg) else {
+        let target = if mark == NEGATION {
+            negation_target(glyphs, i, cfg)
+        } else {
+            accent_target(glyphs, i, cfg)
+        };
+        let Some(target) = target else {
             i += 1;
             continue;
         };
@@ -820,6 +855,35 @@ fn compose_accents(glyphs: &mut Vec<LineGlyph>, cfg: &LinesConfig) {
             // Removed an element after the target; stay at the same index.
             continue;
         }
+    }
+}
+
+/// Index of the symbol the negation slash at `slash_idx` crosses out (TeX
+/// draws `\neq` as a slash over `=`): the next or previous glyph, if it is
+/// one character that has a precomposed negated form (`=` → `≠`, `∈` → `∉`)
+/// and the inks of the two overlap enough. `None` when neither qualifies.
+fn negation_target(glyphs: &[LineGlyph], slash_idx: usize, cfg: &LinesConfig) -> Option<usize> {
+    let slash = &glyphs[slash_idx].ink;
+    let overlap = |other: &LineGlyph| -> f32 {
+        let mut chars = other.text.chars();
+        let (Some(ch), None) = (chars.next(), chars.next()) else {
+            return 0.0;
+        };
+        let composed: String = [ch, NEGATION].iter().collect::<String>().nfc().collect();
+        if composed.chars().count() != 1 {
+            return 0.0;
+        }
+        let ink = &other.ink;
+        (slash.x1.min(ink.x1) - slash.x0.max(ink.x0)) / slash.width().min(ink.width()).max(cfg.accent_min_width_pt)
+    };
+    let next = glyphs.get(slash_idx + 1).map_or(0.0, overlap);
+    let prev = slash_idx.checked_sub(1).map_or(0.0, |idx| overlap(&glyphs[idx]));
+    if next >= cfg.accent_min_overlap_ratio && next >= prev {
+        Some(slash_idx + 1)
+    } else if prev >= cfg.accent_min_overlap_ratio {
+        Some(slash_idx - 1)
+    } else {
+        None
     }
 }
 
@@ -1688,6 +1752,38 @@ mod tests {
         let mut copies = glyphs[0].extra.clone();
         copies.sort_by(|a, b| a.0.total_cmp(&b.0));
         assert_eq!(copies, vec![(49.5, 100.0), (50.5, 100.0)]);
+    }
+
+    /// A line glyph of 10 pt type with its advance from `x0` to `x1` and its
+    /// ink from `ink_x0` to `ink_x1`.
+    fn line_glyph_at(text: &str, (x0, x1): (f32, f32), (ink_x0, ink_x1): (f32, f32)) -> LineGlyph {
+        LineGlyph {
+            text: text.to_string(),
+            x0,
+            x1,
+            y: 100.0,
+            size: 10.0,
+            font: 0,
+            script: 0,
+            space_before: false,
+            ink: Rect::new(ink_x0, 93.0, ink_x1, 101.0),
+            ox: x0,
+            oy: 100.0,
+            extra: Vec::new(),
+            color: [0; 3],
+        }
+    }
+
+    #[test]
+    fn negation_slash_over_equals_is_not_equal() {
+        // TeX's \neq: a slash of no advance whose ink crosses the "=" after it.
+        let mut glyphs = vec![
+            line_glyph_at("\u{0338}", (50.0, 50.0), (51.0, 56.0)),
+            line_glyph_at("=", (50.0, 57.8), (50.6, 57.2)),
+        ];
+        compose_accents(&mut glyphs, &LinesConfig::default());
+        assert_eq!(glyphs.len(), 1);
+        assert_eq!(glyphs[0].text, "\u{2260}");
     }
 
     #[test]

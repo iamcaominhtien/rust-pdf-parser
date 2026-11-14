@@ -11,7 +11,7 @@
 //! capitals, a big operator in the text) keep their own size, and wide gaps
 //! (tabs, as in a table of contents) keep their width.
 
-use super::{Units, gaps_of, span_html, spans_h95};
+use super::{Units, esc, gaps_of, is_tall, span_html, spans_h95};
 use crate::common::geom::median;
 use crate::model::{Line, SUB, SUP, Span};
 
@@ -100,6 +100,7 @@ pub(super) fn line_html(line: &Line, spans: &[Span], units: &Units) -> (String, 
     let tabs = tabs_of(line);
     if runs.is_empty()
         && tabs.iter().all(Option::is_none)
+        && !line.glyphs.iter().any(is_tall)
         && !(0..line.glyphs.len()).any(|idx| own_size(line, idx).is_some())
     {
         return spans_h95(spans, &gaps);
@@ -140,10 +141,35 @@ fn tabs_of(line: &Line) -> Vec<Option<f32>> {
     tabs
 }
 
-/// Runs of consecutive raised or lowered glyphs that contain two stacked
-/// glyphs, as (first, end) glyph indices. Runs with a glyph that has no
-/// Unicode value are left out (such glyphs stay in the page picture).
+/// Runs of consecutive glyphs that contain two stacked glyphs, as (first,
+/// end) glyph indices: runs of raised or lowered glyphs (an inline fraction,
+/// a fraction as an exponent), and runs of glyphs that overlap each other
+/// horizontally (limits under `lim`, whose glyphs interleave with its
+/// letters from left to right), merged where they meet. Runs with a glyph
+/// that has no Unicode value are left out (such glyphs stay in the page
+/// picture).
 fn stacked_runs(line: &Line) -> Vec<(usize, usize)> {
+    let mut runs = off_baseline_runs(line);
+    runs.extend(overlapping_runs(line));
+    runs.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::new();
+    for (first, end) in runs {
+        match merged.last_mut() {
+            Some(last) if first < last.1 => last.1 = last.1.max(end),
+            _ => merged.push((first, end)),
+        }
+    }
+    merged.retain(|&(first, end)| {
+        has_stacked_pair(line, first, end)
+            && !line.glyphs[first..end]
+                .iter()
+                .any(|glyph| glyph.text.contains('\u{FFFD}'))
+    });
+    merged
+}
+
+/// Runs of consecutive raised or lowered glyphs, as (first, end) indices.
+fn off_baseline_runs(line: &Line) -> Vec<(usize, usize)> {
     let off_baseline = |idx: usize| (line.glyphs[idx].y - line.baseline).abs() > OFF_BASELINE_EM * line.size;
     let mut runs = Vec::new();
     let mut idx = 0;
@@ -156,8 +182,27 @@ fn stacked_runs(line: &Line) -> Vec<(usize, usize)> {
         while idx < line.glyphs.len() && off_baseline(idx) {
             idx += 1;
         }
-        let glyphs = &line.glyphs[first..idx];
-        if has_stacked_pair(line, first, idx) && !glyphs.iter().any(|glyph| glyph.text.contains('\u{FFFD}')) {
+        runs.push((first, idx));
+    }
+    runs
+}
+
+/// Runs of at least two consecutive glyphs each of which starts left of the
+/// right end of the ones before it in the run (by more than
+/// [`STACK_MIN_OVERLAP_PT`]), as (first, end) indices.
+fn overlapping_runs(line: &Line) -> Vec<(usize, usize)> {
+    let glyphs = &line.glyphs;
+    let mut runs = Vec::new();
+    let mut idx = 0;
+    while idx < glyphs.len() {
+        let first = idx;
+        let mut right = glyphs[idx].x1;
+        idx += 1;
+        while idx < glyphs.len() && glyphs[idx].x0 < right - STACK_MIN_OVERLAP_PT {
+            right = right.max(glyphs[idx].x1);
+            idx += 1;
+        }
+        if idx - first >= 2 {
             runs.push((first, idx));
         }
     }
@@ -212,7 +257,35 @@ fn glyph_of_chars(line: &Line, spans: &[Span]) -> Option<Vec<Option<usize>>> {
         map.push(None);
         Some(map)
     } else {
-        None
+        reordered_glyph_of_chars(&expected, &text)
+    }
+}
+
+/// [`glyph_of_chars`] for a text whose characters are the glyphs' in another
+/// order: the text of an inline fraction gives the numerator first, while
+/// the glyphs go from left to right (`√ d c − 1` for `c` over `√d−1`).
+/// Each character takes the first glyph not yet taken that stands for it;
+/// spaces stand for no glyph. Returns `None` unless every glyph is taken,
+/// except a hyphen at the end of the line that the text dropped.
+fn reordered_glyph_of_chars(expected: &[(char, Option<usize>)], text: &[char]) -> Option<Vec<Option<usize>>> {
+    let mut taken = vec![false; expected.len()];
+    let mut map = Vec::with_capacity(text.len());
+    for &ch in text {
+        if ch == ' ' {
+            map.push(None);
+            continue;
+        }
+        let pos = (0..expected.len()).find(|&pos| !taken[pos] && expected[pos].0 == ch)?;
+        taken[pos] = true;
+        map.push(expected[pos].1);
+    }
+    let left: Vec<usize> = (0..expected.len())
+        .filter(|&pos| !taken[pos] && expected[pos].0 != ' ')
+        .collect();
+    match left.as_slice() {
+        [] => Some(map),
+        [pos] if *pos + 1 == expected.len() && expected[*pos].0 == '-' => Some(map),
+        _ => None,
     }
 }
 
@@ -270,6 +343,20 @@ fn write_line(
                         (None, Some(&Some(next))) if ch == ' ' => text_info.tabs[next],
                         _ => None,
                     };
+                    // A tall glyph stays in the picture: an unseen gap.
+                    if let Some(glyph_idx) = glyph_of_char[pos]
+                        && is_tall(&line.glyphs[glyph_idx])
+                    {
+                        plain.flush(&mut out, span, &mut gaps, units);
+                        let glyph = &line.glyphs[glyph_idx];
+                        out.push_str(&format!(
+                            "<span class=\"ph\" style=\"width:{}\">{}</span>",
+                            units.len(glyph.x1 - glyph.x0),
+                            esc(&glyph.text)
+                        ));
+                        pos += 1;
+                        continue;
+                    }
                     if let Some(width) = tab {
                         plain.flush(&mut out, span, &mut gaps, units);
                         out.push_str(&format!(
@@ -337,8 +424,9 @@ fn cluster_html(
             css.push_str(&format!(";margin-right:{}", units.len(right - glyph.x1)));
         }
         cursor = glyph.x1;
+        let class = if is_tall(glyph) { "sg ph" } else { "sg" };
         out.push_str(&format!(
-            "<span class=\"sg\" style=\"{css}\">{}</span>",
+            "<span class=\"{class}\" style=\"{css}\">{}</span>",
             span_html(&style, &glyph.text, &mut [].iter())
         ));
     }
@@ -393,6 +481,25 @@ mod tests {
             glyphs,
             fixed_pitch: false,
         }
+    }
+
+    #[test]
+    fn inline_fraction_text_is_matched_to_its_glyphs() {
+        // "≤ c/√(d−1)": the text gives the numerator first, the glyphs go from
+        // left to right (the radical starts left of the "c" above it).
+        let mut fraction = line(&[0.0, 12.0, 15.0, 16.0, 19.0, 23.0]);
+        for (glyph, text) in fraction.glyphs.iter_mut().zip(["≤", "√", "d", "c", "−", "1"]) {
+            glyph.text = text.to_string();
+            glyph.space_before = false;
+        }
+        let spans = [Span {
+            text: "≤c √d−1".to_string(),
+            style: 0,
+            href: None,
+            color: [0; 3],
+        }];
+        let map = glyph_of_chars(&fraction, &spans).expect("the text is the glyphs reordered");
+        assert_eq!(map, vec![Some(0), Some(3), None, Some(1), Some(2), Some(4), Some(5)]);
     }
 
     #[test]

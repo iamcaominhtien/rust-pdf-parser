@@ -334,6 +334,9 @@ pub struct Document {
     pub leading: f32,
     /// PostScript name of the font of the running text.
     pub body_font: String,
+    /// PostScript name of the math font with the most glyphs (empty when
+    /// the document has no math font).
+    pub math_font: String,
     /// All content, in reading order.
     pub blocks: Vec<Block>,
 }

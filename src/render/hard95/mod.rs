@@ -22,15 +22,55 @@
 mod stacked;
 
 use super::assets::origin_key;
+use super::mathml::MATH_FACE;
 use super::*;
 use crate::common::geom::{Rect, median};
-use crate::model::Line;
+use crate::model::{Line, LineGlyph};
 use std::collections::HashSet;
 
 /// Style sheet of the mode, embedded in the page.
 const CSS: &str = include_str!("hard95.css");
 /// Script of the mode (zoom, line widths, reflow), embedded in the page.
 const JS: &str = include_str!("hard95.js");
+
+/// Latin Modern, the fonts of LaTeX, for papers set in Computer Modern:
+/// the text in the page then has the letter shapes and almost exactly the
+/// widths of the PDF, so that fraction bars and radicals drawn in the page
+/// picture stay over their text. Subsets with their vertical metrics set
+/// to put the baseline where this mode places it (see `fonts/README.md`).
+/// (family, style, weight, woff2 data).
+const LATIN_MODERN: [(&str, &str, &str, &[u8]); 5] = [
+    (
+        "P2H LM Roman",
+        "normal",
+        "400",
+        include_bytes!("fonts/lmroman10-regular.woff2"),
+    ),
+    (
+        "P2H LM Roman",
+        "italic",
+        "400",
+        include_bytes!("fonts/lmroman10-italic.woff2"),
+    ),
+    (
+        "P2H LM Roman",
+        "normal",
+        "700",
+        include_bytes!("fonts/lmroman10-bold.woff2"),
+    ),
+    (
+        "P2H LM Roman",
+        "italic",
+        "700",
+        include_bytes!("fonts/lmroman10-bolditalic.woff2"),
+    ),
+    (
+        "P2H LM Mono",
+        "normal",
+        "400",
+        include_bytes!("fonts/lmmono10-regular.woff2"),
+    ),
+];
 
 /// Distance of the baseline from the top of a line box whose line-height
 /// equals the font size, in em (typical for Times/Helvetica-like fonts).
@@ -40,6 +80,25 @@ const BASELINE: f32 = 0.84;
 /// relatives; such papers get the `cm` class, which selects a matching web
 /// font.
 const COMPUTER_MODERN_PREFIXES: [&str; 6] = ["cmr", "lmr", "lmroman", "cmu", "sfrm", "ecrm"];
+/// Parts of the (lower-cased) names of the math fonts of TeX (Computer
+/// Modern and Latin Modern); papers whose formulas use them get the `tm`
+/// class, which sets formulas in Latin Modern even when the text is in
+/// another font.
+const TEX_MATH_NAMES: [&str; 7] = ["cmmi", "cmsy", "cmex", "lmmi", "lmsy", "lmex", "latinmodern-math"];
+
+/// Characters whose glyphs stay in the page picture, where the text leaves
+/// a gap for them: glyphs without Unicode value (U+FFFD), which cannot be
+/// written, and radical signs, which TeX fonts hang below their origin and
+/// whose bar is a rule of the picture.
+const PICTURE_CHARS: [char; 2] = ['\u{FFFD}', '\u{221A}'];
+
+/// A glyph whose ink is taller than this (in em of its font size) is a big
+/// delimiter or operator of a formula (a parenthesis around a fraction, an
+/// integral sign): it stays in the page picture, drawn exactly. Ordinary
+/// parentheses are about 1 em tall. The same height as the analysis's
+/// `tall_glyph_min_height_em`, which gives such a glyph of a formula a run
+/// of its own.
+const TALL_GLYPH_MIN_EM: f32 = 1.3;
 
 /// Smallest and largest width of the gap left for a glyph without Unicode
 /// value, in em: keeps odd glyph boxes from making absurd gaps.
@@ -207,7 +266,10 @@ impl PageLayer<'_> {
     fn equation(&mut self, block: &Block) {
         if block.lines.first().is_some_and(|line| line.page == self.page_idx) {
             self.html.push_str(&equation(block, self.units));
-            block.lines.iter().for_each(|line| add_origins(&mut self.drawn, line));
+            block
+                .lines
+                .iter()
+                .for_each(|line| add_origins(&mut self.drawn, line, true));
         }
     }
 
@@ -221,7 +283,7 @@ impl PageLayer<'_> {
             .filter(|(line, _)| line.page == self.page_idx)
         {
             html.push_str(&placed_line(self.units, line, &hline.spans));
-            add_origins(&mut self.drawn, line);
+            add_origins(&mut self.drawn, line, true);
         }
         if !html.is_empty() {
             self.html.push_str(&format!(
@@ -240,7 +302,7 @@ impl PageLayer<'_> {
                 .lines
                 .iter()
                 .filter(|line| line.page == self.page_idx)
-                .for_each(|line| add_origins(&mut self.drawn, line));
+                .for_each(|line| add_origins(&mut self.drawn, line, true));
         }
     }
 
@@ -256,7 +318,7 @@ impl PageLayer<'_> {
                 block
                     .inner_lines
                     .iter()
-                    .for_each(|line| add_origins(&mut self.drawn, line));
+                    .for_each(|line| add_origins(&mut self.drawn, line, false));
             }
             // The text inside a figure (or of a table whose grid could not be
             // rebuilt faithfully) stays in the page picture, where it
@@ -282,7 +344,7 @@ impl PageLayer<'_> {
         let mut html = String::new();
         for loose_line in loose {
             html.push_str(&placed_line(self.units, &loose_line.line, &loose_line.spans));
-            add_origins(&mut self.drawn, &loose_line.line);
+            add_origins(&mut self.drawn, &loose_line.line, true);
         }
         if !html.is_empty() {
             self.html
@@ -384,6 +446,8 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
     let title = doc_title(doc);
     let lower = doc.body_font.to_ascii_lowercase();
     let computer_modern = COMPUTER_MODERN_PREFIXES.iter().any(|prefix| lower.contains(prefix));
+    let math_lower = doc.math_font.to_ascii_lowercase();
+    let tex_math = TEX_MATH_NAMES.iter().any(|name| math_lower.contains(name));
 
     let mut pages = String::new();
     for (page_idx, page) in doc.pages.iter().enumerate() {
@@ -391,6 +455,19 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
     }
 
     let source = arxiv_abs_link(doc);
+    // Computer Modern papers, and papers with TeX formulas, get Latin
+    // Modern, and Latin Modern Math for the symbols that the text fonts do
+    // not have.
+    let fonts = if (computer_modern || tex_math) && images.opts.embed_fonts {
+        let mut faces: String = LATIN_MODERN
+            .iter()
+            .map(|(family, style, weight, data)| font_face(family, style, weight, data))
+            .collect();
+        faces.push_str(&MATH_FACE);
+        faces
+    } else {
+        String::new()
+    };
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -400,9 +477,9 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
 <meta name="generator" content="paper2html (hard-95)">
 <title>{title}</title>
 <style>
-{CSS}</style>
+{fonts}{CSS}</style>
 </head>
-<body class="hard95 fit{cm}">
+<body class="hard95 fit{cm}{tm}">
 <div class="topbar"><span class="t">{title}</span>{source}<span>{n} pages</span><button id="zout" type="button" aria-label="Zoom out">−</button><button id="zfit" type="button">Fit</button><button id="zin" type="button" aria-label="Zoom in">+</button></div>
 <main class="pages">
 {pages}</main>
@@ -414,6 +491,7 @@ pub(crate) fn render(analysis: &Analysis, images: &mut ImageStore<'_>) -> String
         title = esc(&title),
         n = doc.pages.len(),
         cm = if computer_modern { " cm" } else { "" },
+        tm = if tex_math { " tm" } else { "" },
     )
 }
 
@@ -458,18 +536,25 @@ fn page_html(analysis: &Analysis, page_idx: usize, page: &PageInfo, images: &mut
     )
 }
 
-/// Widths (in em) of the glyphs of a line that have no Unicode value. Such
-/// glyphs stay in the picture of the page; the text leaves a gap for them.
+/// Whether a glyph of a line of text stays in the page picture because it
+/// is much taller than its font size (see [`TALL_GLYPH_MIN_EM`]).
+fn is_tall(glyph: &LineGlyph) -> bool {
+    glyph.text.chars().count() == 1 && glyph.ink.height() > TALL_GLYPH_MIN_EM * glyph.size
+}
+
+/// Widths (in em) of the glyphs of a line that stay in the picture of the
+/// page (see [`PICTURE_CHARS`]); the text leaves a gap for them.
 fn gaps_of(line: &Line) -> Vec<f32> {
     line.glyphs
         .iter()
-        .filter(|glyph| glyph.text.contains('\u{FFFD}'))
+        .filter(|glyph| glyph.text.contains(PICTURE_CHARS))
         .map(|glyph| ((glyph.x1 - glyph.x0) / line.size.max(1.0)).clamp(GAP_WIDTH_RANGE_EM.0, GAP_WIDTH_RANGE_EM.1))
         .collect()
 }
 
 /// One styled span as HTML. `text` is the part of the span's text to write;
-/// each U+FFFD in it becomes a gap whose width is taken from `gaps`.
+/// each character of [`PICTURE_CHARS`] in it becomes a gap whose width is
+/// taken from `gaps`.
 fn span_html(span: &Span, text: &str, gaps: &mut std::slice::Iter<'_, f32>) -> String {
     let mut classes: Vec<&str> = Vec::new();
     if span.style & MONO != 0 {
@@ -481,13 +566,26 @@ fn span_html(span: &Span, text: &str, gaps: &mut std::slice::Iter<'_, f32>) -> S
         classes.push("x");
     }
     let mut out = String::new();
-    for (i, piece) in text.split('\u{FFFD}').enumerate() {
-        if i > 0 {
-            let width_em = gaps.next().copied().unwrap_or(DEFAULT_GAP_EM);
-            out.push_str(&format!("<span class=\"ph\" style=\"width:{width_em:.3}em\"></span>"));
+    let mut piece = String::new();
+    for ch in text.chars() {
+        if !PICTURE_CHARS.contains(&ch) {
+            piece.push(ch);
+            continue;
         }
-        out.push_str(&esc(piece));
+        out.push_str(&esc(&piece));
+        piece.clear();
+        let width_em = gaps.next().copied().unwrap_or(DEFAULT_GAP_EM);
+        // A known character stays in the text (copied, read aloud), unseen.
+        let unseen = if ch == '\u{FFFD}' {
+            String::new()
+        } else {
+            ch.to_string()
+        };
+        out.push_str(&format!(
+            "<span class=\"ph\" style=\"width:{width_em:.3}em\">{unseen}</span>"
+        ));
     }
+    out.push_str(&esc(&piece));
     if span.style & SUP != 0 {
         out = format!("<sup>{out}</sup>");
     }
@@ -915,7 +1013,12 @@ fn equation(block: &Block, units: &Units) -> String {
             href: None,
             color: run.color,
         };
-        let html = span_html(&span, &run.text, &mut [].iter());
+        let mut html = span_html(&span, &run.text, &mut [].iter());
+        // A tall glyph (a big delimiter, an integral sign) stays in the page
+        // picture, exactly as drawn: the text is an unseen copy.
+        if run.ink.is_some_and(|ink| ink.height() > TALL_GLYPH_MIN_EM * run.size) {
+            html = format!("<span class=\"ph\">{html}</span>");
+        }
         let ink = run
             .ink
             .map(|ink| {
@@ -941,12 +1044,13 @@ fn equation(block: &Block, units: &Units) -> String {
 }
 
 /// Adds the origins of the glyphs of `line` that are written as text to the
-/// set of glyphs drawn as HTML (glyphs without Unicode value stay in the
-/// picture).
-fn add_origins(set: &mut HashSet<(i32, i32)>, line: &Line) {
+/// set of glyphs drawn as HTML (glyphs without Unicode value and radicals
+/// stay in the picture, and so do tall glyphs when `tall_in_picture`: in
+/// text and formulas, not in tables, whose cells write them as text).
+fn add_origins(set: &mut HashSet<(i32, i32)>, line: &Line, tall_in_picture: bool) {
     for glyph in &line.glyphs {
-        // Glyphs without a Unicode value cannot be written as text.
-        if glyph.text.contains('\u{FFFD}') {
+        // Glyphs left in the picture (see `PICTURE_CHARS` and `is_tall`).
+        if glyph.text.contains(PICTURE_CHARS) || (tall_in_picture && is_tall(glyph)) {
             continue;
         }
         set.insert(origin_key(glyph.ox, glyph.oy));

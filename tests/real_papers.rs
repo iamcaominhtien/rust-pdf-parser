@@ -86,6 +86,21 @@ fn figure_text_chars(html: &str) -> usize {
         .sum()
 }
 
+/// Characters of the glyphs that hard-95 leaves in the page picture on
+/// purpose (radicals, big delimiters and operators): each is written as an
+/// unseen copy in a `ph` element.
+fn picture_glyph_chars(html: &str) -> usize {
+    let tag = Regex::new(r"<[^>]*>").unwrap();
+    let open = Regex::new(r#"<span class="(?:sg )?ph"[^>]*>"#).unwrap();
+    open.find_iter(html)
+        .map(|m| {
+            let rest = &html[m.end()..];
+            let body = &rest[..rest.find("</span>").unwrap_or(rest.len())];
+            tag.replace_all(body, "").chars().filter(|c| !c.is_whitespace()).count()
+        })
+        .sum()
+}
+
 fn plain(spans: &[Span]) -> String {
     spans
         .iter()
@@ -275,7 +290,7 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
                 .filter(|(n, _)| n.ends_with(".svg"))
                 .map(|(_, d)| d.windows(5).filter(|w| w == b"<use ").count())
                 .sum();
-            glyphs_left = in_pictures.saturating_sub(figure_text_chars(&out.html));
+            glyphs_left = in_pictures.saturating_sub(figure_text_chars(&out.html) + picture_glyph_chars(&out.html));
         }
     }
     // Friendly mode with every formula as a picture.
@@ -1209,7 +1224,7 @@ fn attention_formulas_are_rebuilt() {
     assert_eq!(
         all[1].as_deref(),
         Some(
-            r"MultiHead(Q,K,V)&=Concat(head_{1},…,head_{h})W^{O}\\\text{where} head_{i}&=Attention(QW_{i}^{Q},KW_{i}^{K},V W_{i}^{V})"
+            r"MultiHead(Q,K,V)&=Concat(head_{1},…,head_{h})W^{O}\\\text{where} head_{i}&=Attention(QW_{i}^{Q},KW_{i}^{K},VW_{i}^{V})"
         )
     );
 }

@@ -73,8 +73,9 @@ HTML in the same position:
   a table whose grid cannot be rebuilt, the text of each cell is still real text placed at its
   position.
 - **Display formulas**: real text, placed by groups of symbols (numerator, denominator, subscripts,
-  summation limits). Large symbols (∑, tall brackets, radical signs) are scaled to match their
-  original size.
+  summation limits). Radical signs and tall symbols (big brackets, display-size ∑ and ∫) stay in
+  the page background, drawn exactly as in the PDF, with an invisible copy in the text. Inline
+  fractions, limits under `lim` and fractions in exponents are placed glyph by glyph too.
 - **Text inside figures** (including rotated axis labels): stays in the page background image, in
   the figure's original drawing order (a legend box can cover a label), together with a transparent
   HTML copy for selecting, searching and copying. A table whose rebuilt grid does not match the
@@ -134,7 +135,7 @@ or an arXiv URL (`https://arxiv.org/abs/1706.03762`).
 | `--page-image <svg\|svg-only\|png>` | Page background in `hard` and `hard-95` modes (default `svg`: SVG, but a page whose SVG would be over 1.5 MB, such as a plot of many thousands of points, as PNG when that is smaller; `svg-only` keeps every page SVG) |
 | `--tables <auto\|image>` | `auto` (default): build `<table>` when the table structure is clear. `image`: do not build (the table is an image in `medium`/`friendly`, and text placed by position in `hard-95`) |
 | `--equations <mathml\|image>` | How `medium` and `friendly` show display formulas. `mathml` (default): MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above). `image`: a picture of every formula |
-| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (Latin Modern Math, about 280 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
+| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (Latin Modern Math, about 280 KB), and in `hard-95` pages of papers set in TeX fonts Latin Modern (about 380 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
 | `--json` | Also write `<name>.json`, the document structure |
 | `-j, --jobs <N>` | Number of parallel threads. `0` (default): one thread per CPU core. `1`: no parallelism. The result is identical for every value |
 
@@ -312,9 +313,11 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
   stay pictures. A multi-line display is aligned on one relation per line; a second alignment point
   (`alignat`) is not kept. Equation numbers inside a multi-line display stay at the end of their
   line.
-- **Fonts**: `hard-95` uses the fonts already on the viewer's machine (Times/Helvetica/Courier
-  families) and does not embed the PDF's fonts, so the letter shapes may differ slightly from the
-  original; position and line width are matched.
+- **Fonts**: `hard-95` does not embed the PDF's own fonts. A paper set in Computer Modern gets
+  Latin Modern (the LaTeX fonts, about 100 KB, plus Latin Modern Math, about 280 KB), for its text
+  and its formulas; a paper with TeX formulas in another text font gets it for the formulas. Other
+  text uses the fonts already on the viewer's machine (Times/Helvetica/Courier families), so the
+  letter shapes may differ slightly from the original; position and line width are matched.
 - *Inline* formulas are real text with `<sub>`/`<sup>`; complex expressions (fractions, nested
   radicals) may be flattened.
 - A character for which the PDF gives no Unicode code appears as `�` in `medium`/`friendly`, and

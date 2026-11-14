@@ -20,7 +20,7 @@ use crate::model::FloatKind;
 use crate::model::Line;
 use crate::model::Loc;
 use crate::model::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Value of [`LineGlyph::script`] for a superscript glyph.
 const SUPERSCRIPT: i8 = 1;
@@ -165,9 +165,27 @@ pub(crate) fn build_document(
             .get(stats.body_font as usize)
             .map(|font| font.name.clone())
             .unwrap_or_default(),
+        math_font: main_math_font(pages, fonts),
         blocks,
     };
     (doc, loose)
+}
+
+/// PostScript name of the math font with the most glyphs, or an empty
+/// string when no glyph is in a math font.
+fn main_math_font(pages: &[PageData], fonts: &[FontInfo]) -> String {
+    let mut counts: HashMap<u16, usize> = HashMap::new();
+    for glyph in pages.iter().flat_map(|page| &page.lines).flat_map(|line| &line.glyphs) {
+        if fonts.get(glyph.font as usize).is_some_and(|font| font.math) {
+            *counts.entry(glyph.font).or_default() += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|&(font, count)| (count, std::cmp::Reverse(font)))
+        .and_then(|(font, _)| fonts.get(font as usize))
+        .map(|font| font.name.clone())
+        .unwrap_or_default()
 }
 
 /// Whether a glyph's text is one of the symbols used as footnote marks

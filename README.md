@@ -47,9 +47,10 @@ displays aligned on their `=` or `≤`. Bold, calligraphic, blackboard and frakt
 Unicode mathematical letters (`𝐱`, `ℒ`, `ℝ`, `𝔤`).
 
 A formula with anything that cannot be explained keeps its picture: a character without a Unicode
-code, symbols stacked without a bar (matrices, `cases`, `\underbrace`), a bar or a stray symbol
-that belongs to nothing. On 13 arXiv papers (the 8 test papers and 5 papers full of formulas),
-138 of 147 display formulas are written as MathML.
+code, symbols stacked without a bar or a tall bracket (`\underbrace`), a bar or a stray symbol
+that belongs to nothing, a drawing (a symbol drawn as a path, a diagram). Lines beside a tall
+bracket (`cases`, matrices) become a table. On 73 arXiv papers, 2608 of 2822 display formulas are
+written as MathML.
 
 MathML needs a math font. Pages with MathML embed a subset of Latin Modern Math, the math font of
 LaTeX (GUST Font License, about 280 KB), so formulas look as in the papers and the same on every
@@ -289,8 +290,8 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
   several rows when the table does not show clearly where the logical rows break. Cell background
   color is not kept.
 - **Display formulas**: real text in `hard-95`; MathML in `medium` and `friendly` where the
-  structure is clear (138 of 147 formulas on 13 papers), pictures elsewhere. Matrices,
-  `cases`, `\underbrace` and formulas whose picture also holds a piece of a neighbouring formula
+  structure is clear (2608 of 2822 formulas on 73 papers), pictures elsewhere. `\underbrace`,
+  formulas with a drawing and formulas whose picture also holds a piece of a neighbouring formula
   stay pictures. A multi-line display is aligned on one relation per line; a second alignment point
   (`alignat`) is not kept. Equation numbers inside a multi-line display stay at the end of their
   line.

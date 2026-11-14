@@ -146,6 +146,17 @@ pub struct BlocksConfig {
     /// a prose row, is the wrapped end of that paragraph: it is not
     /// promoted.
     pub weak_flush_max_indent_em: f32,
+    /// A row that is flush left (see `weak_flush_max_indent_em`) and ends
+    /// less than this many sizes from the right edge fills the column, as
+    /// lines of a paragraph do: with enough prose (see the next two fields),
+    /// it is no weak candidate.
+    pub weak_full_max_slack_em: f32,
+    /// ... with at least this many prose characters,
+    pub weak_full_min_prose_chars: f32,
+    /// ... or with some prose, on one baseline and at least this many
+    /// characters long (a short line with fractions above and below it,
+    /// like `where μ = (a)/(b) x + (c)/(d) y`, spans the column too).
+    pub weak_full_flat_min_chars: usize,
     /// Without a relation sign, a weak candidate has at least this fraction
     /// of math characters ...
     pub weak_min_math_ratio: f32,
@@ -277,6 +288,9 @@ impl Default for BlocksConfig {
             weak_max_prose_ratio: 0.85,
             weak_tiny_max_chars: 3,
             weak_flush_max_indent_em: 0.5,
+            weak_full_max_slack_em: 0.5,
+            weak_full_min_prose_chars: 6.0,
+            weak_full_flat_min_chars: 30,
             weak_min_math_ratio: 0.2,
             weak_math_max_prose_ratio: 0.3,
             promote_max_gap_leading: 0.9,
@@ -855,8 +869,14 @@ fn classify_text_row(
         let is_eq = is_equation(&features, ctx.cfg);
         // A formula-like line that did not qualify on its own; it is
         // promoted later if it sits right next to an equation row.
-        let weak_eq = !is_eq && weak_equation(&features, ctx.cfg);
         let flush = features.left_indent < ctx.cfg.weak_flush_max_indent_em * features.em;
+        // A line of prose that fills the column is a line of a paragraph,
+        // however much math it holds.
+        let prose_chars = features.prose_frac * features.n_chars as f32;
+        let prose = prose_chars >= ctx.cfg.weak_full_min_prose_chars
+            || (prose_chars > 0.0 && !features.multi && features.n_chars >= ctx.cfg.weak_full_flat_min_chars);
+        let full = flush && prose && features.right_slack < ctx.cfg.weak_full_max_slack_em * features.em;
+        let weak_eq = !is_eq && !full && weak_equation(&features, ctx.cfg);
         let ink = content.iter().fold(Rect::EMPTY, |acc, line| acc.union(&line.ink));
         (is_eq, weak_eq, ink, flush)
     };
@@ -1138,23 +1158,38 @@ fn merge_equation_rows(rows: Vec<Row>, stats: &DocStats, cfg: &BlocksConfig) -> 
 }
 
 /// Moves the text rows that a tall opening delimiter of an equation
-/// encloses (beside it, within its height) into that equation: the second
-/// line of `cases`, the rows of a matrix.
+/// encloses (beside it, within its height, above or below the line of the
+/// delimiter) into that equation: the lines of `cases`, the rows of a
+/// matrix.
 fn absorb_enclosed_rows(rows: Vec<Row>, cfg: &BlocksConfig) -> Vec<Row> {
+    let enclosed = |line: &Line, lines: &[Line]| {
+        let tol = cfg.enclosing_tolerance_pt;
+        enclosing_delimiters(lines, cfg)
+            .iter()
+            .any(|ink| line.ink.y0 >= ink.y0 - tol && line.ink.y1 <= ink.y1 + tol && line.ink.x0 >= ink.x1 - tol)
+    };
     let mut out: Vec<Row> = Vec::new();
-    for row in rows {
+    for mut row in rows {
         if let Row::Text(line) = &row
             && let Some(Row::Equation { lines, bbox, .. }) = out.last_mut()
-            && enclosing_delimiters(lines, cfg).iter().any(|ink| {
-                let tol = cfg.enclosing_tolerance_pt;
-                line.ink.y0 >= ink.y0 - tol && line.ink.y1 <= ink.y1 + tol && line.ink.x0 >= ink.x1 - tol
-            })
+            && enclosed(line, lines)
         {
             *bbox = bbox.union(&line.ink);
             if let Row::Text(line) = row {
                 lines.push(line);
             }
             continue;
+        }
+        // Rows above the line of the delimiter come before the equation.
+        if let Row::Equation { lines, bbox, .. } = &mut row {
+            while let Some(Row::Text(line)) = out.last()
+                && enclosed(line, lines)
+            {
+                *bbox = bbox.union(&line.ink);
+                if let Some(Row::Text(line)) = out.pop() {
+                    lines.insert(0, line);
+                }
+            }
         }
         out.push(row);
     }

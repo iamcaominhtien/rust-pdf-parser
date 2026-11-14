@@ -34,12 +34,14 @@ use crate::analysis::page::PageData;
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
 use crate::model::{BlockKind, Document, Line, MathNode};
+use unicode_normalization::UnicodeNormalization;
 
 /// Big operators whose limits TeX sets above and below them in displays.
 const BIG_OPERATORS: &[&str] = &["∑", "∏", "∐", "⋃", "⋂", "⨁", "⨂", "⨀", "⋁", "⋀", "⨄", "⨆"];
 /// Relations a multi-line display is aligned on.
 const RELATIONS: &[&str] = &[
-    "=", "≤", "≥", "<", ">", "≈", "≠", "≡", "∝", "∼", "≃", "≅", "⇒", "⇔", "≪", "≫", "≜", "≐",
+    "=", "≤", "≥", "<", ">", "≈", "≠", "≡", "∝", "∼", "≃", "≅", "⇒", "⇔", "≪", "≫", "≜", "≐", "≲", "≳", "⩽", "⩾", "≦",
+    "≧", "≔", "≝", "≍", "≺", "≻", "⪯", "⪰", "⟹", "⟸", "⟺", "⇐", "≉", "≢", "≁", "⊂", "⊆", "⊃", "⊇",
 ];
 /// Delimiters, which keep the height they have in the PDF.
 const DELIMITERS: &[&str] = &["(", ")", "[", "]", "{", "}", "|", "‖", "⟨", "⟩", "⌊", "⌋", "⌈", "⌉"];
@@ -365,8 +367,88 @@ pub fn build_math(doc: &mut Document, pages: &[PageData], fonts: &[FontInfo], cf
         let BlockKind::Equation { image, .. } = &block.kind else {
             continue;
         };
-        let rules = page_rules(&pages[block.page], &image.rect, cfg);
+        let page = &pages[block.page];
+        if has_drawing(page, &image.rect, cfg) {
+            continue;
+        }
+        let rules = page_rules(page, &image.rect, cfg);
         block.math = formula(&block.lines, &rules, fonts, cfg);
+    }
+}
+
+/// The text of a glyph as math: the micro sign of text fonts is the Greek
+/// letter mu, and the angle brackets of CJK and of the technical block are
+/// the mathematical ones (which math fonts have).
+fn math_text(text: &str) -> String {
+    text.chars()
+        .map(|ch| match ch {
+            'µ' => 'μ',
+            '\u{3008}' | '\u{2329}' => '⟨',
+            '\u{3009}' | '\u{232A}' => '⟩',
+            _ => ch,
+        })
+        .collect()
+}
+
+/// Joins a combining long solidus (U+0338, TeX's `\not`) to the glyph it
+/// is drawn over: `=` with it is `≠`, `∈` is `∉`. A glyph with no negated
+/// form keeps the combining character.
+fn negate_overstruck(items: &mut Vec<Item>) {
+    while let Some(slash) = items
+        .iter()
+        .position(|item| item.glyph().is_some_and(|glyph| glyph.text == "\u{338}"))
+    {
+        let ink = items[slash].ink;
+        let centre = |item: &Item| (item.ink.x0 + item.ink.x1) / 2.0;
+        let target = (0..items.len())
+            .filter(|&idx| idx != slash && items[idx].glyph().is_some() && items[idx].ink.y_overlap(&ink) > 0.0)
+            .min_by(|&a, &b| {
+                let off = |idx: usize| (centre(&items[idx]) - (ink.x0 + ink.x1) / 2.0).abs();
+                off(a).total_cmp(&off(b))
+            });
+        if let Some(target) = target
+            && let Content::Glyph(glyph) = &mut items[target].content
+        {
+            glyph.text = format!("{}\u{338}", glyph.text).nfc().collect();
+            let joined = items[target].ink.union(&ink);
+            items[target].ink = joined;
+        }
+        items.remove(slash);
+    }
+}
+
+/// Gives each big operator (`∑`, `∏`, ...) at most the font size of the
+/// text of the formula. Some fonts draw `∑` as a text glyph at a larger
+/// size rather than as a glyph of a math extension font: at its own size,
+/// the rest of the formula would look like its scripts. An operator with
+/// nothing level with it (only its limits) keeps its size.
+fn level_big_operators(items: &mut [Item], cfg: &MathConfig) {
+    let is_big = |item: &Item| {
+        item.glyph()
+            .is_some_and(|glyph| BIG_OPERATORS.contains(&glyph.text.as_str()))
+    };
+    let Some(text) = items
+        .iter()
+        .filter(|item| !is_big(item))
+        .map(|item| item.size)
+        .reduce(f32::max)
+    else {
+        return;
+    };
+    let level: Vec<bool> = items
+        .iter()
+        .map(|op| {
+            is_big(op)
+                && op.size > text
+                && items.iter().any(|item| {
+                    !is_big(item) && item.ink.y_overlap(&op.ink) > cfg.limit_level_overlap_ratio * item.ink.height()
+                })
+        })
+        .collect();
+    for (item, level) in items.iter_mut().zip(level) {
+        if level {
+            item.size = text;
+        }
     }
 }
 
@@ -385,8 +467,7 @@ fn formula(lines: &[Line], rules: &[Rect], fonts: &[FontInfo], cfg: &MathConfig)
             let (italic, text_font, alphabet) = font_style(font);
             items.push(Item {
                 content: Content::Glyph(Glyph {
-                    // The micro sign of text fonts is the Greek letter mu.
-                    text: glyph.text.replace('µ', "μ"),
+                    text: math_text(&glyph.text),
                     baseline: glyph.y,
                     size: glyph.size,
                     height_em: glyph.ink.height() / glyph.size.max(1.0),
@@ -403,6 +484,8 @@ fn formula(lines: &[Line], rules: &[Rect], fonts: &[FontInfo], cfg: &MathConfig)
             });
         }
     }
+    negate_overstruck(&mut items);
+    level_big_operators(&mut items, cfg);
     let size = items.iter().map(|item| item.size).fold(0.0, f32::max);
     if items.is_empty() || size <= 0.0 {
         return None;
@@ -416,6 +499,21 @@ fn formula(lines: &[Line], rules: &[Rect], fonts: &[FontInfo], cfg: &MathConfig)
         baseline: None,
     }));
     Parser { cfg, size }.group(items)
+}
+
+/// A drawing other than horizontal rules in `region` (a symbol drawn as a
+/// path, a diagram, a picture): MathML would leave it out, so the formula
+/// stays a picture. Paths that enclose the whole region (a coloured box
+/// behind the formula) do not count, nor do rules (fraction bars, and
+/// rules that only reach into the region, like a footnote rule).
+fn has_drawing(page: &PageData, region: &Rect, cfg: &MathConfig) -> bool {
+    let rule = |bbox: &Rect| bbox.height() <= cfg.rule_max_thickness_pt && bbox.width() >= cfg.rule_min_width_pt;
+    let drawn = |bbox: &Rect| bbox.intersects(region) && !bbox.contains(region);
+    page.paths
+        .iter()
+        .filter(|path| !path.is_white())
+        .any(|path| drawn(&path.bbox) && !rule(&path.bbox))
+        || page.images.iter().any(|image| drawn(&image.bbox))
 }
 
 /// The rules (thin horizontal paths) of `page` inside `region`.
@@ -779,7 +877,7 @@ impl Parser<'_> {
                 }
                 let under = self.limit(&items, &op, false);
                 let over = self.limit(&items, &op, true);
-                if under.is_empty() && over.is_empty() {
+                if under.is_empty() && over.is_empty() || !centred_limits(&items, &op, &under, &over) {
                     done.push(op[0]);
                     continue;
                 }
@@ -835,7 +933,16 @@ impl Parser<'_> {
             .filter_map(|item| item.glyph())
             .map(|glyph| glyph.text.as_str())
             .collect();
-        if parts.len() == 1 {
+        if let [part] = parts
+            && let Some(glyph) = part.glyph()
+            && !BIG_OPERATORS.contains(&glyph.text.as_str())
+        {
+            // A letter with limits (`𝔼`) stays a letter.
+            MathNode::Ident {
+                text: styled(&glyph.text, glyph.alphabet),
+                upright: !glyph.italic,
+            }
+        } else if parts.len() == 1 {
             operator(&text)
         } else {
             MathNode::Ident { text, upright: false }
@@ -1523,7 +1630,37 @@ fn big_operators(items: &[Item], word_gap: f32, step: f32) -> Vec<Vec<usize>> {
     if run.len() > 1 {
         ops.push(run);
     }
+    // An upright letter may have a limit too (`\mathop{\mathbb{E}}\limits`),
+    // when it is centred under it.
+    ops.extend(
+        (0..items.len())
+            .filter(|&idx| {
+                items[idx].glyph().is_some_and(|glyph| {
+                    !glyph.italic
+                        && !BIG_OPERATORS.contains(&glyph.text.as_str())
+                        && token_kind(&glyph.text) == TokenKind::Letter
+                })
+            })
+            .map(|idx| vec![idx]),
+    );
     ops
+}
+
+/// The limits found for the operator `op` are as limits of a single letter
+/// are: one under it, centred on it. Big operators and operator names may
+/// have limits above, wider, or set off to one side.
+fn centred_limits(items: &[Item], op: &[usize], under: &[usize], over: &[usize]) -> bool {
+    let single_letter = op.len() == 1
+        && items[op[0]]
+            .glyph()
+            .is_some_and(|glyph| !BIG_OPERATORS.contains(&glyph.text.as_str()));
+    if !single_letter {
+        return true;
+    }
+    let ink = items[op[0]].ink;
+    let span = under.iter().fold(Rect::EMPTY, |acc, &idx| acc.union(&items[idx].ink));
+    let centre = (span.x0 + span.x1) / 2.0;
+    over.is_empty() && !under.is_empty() && centre >= ink.x0 && centre <= ink.x1
 }
 
 /// Splits `items` into those whose index `take`s (with their index) and
@@ -1740,6 +1877,35 @@ mod tests {
     }
 
     #[test]
+    fn a_big_operator_drawn_larger_than_the_text_does_not_shrink_it() {
+        // A text-font ∑ at 15.7pt in a formula set at 10.9pt: what follows
+        // it is on the baseline, not its superscript.
+        let sum = glyph("∑", 1, 10.0, 103.0, 15.7, Some(Rect::new(10.0, 90.0, 22.0, 104.0)));
+        let math = rebuild(
+            vec![
+                sum,
+                glyph("p", 0, 13.0, 112.0, 8.0, None),
+                glyph("x", 0, 24.0, 100.0, 10.9, None),
+                glyph("≪", 2, 31.0, 100.0, 10.9, None),
+                glyph("1", 1, 38.0, 100.0, 10.9, None),
+            ],
+            &[],
+        );
+        let expected = MathNode::Row(vec![
+            MathNode::UnderOver {
+                base: Box::new(operator("∑")),
+                under: Some(Box::new(ident("p"))),
+                over: None,
+                accent: false,
+            },
+            ident("x"),
+            operator("≪"),
+            MathNode::Number("1".into()),
+        ]);
+        assert_eq!(math, Some(expected));
+    }
+
+    #[test]
     fn a_small_glyph_on_the_baseline_after_a_subscript_belongs_to_it() {
         let math = rebuild(
             vec![
@@ -1791,6 +1957,57 @@ mod tests {
             align: vec!["left", "left"],
         };
         assert_eq!(stack[1], expected);
+    }
+
+    #[test]
+    fn a_long_solidus_over_a_relation_negates_it() {
+        let math = rebuild(
+            vec![
+                glyph("j", 0, 10.0, 100.0, 10.0, None),
+                glyph(
+                    "\u{338}",
+                    2,
+                    17.0,
+                    100.0,
+                    10.0,
+                    Some(Rect::new(18.0, 92.0, 20.0, 102.0)),
+                ),
+                glyph("=", 1, 16.0, 100.0, 10.0, Some(Rect::new(16.0, 95.0, 22.0, 98.0))),
+                glyph("i", 0, 24.0, 100.0, 10.0, None),
+            ],
+            &[],
+        );
+        assert_eq!(math, Some(MathNode::Row(vec![ident("j"), operator("≠"), ident("i")])));
+    }
+
+    #[test]
+    fn an_upright_letter_takes_a_limit_centred_under_it() {
+        let math = rebuild(
+            vec![
+                glyph("E", 1, 10.0, 100.0, 10.0, None),
+                glyph("z", 0, 11.0, 106.0, 7.0, Some(Rect::new(11.5, 102.0, 14.0, 106.0))),
+                glyph("x", 0, 18.0, 100.0, 10.0, None),
+            ],
+            &[],
+        );
+        let expected = MathNode::Row(vec![
+            MathNode::UnderOver {
+                base: Box::new(MathNode::Ident {
+                    text: "E".into(),
+                    upright: true,
+                }),
+                under: Some(Box::new(ident("z"))),
+                over: None,
+                accent: false,
+            },
+            ident("x"),
+        ]);
+        assert_eq!(math, Some(expected));
+    }
+
+    #[test]
+    fn cjk_angle_brackets_are_math_ones() {
+        assert_eq!(math_text("\u{3008}h\u{3009}µ"), "⟨h⟩μ");
     }
 
     #[test]

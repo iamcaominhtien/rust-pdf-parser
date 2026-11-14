@@ -29,11 +29,15 @@ impl Mode {
     }
 }
 
-/// Image format of the page backgrounds in hard mode.
+/// Image format of the page backgrounds in hard and hard-95 modes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PageImage {
-    /// Vector SVG: sharp at every zoom level, usually the smaller file.
+    /// Vector SVG: sharp at every zoom level, usually the smaller file. A
+    /// page whose SVG would be very large (a plot of many thousands of
+    /// points) is drawn as a PNG all the same.
     Svg,
+    /// Vector SVG for every page, however large.
+    SvgOnly,
     /// Raster PNG: for viewers that render complex SVG slowly or wrongly.
     Png,
 }

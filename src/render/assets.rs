@@ -2,8 +2,8 @@
 //! after the HTML is written, on several threads.
 
 use super::*;
-use crate::backend::PageRenderer;
 use crate::backend::PdfFile;
+use crate::backend::{PageRenderer, svg_to_png};
 use crate::model::*;
 use base64::Engine;
 use std::collections::{HashMap, HashSet};
@@ -18,6 +18,15 @@ const ORIGIN_STEPS_PER_PT: f32 = 4.0;
 /// Highest pixels-per-point scale of a PNG page background: whole pages at
 /// a higher scale make very large files for little visible gain.
 const MAX_PAGE_PNG_SCALE: f32 = 2.5;
+
+/// Largest SVG page background, in bytes. A page with a plot of tens of
+/// thousands of points makes an SVG of tens of megabytes, which browsers
+/// load and draw slowly: such a page is drawn as a PNG instead, when that is
+/// smaller (a page that is mostly a photograph is not).
+const MAX_PAGE_SVG_BYTES: usize = 1_500_000;
+/// Pixels per PDF point of a page background drawn as a PNG because its
+/// SVG was too large.
+const HEAVY_PAGE_PNG_SCALE: f32 = 2.0;
 
 /// Prefix of an SVG line that draws a raster picture.
 const SVG_IMAGE_PREFIX: &str = "<image ";
@@ -102,12 +111,16 @@ impl ImageStore<'_> {
                 Some((png, "image/png", "png", hint.clone()))
             }
             ImageJob::Page(page) => match self.opts.page_image {
-                PageImage::Svg => Some((
-                    renderer.page_svg(*page)?.into_bytes(),
-                    "image/svg+xml",
-                    "svg",
-                    page_hint(*page),
-                )),
+                PageImage::Svg | PageImage::SvgOnly => {
+                    let svg = renderer.page_svg(*page)?;
+                    if self.too_heavy(&svg)
+                        && let Some((png, _, _)) = renderer.page_png(*page, HEAVY_PAGE_PNG_SCALE)
+                        && png.len() < svg.len()
+                    {
+                        return Some((png, "image/png", "png", page_hint(*page)));
+                    }
+                    Some((svg.into_bytes(), "image/svg+xml", "svg", page_hint(*page)))
+                }
                 PageImage::Png => {
                     let (png, _, _) = renderer.page_png(*page, self.opts.scale.min(MAX_PAGE_PNG_SCALE))?;
                     Some((png, "image/png", "png", page_hint(*page)))
@@ -121,9 +134,25 @@ impl ImageStore<'_> {
                     (-1..=1).any(|dx| (-1..=1).any(|dy| drawn.contains(&(qx + dx, qy + dy))))
                 };
                 let svg = pixels_to_rects(renderer.page_svg_without_text(*page, &remove)?);
+                if self.opts.page_image == PageImage::Png {
+                    let png = svg_to_png(&svg, self.opts.scale.min(MAX_PAGE_PNG_SCALE))?;
+                    return Some((png, "image/png", "png", page_hint(*page)));
+                }
+                if self.too_heavy(&svg)
+                    && let Some(png) = svg_to_png(&svg, HEAVY_PAGE_PNG_SCALE)
+                    && png.len() < svg.len()
+                {
+                    return Some((png, "image/png", "png", page_hint(*page)));
+                }
                 Some((svg.into_bytes(), "image/svg+xml", "svg", page_hint(*page)))
             }
         }
+    }
+
+    /// Whether an SVG page background is too large to keep as SVG (see
+    /// [`MAX_PAGE_SVG_BYTES`]); never with [`PageImage::SvgOnly`].
+    fn too_heavy(&self, svg: &str) -> bool {
+        self.opts.page_image == PageImage::Svg && svg.len() > MAX_PAGE_SVG_BYTES
     }
 
     /// Draws all recorded pictures and replaces the placeholders in `html`.

@@ -13,4 +13,4 @@ pub mod render;
 pub use extract::{Dir, Glyph, ImageBox, PathBox, RawPage};
 pub use file::PdfFile;
 pub use fonts::{FontInfo, FontRegistry};
-pub use render::PageRenderer;
+pub use render::{PageRenderer, svg_to_png};

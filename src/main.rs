@@ -147,8 +147,10 @@ enum EquationsArg {
     reason = "a doc comment on a variant becomes its help text and would change --help"
 )]
 enum PageImageArg {
-    // Pages as SVG (vector graphics, sharp at any zoom).
+    // Pages as SVG (vector graphics, sharp at any zoom); a very large page as PNG.
     Svg,
+    // Every page as SVG, however large.
+    SvgOnly,
     // Pages as PNG bitmaps.
     Png,
 }
@@ -174,7 +176,7 @@ struct ConvertArgs {
     /// Resolution of figure/equation images in pixels per PDF point
     #[arg(long, default_value_t = 3.0)]
     scale: f32,
-    /// Page background used by hard mode
+    /// Page background used by hard and hard-95 modes
     #[arg(long, value_enum, default_value = "svg")]
     page_image: PageImageArg,
     /// How tables are handled
@@ -372,6 +374,7 @@ fn write_mode(
         scale: args.scale,
         page_image: match args.page_image {
             PageImageArg::Svg => PageImage::Svg,
+            PageImageArg::SvgOnly => PageImage::SvgOnly,
             PageImageArg::Png => PageImage::Png,
         },
         jobs,

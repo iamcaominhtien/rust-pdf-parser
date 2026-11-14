@@ -563,6 +563,9 @@ fn glyph_text(unicode: Option<BfString>) -> String {
 /// spaces into plain spaces and soft or non-breaking hyphens into `-`, and
 /// dropping control characters, zero-width characters and the byte-order
 /// mark, so that text from different PDF producers compares equal.
+/// Private-use characters (a ligature such as "ft" that the font maps to a
+/// code of its own) become U+FFFD: no other font draws them, so the glyph
+/// must stay in the page picture.
 fn normalize_text(text: &str, out: &mut String) {
     for ch in text.chars() {
         match ch {
@@ -576,6 +579,7 @@ fn normalize_text(text: &str, out: &mut String) {
             '\u{00AD}' => out.push('-'),
             '\u{2010}' | '\u{2011}' => out.push('-'),
             '\u{0}'..='\u{1F}' | '\u{7F}' | '\u{200B}'..='\u{200F}' | '\u{FEFF}' => {}
+            '\u{E000}'..='\u{F8FF}' => out.push('\u{FFFD}'),
             other => out.push(other),
         }
     }
@@ -633,5 +637,18 @@ fn ink_box(outline_box: Option<kurbo::Rect>, transform: Affine, placement: &Glyp
             (origin.x + adv) as f32,
             origin.y as f32 + FALLBACK_INK_DESCENT_EM * size,
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_text;
+
+    #[test]
+    fn private_use_ligature_is_unknown() {
+        // Linux Libertine maps its "ft" ligature to U+E039.
+        let mut text = String::new();
+        normalize_text("le\u{E039}most", &mut text);
+        assert_eq!(text, "le\u{FFFD}most");
     }
 }

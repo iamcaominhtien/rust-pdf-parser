@@ -23,7 +23,7 @@
 //! allows it the full JSON is kept too, so `git diff` shows what changed.
 
 use paper2html::model::{BlockKind, FloatKind, MathNode, Span};
-use paper2html::{AnalyzeOptions, Equations, HtmlOptions, Mode, Paper};
+use paper2html::{AnalyzeOptions, Equations, HtmlOptions, Mode, PageImage, Paper};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
@@ -259,6 +259,16 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
         if mode == Mode::Hard95 {
             // Text inside figures stays in the page pictures on purpose (it
             // is drawn in the figure's own order); the rest should be HTML.
+            // Glyphs are counted in SVG pictures, so every page is one.
+            let out = paper.to_html(
+                &analysis,
+                &HtmlOptions {
+                    mode,
+                    inline_images: false,
+                    page_image: PageImage::SvgOnly,
+                    ..Default::default()
+                },
+            );
             let in_pictures: usize = out
                 .files
                 .iter()

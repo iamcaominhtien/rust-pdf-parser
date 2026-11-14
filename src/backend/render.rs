@@ -165,6 +165,23 @@ impl<'a> PageRenderer<'a> {
     }
 }
 
+/// Draws an SVG picture of a page (one written by
+/// [`PageRenderer::page_svg`], or a reduced copy of it) as a PNG on white,
+/// at `scale` pixels per point. Returns `None` when the SVG cannot be read.
+pub fn svg_to_png(svg: &str, scale: f32) -> Option<Vec<u8>> {
+    use resvg::{tiny_skia, usvg};
+    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
+    let size = tree.size().to_int_size().scale_by(scale)?;
+    let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height())?;
+    pixmap.fill(tiny_skia::Color::WHITE);
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    pixmap.encode_png().ok()
+}
+
 /// Parses a line that draws a glyph: returns the referenced glyph id and
 /// the glyph origin on the page, or `None` for any other line.
 ///

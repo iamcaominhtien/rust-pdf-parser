@@ -38,7 +38,7 @@ defined form of data and returns the next. The analysis side (PDF → `Document`
 | `paper.rs` | `Paper`: loads the PDF, runs the analysis, outputs HTML |
 | `config.rs` | `AnalyzeOptions` and `LayoutConfig` (every threshold of the algorithm) |
 | `source/` | PDF sources: `arxiv` (ID recognition, download, cache) |
-| `backend/` | Adapter around hayro: reads pages (`extract`), recognizes fonts (`fonts`), draws pages/regions (`render`) |
+| `backend/` | Adapter around hayro: reads pages (`extract`), recognizes fonts (`fonts`), draws pages/regions (`render`; resvg turns a very large SVG page into a PNG) |
 | `common/` | Shared code with no dependency on any other module: geometry, text styles, text handling, parallel execution |
 | `analysis/` | The analysis stages, orchestrated by `analysis/pipeline.rs` |
 | `model/` | `Document` and its sub-types: the output of analysis, the input of HTML output, and also JSON |
@@ -63,7 +63,7 @@ about HTML.
 | Configuration Object | `config::LayoutConfig`, one sub-struct per stage | Every threshold has a name, a doc, a unit, and lives in one place |
 | Rules (chain of rules) | Block classification in `analysis/blocks` and `analysis/semantics` | Each rule is a small function; adding or changing a rule does not touch the others |
 | Strategy | `render::Renderer` | The four modes share one interface; adding a mode = adding a module |
-| Adapter | `backend/` | Only one place depends on hayro |
+| Adapter | `backend/` | Only one place depends on hayro (and resvg) |
 | Builder | `analysis/semantics/text.rs` (`TextBuilder`), builds the `Document` | Build complex data step by step |
 
 No inheritance trees and no Visitor: `enum` + `match` is the natural Rust way to handle block kinds.

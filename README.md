@@ -131,7 +131,7 @@ or an arXiv URL (`https://arxiv.org/abs/1706.03762`).
 | `-o, --output <path>` | HTML file, or directory |
 | `--images <inline\|files>` | `inline` (default): embed images in the HTML, a single file. `files`: write images to the `<name>_assets/` directory |
 | `--scale <number>` | Resolution of figure/formula images, pixels per PDF point (default 3 ≈ 216 dpi) |
-| `--page-image <svg\|png>` | Page background in `hard` mode (default `svg`) |
+| `--page-image <svg\|svg-only\|png>` | Page background in `hard` and `hard-95` modes (default `svg`: SVG, but a page whose SVG would be over 1.5 MB, such as a plot of many thousands of points, as PNG when that is smaller; `svg-only` keeps every page SVG) |
 | `--tables <auto\|image>` | `auto` (default): build `<table>` when the table structure is clear. `image`: do not build (the table is an image in `medium`/`friendly`, and text placed by position in `hard-95`) |
 | `--equations <mathml\|image>` | How `medium` and `friendly` show display formulas. `mathml` (default): MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above). `image`: a picture of every formula |
 | `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (Latin Modern Math, about 280 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |

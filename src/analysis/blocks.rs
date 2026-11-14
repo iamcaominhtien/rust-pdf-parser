@@ -191,6 +191,14 @@ pub struct BlocksConfig {
     /// fractions are inline) when it has at least this many characters;
     /// a shorter one is the rest of the displayed formula.
     pub inline_fraction_min_chars: usize,
+    /// A row without an equation number that has at least this many of the
+    /// little words of sentences ([`SENTENCE_WORDS`]) is prose, however much
+    /// math it holds (`For every a ∈ T, one has Γa ∈ T.`).
+    pub sentence_min_words: usize,
+    /// A text row right below or above a big operator (`∑`) of an
+    /// equation, overlapping it, with a font at most this fraction of the
+    /// equation's, is a limit of the operator.
+    pub limit_max_size_ratio: f32,
 
     // --- footnotes ---
     /// Footnote text is at least this much smaller than the body size.
@@ -316,6 +324,8 @@ impl Default for BlocksConfig {
             fraction_bar_min_width_pt: 2.0,
             fraction_part_max_gap_em: 0.6,
             inline_fraction_min_chars: 30,
+            sentence_min_words: 4,
+            limit_max_size_ratio: 0.85,
             footnote_size_drop_pt: 0.4,
             footnote_rule_min_width_pt: 20.0,
             footnote_rule_max_width_ratio: 0.62,
@@ -566,8 +576,8 @@ pub fn build_blocks(
         attach_stray_numbers(&mut rows, &extent, stats, cfg);
         let rows = merge_equation_rows(rows, stats, cfg);
         let bars = fraction_bars(page, cfg);
-        let rows = absorb_enclosed_rows(rows, &bars, cfg);
         let rows = inline_numerators(rows, &bars, ctx);
+        let rows = absorb_enclosed_rows(rows, &bars, cfg);
         let fn_start = footnote_start(ctx, leaf, &rows, &extent);
         emit_blocks(ctx, rows, fn_start, loc, &mut out);
     }
@@ -887,7 +897,8 @@ fn classify_text_row(
             lines.iter().collect()
         };
         let features = RowFeatures::measure(ctx, &content, extent, isolated, number.is_some());
-        let is_eq = is_equation(&features, ctx.cfg);
+        let sentence = number.is_none() && sentence_words(&content) >= ctx.cfg.sentence_min_words;
+        let is_eq = !sentence && is_equation(&features, ctx.cfg);
         // A formula-like line that did not qualify on its own; it is
         // promoted later if it sits right next to an equation row.
         let flush = features.left_indent < ctx.cfg.weak_flush_max_indent_em * features.em;
@@ -897,7 +908,7 @@ fn classify_text_row(
         let prose = prose_chars >= ctx.cfg.weak_full_min_prose_chars
             || (prose_chars > 0.0 && !features.multi && features.n_chars >= ctx.cfg.weak_full_flat_min_chars);
         let full = flush && prose && features.right_slack < ctx.cfg.weak_full_max_slack_em * features.em;
-        let weak_eq = !is_eq && !full && weak_equation(&features, ctx.cfg);
+        let weak_eq = !is_eq && !full && !sentence && weak_equation(&features, ctx.cfg);
         let ink = content.iter().fold(Rect::EMPTY, |acc, line| acc.union(&line.ink));
         (is_eq, weak_eq, ink, flush)
     };
@@ -914,6 +925,28 @@ fn classify_text_row(
         let weak = weak_eq.then_some((lines.clone(), ink, flush));
         (Row::Text(merge_row(ctx.page.index, lines, ctx.lines_cfg)), weak)
     }
+}
+
+/// Big operators, whose limits are set above and below them.
+const BIG_OPERATORS: &[&str] = &["∑", "∏", "∐", "⋃", "⋂", "⨁", "⨂", "⨀", "⋁", "⋀", "⨄", "⨆"];
+
+/// Little words of English sentences, rare in displayed formulas.
+const SENTENCE_WORDS: &[&str] = &[
+    "the", "we", "is", "are", "that", "this", "which", "for", "and", "with", "have", "has", "be", "can", "then",
+    "when", "one", "of", "to", "in", "by", "as", "on", "from", "it", "its", "our", "every", "all", "now", "so",
+];
+
+/// How many words of `lines` are [`SENTENCE_WORDS`].
+fn sentence_words(lines: &[&Line]) -> usize {
+    lines
+        .iter()
+        .map(|line| {
+            line.text()
+                .split(|ch: char| !ch.is_ascii_alphabetic())
+                .filter(|word| SENTENCE_WORDS.iter().any(|known| known.eq_ignore_ascii_case(word)))
+                .count()
+        })
+        .sum()
 }
 
 /// The equation number of a row (lines sorted left to right): its last line
@@ -1183,8 +1216,8 @@ fn merge_equation_rows(rows: Vec<Row>, stats: &DocStats, cfg: &BlocksConfig) -> 
 /// below the line of the delimiter: the lines of `cases`, the rows of a
 /// matrix), and the numerator or denominator of one of its fractions (a row
 /// right above or below a fraction bar `bars` that reaches the equation,
-/// within the bar's width), which do not look like math on their own
-/// (`log(2)`).
+/// within the bar's width), and the limits of its big operators, which do
+/// not look like math on their own (`log(2)`).
 fn absorb_enclosed_rows(rows: Vec<Row>, bars: &[Rect], cfg: &BlocksConfig) -> Vec<Row> {
     let tol = cfg.enclosing_tolerance_pt;
     let belongs = |line: &Line, lines: &[Line], bbox: &Rect| {
@@ -1199,7 +1232,19 @@ fn absorb_enclosed_rows(rows: Vec<Row>, bars: &[Rect], cfg: &BlocksConfig) -> Ve
             let above = line.ink.y1 <= bar.y0 && bar.y0 - line.ink.y1 <= gap;
             within && reaches && (below || above)
         });
-        enclosed || fraction_part
+        let size = lines.iter().map(|line| line.size).fold(0.0, f32::max);
+        let limit = line.size <= cfg.limit_max_size_ratio * size
+            && lines
+                .iter()
+                .flat_map(|eq_line| &eq_line.glyphs)
+                .filter(|glyph| BIG_OPERATORS.contains(&glyph.text.as_str()))
+                .any(|op| {
+                    line.ink.x0 < op.ink.x1
+                        && line.ink.x1 > op.ink.x0
+                        && ((line.ink.y0 >= op.ink.y1 - tol && line.ink.y0 - op.ink.y1 <= gap)
+                            || (line.ink.y1 <= op.ink.y0 + tol && op.ink.y0 - line.ink.y1 <= gap))
+                });
+        enclosed || fraction_part || limit
     };
     let mut out: Vec<Row> = Vec::new();
     for mut row in rows {

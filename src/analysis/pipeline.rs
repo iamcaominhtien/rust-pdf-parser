@@ -189,5 +189,8 @@ fn font_style(font: &FontInfo) -> u8 {
     if font.sans {
         style |= SANS;
     }
+    if font.small_caps {
+        style |= SMALL_CAPS;
+    }
     style
 }

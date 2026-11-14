@@ -5,7 +5,7 @@
 
 use crate::backend::{Dir, FontInfo, Glyph, RawPage};
 use crate::common::geom::{Rect, median, weighted_mode};
-use crate::model::style::{BOLD, ITALIC, MATH, MONO, SANS, SUB, SUP};
+use crate::model::style::{BOLD, ITALIC, MATH, MONO, SANS, SMALL_CAPS, SUB, SUP};
 use crate::model::{Line, LineGlyph, RotatedText};
 use std::collections::HashMap;
 use unicode_normalization::UnicodeNormalization;
@@ -349,6 +349,9 @@ impl Line {
         }
         if font.sans {
             style |= SANS;
+        }
+        if font.small_caps {
+            style |= SMALL_CAPS;
         }
         match glyph.script {
             1 => style |= SUP,

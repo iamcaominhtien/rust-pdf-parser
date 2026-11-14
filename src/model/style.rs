@@ -18,3 +18,6 @@ pub const SUP: u8 = 16;
 pub const SUB: u8 = 32;
 /// Sans-serif font.
 pub const SANS: u8 = 64;
+/// Small-capitals font, whose lower-case letters are drawn as small
+/// capitals (the text keeps them lower case).
+pub const SMALL_CAPS: u8 = 128;

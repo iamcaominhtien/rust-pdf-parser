@@ -29,6 +29,7 @@ body.fit .page{width:min(100%,calc(var(--pw)*var(--zoom)*1px))}
 .tl .s{font-family:var(--psans)}
 .tl .m{font-family:var(--pmono)}
 .tl .x{font-family:var(--math)}
+.tl .sc{font-variant:small-caps}
 .pl,.g,.rt{position:absolute;white-space:pre}
 /* Targets of cross references; the margin keeps them clear of the top bar. */
 .anc{position:absolute;width:0;height:0;scroll-margin-top:64px}

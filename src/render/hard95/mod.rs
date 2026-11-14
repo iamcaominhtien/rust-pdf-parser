@@ -565,6 +565,9 @@ fn span_html(span: &Span, text: &str, gaps: &mut std::slice::Iter<'_, f32>) -> S
     if span.style & MATH != 0 {
         classes.push("x");
     }
+    if span.style & SMALL_CAPS != 0 {
+        classes.push("sc");
+    }
     let mut out = String::new();
     let mut piece = String::new();
     for ch in text.chars() {

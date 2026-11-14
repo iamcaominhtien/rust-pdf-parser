@@ -1224,7 +1224,7 @@ fn adam_formulas_are_rebuilt() {
         ))
     );
     assert_eq!(
-        all[19].as_deref(),
+        all[18].as_deref(),
         Some(
             r"∑\limits_{t=1}^{T}\frac{\accent{^}{m}_{t,i}^{2}}{\sqrt{t\accent{^}{v}_{t,i}}}≤\frac{2}{1−γ}\frac{1}{\sqrt{1−β_{2}}}‖g_{1:T,i}‖_{2}"
         )

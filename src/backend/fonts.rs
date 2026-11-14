@@ -6,6 +6,7 @@
 //! match glyphs back to fonts through the glyph identifier, which is a hash of
 //! the font program's contents and the glyph id.
 
+use super::mathabx::MathAbx;
 use hayro_font::{Font, FontCache, FontGlyph, GlyphId};
 use hayro_interpret::InterpreterSettings;
 use hayro_syntax::object::{Array, Dict, Name, Number, Stream};
@@ -157,6 +158,8 @@ pub struct FontInfo {
     pub math_pi: bool,
     /// The APS radical font (see [`RADICAL_PI_PREFIX`]).
     pub radical_pi: bool,
+    /// A font of `mathabx`, whose glyphs are read by character code.
+    pub mathabx: Option<MathAbx>,
     /// Sans-serif text font (never set for math or monospaced fonts).
     pub sans: bool,
 }
@@ -196,6 +199,7 @@ impl FontInfo {
             serif,
             math_pi,
             radical_pi: lower.starts_with(RADICAL_PI_PREFIX),
+            mathabx: MathAbx::from_name(&lower),
         }
     }
 }

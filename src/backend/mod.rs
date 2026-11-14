@@ -7,6 +7,7 @@
 pub mod extract;
 pub mod file;
 pub mod fonts;
+pub mod mathabx;
 pub mod render;
 
 pub use extract::{Dir, Glyph, ImageBox, PathBox, RawPage};

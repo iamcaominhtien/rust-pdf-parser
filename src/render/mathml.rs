@@ -69,7 +69,9 @@ fn write_node(node: &MathNode, out: &mut String) {
         MathNode::Number(text) => out.push_str(&format!("<mn>{}</mn>", esc(text))),
         MathNode::Operator { text, height_em } => {
             let mut attrs = match height_em {
-                Some(height) => format!(" minsize=\"{height:.2}em\" maxsize=\"{height:.2}em\""),
+                // Chromium stretches `|` and some other delimiters only at
+                // the ends of a row unless told to.
+                Some(height) => format!(" stretchy=\"true\" minsize=\"{height:.2}em\" maxsize=\"{height:.2}em\""),
                 None if STRETCHY.contains(&text.as_str()) => " stretchy=\"false\"".to_string(),
                 None => String::new(),
             };
@@ -98,7 +100,7 @@ fn write_node(node: &MathNode, out: &mut String) {
             }
             (Some(sub), Some(primes)) => {
                 out.push_str("<msubsup>");
-                write_node(base, out);
+                write_base(base, out);
                 write_node(sub, out);
                 out.push_str(&format!(
                     "<mpadded voffset=\"{PRIME_DROP}\"><mo lspace=\"0\" rspace=\"0\">{primes}</mo></mpadded></msubsup>"
@@ -158,11 +160,27 @@ fn write_table(rows: &[Vec<MathNode>], align: &[&str], out: &mut String) {
 
 /// Writes a base with its subscript and/or superscript.
 fn write_scripts(base: &MathNode, sub: Option<&MathNode>, sup: Option<&MathNode>, out: &mut String) {
-    match (sub, sup) {
-        (Some(sub), Some(sup)) => element("msubsup", "", &[base, sub, sup], out),
-        (Some(sub), None) => element("msub", "", &[base, sub], out),
-        (None, Some(sup)) => element("msup", "", &[base, sup], out),
-        (None, None) => write_node(base, out),
+    let tag = match (sub, sup) {
+        (Some(_), Some(_)) => "msubsup",
+        (Some(_), None) => "msub",
+        (None, Some(_)) => "msup",
+        (None, None) => return write_node(base, out),
+    };
+    out.push_str(&format!("<{tag}>"));
+    write_base(base, out);
+    sub.into_iter().chain(sup).for_each(|script| write_node(script, out));
+    out.push_str(&format!("</{tag}>"));
+}
+
+/// Writes the base of scripts. A delimiter of a given height is put in a
+/// row: as the base itself, Chromium does not stretch it (`|…|^{-1}`).
+fn write_base(base: &MathNode, out: &mut String) {
+    if matches!(base, MathNode::Operator { height_em: Some(_), .. }) {
+        out.push_str("<mrow>");
+        write_node(base, out);
+        out.push_str("</mrow>");
+    } else {
+        write_node(base, out);
     }
 }
 
@@ -230,7 +248,7 @@ mod tests {
         assert_eq!(
             out,
             "<mo stretchy=\"false\" lspace=\"0\" rspace=\"0\">(</mo>\
-             <mo minsize=\"2.40em\" maxsize=\"2.40em\" lspace=\"0\" rspace=\"0\">)</mo><mo>=</mo>"
+             <mo stretchy=\"true\" minsize=\"2.40em\" maxsize=\"2.40em\" lspace=\"0\" rspace=\"0\">)</mo><mo>=</mo>"
         );
     }
 
@@ -249,6 +267,21 @@ mod tests {
         assert_eq!(
             out,
             "<msubsup><mi>x</mi><mi>i</mi><mpadded voffset=\"-0.45em\"><mo lspace=\"0\" rspace=\"0\">′</mo></mpadded></msubsup>"
+        );
+    }
+
+    #[test]
+    fn a_tall_delimiter_with_scripts_is_in_a_row() {
+        let node = MathNode::Scripts {
+            base: Box::new(op("|", Some(2.4))),
+            sub: None,
+            sup: Some(Box::new(MathNode::Number("1".into()))),
+        };
+        let mut out = String::new();
+        write_node(&node, &mut out);
+        assert_eq!(
+            out,
+            "<msup><mrow><mo stretchy=\"true\" minsize=\"2.40em\" maxsize=\"2.40em\" lspace=\"0\" rspace=\"0\">|</mo></mrow><mn>1</mn></msup>"
         );
     }
 

@@ -73,7 +73,7 @@ by height as well, or set `@page { size: <PDF page size> }`.
 
 ## 5. `medium` / `friendly`
 
-- Display equations are still images.
+- Display equations whose structure cannot be rebuilt stay images (about 7% of them, see section 8).
 
 ## 6. Very long documents (about 1000 pages)
 
@@ -103,3 +103,70 @@ machine:
 - Downloads from arXiv are not rate-limited. arXiv asks automated tools to download slowly (their API
   guidelines say about 1 request every 3 seconds); downloading thousands of papers in a row may get
   blocked. We need to add rate limiting, or use arXiv's bulk data store.
+
+## 8. Formulas rebuilt as MathML from PDFs
+
+**Current state.** On 73 arXiv papers, 2607 of 2822 display formulas are written as MathML. They
+were checked by overlaying each MathML rendering on the picture of the formula (see "How to measure"
+below): 31 formulas score under 0.5 (from 106 before the fixes of that work), median 0.917.
+
+**Errors seen but not fixed:**
+
+- `\underbrace` and brace pieces (`⎪`) are not supported (the formula stays a picture).
+- `argmin` with a long limit under it: part of the limit is read as a subscript.
+- A `∑` limit merged with text next to it.
+- A hyphen in a word inside a formula (`log-sum-exp`) is read as a minus sign.
+- Short explanation lines (`where m̃ = m + max{sᵢ}`, `when z = g(…)`) still join the display above
+  them: they have too few sentence words (the rule needs four) to be told from a formula.
+- Inline fractions in a sentence: the numerators are given back to the sentence, but their text is
+  interleaved with the denominators (`v1/2 αt,t i`).
+- The picture of some formulas is cropped too tightly (the top of the formula is cut).
+
+**How to measure (scripts kept outside the repository).** Convert many papers twice, with
+`--equations mathml` and with `--equations image` (`medium`, `--images files`). Pair the
+equations of the two outputs by order. Take a screenshot of each `<math>` in Chromium with the
+embedded math font at 20 px, crop the ink of both pictures, scale the screenshot to the box of the
+picture, and score how much ink of each is covered by ink of the other, with each 40 px tile
+allowed to shift ±30 px sideways and ±4 px vertically (spacing drifts; misplaced scripts do not).
+Sort by score, look at the worst, fix by kind of error, run again and compare with the previous
+run by picture (only formulas whose MathML changed need new screenshots). Pairing breaks when the
+number of equation blocks changes, so pictures must be rebuilt in the same run.
+
+## 9. Formulas from pictures (`paper2html formula`)
+
+**Current state.** Experimental. The ink of the picture is cut into pieces and each is compared
+with glyphs of the TeX fonts (Computer Modern at 10/7/5 pt, AMS fonts, `dsfont`, `rsfs`), then the
+glyphs go through the same builder as formulas of PDFs. On the 2607 formula pictures of 73 papers
+(the answer being the MathML rebuilt from the PDF text): 58% read, 30% give exactly the same text,
+93% of the characters of the pictures read are right. Steps that made a difference: shapes from the
+grey level of pixels; boxes from the dark core of the ink (the anti-aliased edge shifted thin
+glyphs); templates from the real TeX fonts at their optical sizes (from 44%/22% with Latin Modern);
+advance boxes from the font metrics; size of flat symbols (`=`, `→`) from their width.
+
+**Confidence.** Each reading has a confidence (likeness of its least sure glyph, lead over the
+best other glyph; `formula --scores`). It does not separate right from wrong readings yet: with
+thresholds chosen on half the papers for 95%, the other half gets 77% at 5% of the pictures; for
+80%, 74% at 19%. So no threshold is applied. The goal was 95% right among the readings given.
+
+**Most frequent misreadings:** `|` read as `]` (56), comma read as `.` (51) or `′` (40), `D` as
+`𝒟` (42), `.` as `·` (37), `F` as `Γ` (25), `1` as `I` (25), `)` as `⟩` (18), `f` as `∫` (17). The
+paper 1303.5113 (Fraktur, unusual symbols) makes up much of the unread pictures. Pictures in other
+fonts (Times, as in the LIGO paper) are not read.
+
+**Ideas, not done:**
+
+- Tell `|` from `]` by the rows of the piece: a straight stroke has rows of equal width centred at
+  the same place. A first try made `;` and `]` read as `!`, and was dropped.
+- Use context more: `1` against `I`, `D` against `𝒟` by the letters around them; a comma on the
+  baseline after a subscript.
+- A stronger confidence: draw the glyphs read at their place and compare with the picture, or
+  render the MathML and overlay it on the picture (as in section 8, which needs a browser).
+- For pictures not set in TeX fonts, a learned model (pix2tex, Texify) would do better than
+  templates.
+
+**How to measure (scripts kept outside the repository).** Run `paper2html formula` on the
+equation pictures of the papers of section 8 (several pictures per call; one line per picture),
+compare the text of the `mi`/`mn`/`mo` elements with that of the MathML from the PDF, counting
+look-alikes as equal (`∆`/`Δ`, `φ`/`ϕ`, `‖`/`||`), and list the confusions of readings of the
+same length.
+

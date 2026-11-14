@@ -5,7 +5,7 @@
     if(page.dataset.fit)return;page.dataset.fit='1';
     var w=page.getBoundingClientRect().width,ls=page.querySelectorAll('.l'),m=[],i;
     for(i=0;i<ls.length;i++)m.push(ls[i].getBoundingClientRect().width);
-    for(i=0;i<ls.length;i++){var t=parseFloat(ls[i].dataset.w)/100*w;if(m[i]>0&&t>0)ls[i].style.transform='scaleX('+(t/m[i]).toFixed(4)+')';}
+    for(i=0;i<ls.length;i++){var t=Number.parseFloat(ls[i].dataset.w)/100*w;if(m[i]>0&&t>0)ls[i].style.transform='scaleX('+(t/m[i]).toFixed(4)+')';}
   }
   var pages=document.querySelectorAll('.page');
   if('IntersectionObserver' in window){

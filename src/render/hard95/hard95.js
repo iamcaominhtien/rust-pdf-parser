@@ -38,7 +38,7 @@
   function fitAll(els,pageW){
     var items=[],i;
     for(i=0;i<els.length;i++){
-      var el=els[i],target=parseFloat(el.dataset.w)/100*pageW;
+      var el=els[i],target=Number.parseFloat(el.dataset.w)/100*pageW;
       if(!(target>0))continue;
       scaleType(el,1);
       var nat=measure(el);
@@ -51,12 +51,12 @@
     items.forEach(function(it){apply(it,base);});
   }
   function apply(it,base){
-    var el=it.el,fs=parseFloat(getComputedStyle(el).fontSize),target=it.target,nat=it.nat;
+    var el=it.el,fs=Number.parseFloat(getComputedStyle(el).fontSize),target=it.target,nat=it.nat;
     var ratio=it.just&&base!==null?base:target/nat;
     if(ratio<FIT_SHRINK_FROM){
       var k=Math.max(ratio,FIT_MIN_SCALE);
       scaleType(el,k);
-      nat=measure(el);fs=parseFloat(getComputedStyle(el).fontSize);
+      nat=measure(el);fs=Number.parseFloat(getComputedStyle(el).fontSize);
     }
     var d=target-nat,txt=el.textContent,gaps=(txt.match(/ /g)||[]).length,n=Array.from(txt.replace(/[\u0300-\u036f\u20d0-\u20ff\ufe00-\ufe0f]/g,'')).length,ws=0,ls=0;
     if(it.just){
@@ -111,7 +111,7 @@
   // tall delimiters, radicals) are stretched onto the box their ink has in
   // the PDF.
   function fitInk(el,pr){
-    var ink=el.dataset.ink.split(',').map(Number),cs=getComputedStyle(deepest(el)),fs=parseFloat(cs.fontSize);
+    var ink=el.dataset.ink.split(',').map(Number),cs=getComputedStyle(deepest(el)),fs=Number.parseFloat(cs.fontSize);
     cv.font=cs.fontStyle+' '+cs.fontWeight+' '+fs+'px '+cs.fontFamily;
     var m=cv.measureText(el.textContent),iw=m.actualBoundingBoxLeft+m.actualBoundingBoxRight,ih=m.actualBoundingBoxAscent+m.actualBoundingBoxDescent;
     if(!(iw>0.01&&ih>0.01))return;
@@ -155,7 +155,7 @@
     var inner=fb.firstElementChild,boxes=[fb].concat([].slice.call(clonesOf(fb))),total=0;
     boxes.forEach(function(b){b.classList.add('rf');total+=b.getBoundingClientRect().height;});
     fb.querySelectorAll('.ln[data-fs0]').forEach(function(l){l.style.fontSize=l.dataset.fs0;});
-    var lh=parseFloat(getComputedStyle(fb).lineHeight)||0,scale=1;
+    var lh=Number.parseFloat(getComputedStyle(fb).lineHeight)||0,scale=1;
     inner.style.fontSize='';
     while(scale>0.62&&inner.scrollHeight>total+lh*0.3){scale-=0.03;inner.style.fontSize=Math.round(scale*100)+'%';}
     boxes.slice(1).forEach(function(b){var ci=b.firstElementChild;ci.innerHTML=inner.innerHTML;ci.style.fontSize=inner.style.fontSize;});

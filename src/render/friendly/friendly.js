@@ -152,7 +152,7 @@
   if(window.ResizeObserver)new ResizeObserver(placeSoon).observe(article);
   addEventListener('resize',placeSidenotes);
   addEventListener('load',placeSidenotes);
-  if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(placeSidenotes);
+  if(doc.fonts)doc.fonts.ready.then(placeSidenotes,function(){});
   placeSidenotes();
 
   // Equations and tables wider than their column scroll sideways: data-more
@@ -168,7 +168,7 @@
   doc.addEventListener('scroll',function(e){var t=e.target;if(t&&t.matches&&t.matches('.eq-body,.tbl-wrap'))cue(t);},true);
   doc.addEventListener('load',function(e){if(e.target&&e.target.tagName==='IMG'&&e.target.closest('.eq-body,.tbl-wrap'))cue(e.target.closest('.eq-body,.tbl-wrap'));},true);
   addEventListener('resize',function(){cues();});addEventListener('load',function(){cues();});
-  if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(function(){cues();});
+  if(doc.fonts)doc.fonts.ready.then(function(){cues();},function(){});
   cues();
 
   // Code: copy the lines (numbers are CSS, never copied) and switch colour.
@@ -231,7 +231,7 @@
     [].forEach.call((scope||article).querySelectorAll('.tbl-wrap>table'),function(t){
       t.style.fontSize='';
       var w=t.parentNode;if(!w.clientWidth)return;
-      var rel=parseFloat(getComputedStyle(t).fontSize)/parseFloat(getComputedStyle(w).fontSize),k=1;
+      var rel=Number.parseFloat(getComputedStyle(t).fontSize)/Number.parseFloat(getComputedStyle(w).fontSize),k=1;
       for(var i=0;i<4&&t.scrollWidth>w.clientWidth+1;i++){
         var next=Math.max(min,k*w.clientWidth/t.scrollWidth);
         if(next>=k-0.005)break;k=next;t.style.fontSize=(rel*k*100).toFixed(2)+'%';
@@ -241,6 +241,6 @@
   }
   function fitScroll(){if(root.getAttribute('data-view')!=='book')fitTables(article,0.8);}
   addEventListener('resize',fitScroll);fitScroll();
-  if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(fitScroll);
+  if(doc.fonts)doc.fonts.ready.then(fitScroll,function(){});
   window.p2h={markFor:markFor,store:store,stored:stored,say:say,anchorBlock:anchorBlock,placeSidenotes:placeSidenotes,syncToggle:syncToggle,onScroll:onScroll,fitTables:fitTables,cues:cues,fitScroll:fitScroll};
 })();

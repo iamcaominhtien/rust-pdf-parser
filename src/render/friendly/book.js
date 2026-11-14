@@ -164,14 +164,14 @@
     var box=probeBox(),c=fig.cloneNode(true),base={w:[],lo:[],f:[],min:1};
     box.textContent='';box.appendChild(c);
     [].forEach.call(c.querySelectorAll('img'),function(im){
-      var r=im.getBoundingClientRect(),cs=getComputedStyle(im.parentNode),room=im.parentNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+      var r=im.getBoundingClientRect(),cs=getComputedStyle(im.parentNode),room=im.parentNode.clientWidth-Number.parseFloat(cs.paddingLeft)-Number.parseFloat(cs.paddingRight);
       base.w.push(Math.min(r.width,room)||0);base.min=Math.min(base.min,.15);
       // A picture of a table is not shrunk below 70% of its size: it scrolls instead.
-      var em=/em$/.test(im.style.width)&&im.parentNode.classList.contains('tbl-wrap')?parseFloat(im.style.width)*parseFloat(getComputedStyle(im).fontSize):0;
+      var em=/em$/.test(im.style.width)&&im.parentNode.classList.contains('tbl-wrap')?Number.parseFloat(im.style.width)*Number.parseFloat(getComputedStyle(im).fontSize):0;
       base.lo.push(em?Math.min(.7*em,r.width):0);
       // It may be wider than the column: its box then has a scroll bar under it, which takes room.
       if(em&&.7*em>room+1)base.wide=true;});
-    [].forEach.call(c.querySelectorAll('.tbl-wrap>table'),function(t){base.f.push(parseFloat(t.style.fontSize)||100);base.min=Math.min(base.min,.5);});
+    [].forEach.call(c.querySelectorAll('.tbl-wrap>table'),function(t){base.f.push(Number.parseFloat(t.style.fontSize)||100);base.min=Math.min(base.min,.5);});
     if(c.querySelector('.algo'))base.min=Math.min(base.min,.6);
     base.scalable=base.w.length||base.f.length||!!c.querySelector('.algo');
     box.textContent='';return base;
@@ -193,7 +193,7 @@
   function pageRoom(fig){
     var room=g.th-1,sum=0,p=fig.previousElementSibling;
     while(p&&/^H[2-5]$/.test(p.tagName)){sum+=p.getBoundingClientRect().height;p=p.previousElementSibling;}
-    return sum?room-sum-parseFloat(getComputedStyle(fig).marginTop):room;
+    return sum?room-sum-Number.parseFloat(getComputedStyle(fig).marginTop):room;
   }
   // A float too tall for a page splits after its first rows, unless it is
   // also wider than the column: a box that scrolls cannot be split, so such
@@ -208,7 +208,7 @@
     var box=probeBox(),c=f.cloneNode(true),cw=c.querySelector('.tbl-wrap');
     cw.parentNode.removeChild(cw);box.textContent='';box.appendChild(c);
     var extra=c.getBoundingClientRect().height;box.textContent='';
-    wrap.style.maxHeight=Math.max(120,pageRoom(f)-extra-g.fs-2*parseFloat(getComputedStyle(f).marginBottom)-20)+'px';
+    wrap.style.maxHeight=Math.max(120,pageRoom(f)-extra-g.fs-2*Number.parseFloat(getComputedStyle(f).marginBottom)-20)+'px';
     f.style.display='none';void f.offsetHeight;f.style.display='';
   }
   function fitFloats(art){
@@ -229,7 +229,7 @@
   // moves on, behind the text that fills the room (as a float does in print).
   var floated=[];
   function restoreFloats(){while(floated.length){var m=floated.pop();m[0]._hole=null;m[1].parentNode.replaceChild(m[0],m[1]);}}
-  function fragH(n){var h=0;[].forEach.call(n.getClientRects(),function(r){h+=r.height;});return h+parseFloat(getComputedStyle(n).marginBottom);}
+  function fragH(n){var h=0;[].forEach.call(n.getClientRects(),function(r){h+=r.height;});return h+Number.parseFloat(getComputedStyle(n).marginBottom);}
   function sendOn(f,gap){
     var sum=0,n=f.nextElementSibling,at=null,count=0;
     while(n&&count<16&&!/^H[12]$/.test(n.tagName)&&!n.matches('footer,.colophon')){
@@ -250,7 +250,7 @@
         if(!rs.length||!prev||f.classList.contains('bk-split')||!f._bk||!f._bk.scalable)return;
         var c=colOf(f);if(c===0||rs[0].top-top>6)return;
         var pr=prev.getClientRects(),last=pr[pr.length-1];if(!last||colOf(prev)>=c)return;
-        var gap=g.th-(last.bottom-top)-parseFloat(getComputedStyle(f).marginTop)-2;
+        var gap=g.th-(last.bottom-top)-Number.parseFloat(getComputedStyle(f).marginTop)-2;
         if(gap<g.th*0.2)return;
         todo.push([f,gap,g.th-(last.bottom-top)]);
       });
@@ -505,7 +505,7 @@
     loadSound.busy=true;
     try{
       var bin=atob(window.p2hPageSound),bytes=new Uint8Array(bin.length);
-      for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      for(var i=0;i<bin.length;i++)bytes[i]=bin.codePointAt(i);
       var p=new OAC(1,1,44100).decodeAudioData(bytes.buffer,function(b){buf=b;},function(){});
       if(p&&p.catch)p.catch(function(){});
     }catch(e){}
@@ -591,7 +591,7 @@
   },true);
   var resizeTimer=0;
   addEventListener('resize',function(){if(!active)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(repaginate,150);});
-  if(doc.fonts&&doc.fonts.ready)doc.fonts.ready.then(function(){if(active)repaginate();});
+  if(doc.fonts)doc.fonts.ready.then(function(){if(active)repaginate();},function(){});
   addEventListener('beforeprint',function(){if(active){leave();root.setAttribute('data-print-book','1');}});
   addEventListener('afterprint',function(){if(root.getAttribute('data-print-book')){root.removeAttribute('data-print-book');enter();}});
   if(root.getAttribute('data-view')==='book'){root.removeAttribute('data-view');enter(article.firstElementChild);}

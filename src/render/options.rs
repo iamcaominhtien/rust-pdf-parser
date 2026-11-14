@@ -64,7 +64,8 @@ pub struct HtmlOptions {
     pub page_image: PageImage,
     /// Worker threads for drawing pages and images (0 = one per CPU).
     pub jobs: usize,
-    /// Embed the reading fonts in friendly-mode pages (otherwise the
+    /// Embed the reading fonts in friendly-mode pages, and the math font in
+    /// medium and friendly pages with MathML formulas (otherwise the
     /// reader's system fonts are used).
     pub embed_fonts: bool,
     /// How displayed formulas are shown in the reflowing modes.
@@ -73,8 +74,8 @@ pub struct HtmlOptions {
 
 impl Default for HtmlOptions {
     /// Friendly mode, one self-contained file with embedded fonts, SVG page
-    /// backgrounds, images at 3 pixels per point, formulas as pictures and
-    /// one worker thread per CPU.
+    /// backgrounds, images at 3 pixels per point, formulas as MathML (where
+    /// their structure is clear) and one worker thread per CPU.
     fn default() -> Self {
         Self {
             mode: Mode::Friendly,
@@ -84,7 +85,7 @@ impl Default for HtmlOptions {
             page_image: PageImage::Svg,
             jobs: 0,
             embed_fonts: true,
-            equations: Equations::Image,
+            equations: Equations::MathMl,
         }
     }
 }

@@ -1,8 +1,14 @@
 //! Displayed formulas written as MathML from their rebuilt structure
 //! ([`MathNode`]), for the reflowing renderers.
 
-use super::esc;
+use super::{esc, font_face};
 use crate::model::MathNode;
+use std::sync::LazyLock;
+
+/// STIX Two Math (SIL Open Font License 1.1), subset to the letters,
+/// symbols and math alphabets of formulas, with its MATH table (see
+/// `fonts/README.md`).
+const STIX_TWO_MATH: &[u8] = include_bytes!("fonts/stix-two-math.woff2");
 
 /// Operators that MathML stretches by default: written with
 /// `stretchy="false"` unless the PDF drew them taller than the text, so
@@ -18,10 +24,23 @@ const UNSPACED: &[&str] = &[
     "(", ")", "[", "]", "{", "}", "|", "‖", "⟨", "⟩", "⌊", "⌋", "⌈", "⌉", "/", "\\",
 ];
 
-/// Styles of the formulas, added to the page when it has any: a math font
-/// and a size close to the one of the pictures.
-pub(crate) const MATH_CSS: &str =
-    "math.eq-math{font-family:\"Latin Modern Math\",\"STIX Two Math\",\"Cambria Math\",math;font-size:1.05em}\n";
+/// Style of the formulas: the math font (the embedded one first, then
+/// those of the usual systems) and a size close to the one of the pictures.
+const MATH_STYLE: &str =
+    "math.eq-math{font-family:\"STIX Two Math\",\"Latin Modern Math\",\"Cambria Math\",math;font-size:1.05em}\n";
+
+/// The `@font-face` rule of the embedded math font, built once.
+static MATH_FACE: LazyLock<String> = LazyLock::new(|| font_face("STIX Two Math", "normal", "400", STIX_TWO_MATH));
+
+/// The styles a page with MathML formulas needs, with the math font
+/// embedded when `embed_font` (otherwise the reader's math font is used).
+pub(crate) fn math_css(embed_font: bool) -> String {
+    if embed_font {
+        format!("{}{MATH_STYLE}", *MATH_FACE)
+    } else {
+        MATH_STYLE.to_string()
+    }
+}
 
 /// The `<math>` element of a displayed formula.
 pub(crate) fn math_html(node: &MathNode, alt: &str) -> String {

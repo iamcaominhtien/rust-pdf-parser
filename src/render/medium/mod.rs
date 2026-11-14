@@ -73,7 +73,11 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     }
 
     let source = arxiv_abs_link(doc);
-    let math_css = if pages.contains("<math ") { MATH_CSS } else { "" };
+    let math_css = if pages.contains("<math ") {
+        math_css(images.opts.embed_fonts)
+    } else {
+        String::new()
+    };
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">

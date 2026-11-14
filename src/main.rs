@@ -104,7 +104,7 @@ enum ImagesArg {
 /// Values of `--fonts`; the doc comments are the help texts.
 #[derive(Clone, Copy, ValueEnum, PartialEq)]
 enum FontsArg {
-    /// Embed the reading fonts in friendly pages (works offline, about 250 KB)
+    /// Embed the reading fonts in friendly pages (works offline, about 250 KB) and the math font in pages with MathML (about 230 KB)
     Embed,
     /// Use the fonts installed on the reader's system (smaller files)
     System,
@@ -168,11 +168,11 @@ struct ConvertArgs {
     /// How tables are handled
     #[arg(long, value_enum, default_value = "auto")]
     tables: TablesArg,
-    /// Fonts of friendly mode
+    /// Fonts of friendly mode, and of the formulas of medium and friendly modes
     #[arg(long, value_enum, default_value = "embed")]
     fonts: FontsArg,
     /// How medium and friendly modes show displayed formulas
-    #[arg(long, value_enum, default_value = "image")]
+    #[arg(long, value_enum, default_value = "mathml")]
     equations: EquationsArg,
     /// Also write the structured document as JSON (for translation tools)
     #[arg(long)]

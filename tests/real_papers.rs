@@ -248,6 +248,13 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
             assert!(out.html.contains(name.as_str()), "{mode:?}: {name} is not referenced");
             assert!(!data.is_empty(), "{mode:?}: {name} is empty");
         }
+        if matches!(mode, Mode::Medium | Mode::Friendly) {
+            assert_eq!(
+                out.html.matches("<math ").count(),
+                math,
+                "{mode:?}: every rebuilt formula is written as MathML"
+            );
+        }
         fingerprints.push((mode.name(), fingerprint(&out.html, &out.files)));
         if mode == Mode::Hard95 {
             // Text inside figures stays in the page pictures on purpose (it
@@ -261,23 +268,18 @@ fn measure(paper: &Paper) -> (Metrics, Snapshot) {
             glyphs_left = in_pictures.saturating_sub(figure_text_chars(&out.html));
         }
     }
-    // Friendly mode with the formulas as MathML, where their structure was
-    // rebuilt (pictures elsewhere).
+    // Friendly mode with every formula as a picture.
     let out = paper.to_html(
         &analysis,
         &HtmlOptions {
             mode: Mode::Friendly,
             inline_images: false,
-            equations: Equations::MathMl,
+            equations: Equations::Image,
             ..Default::default()
         },
     );
-    assert_eq!(
-        out.html.matches("<math ").count(),
-        math,
-        "every rebuilt formula is written as MathML"
-    );
-    fingerprints.push(("friendly-mathml", fingerprint(&out.html, &out.files)));
+    assert!(!out.html.contains("<math "), "formulas as pictures only");
+    fingerprints.push(("friendly-image", fingerprint(&out.html, &out.files)));
     fingerprints.push(("json", hex(Sha256::digest(json.as_bytes()))));
     let metrics = Metrics {
         title,
@@ -1245,7 +1247,7 @@ fn math_alphabets_are_unicode_letters() {
 }
 
 /// The LIGO formula has big brackets without a Unicode value: it stays a
-/// picture, also when formulas are written as MathML.
+/// picture, though formulas are written as MathML.
 #[test]
 fn ligo_formula_with_unmapped_brackets_stays_a_picture() {
     let Some(paper) = load("1602.03837v1") else { return };
@@ -1258,13 +1260,7 @@ fn ligo_formula_with_unmapped_brackets_stays_a_picture() {
         .collect();
     assert_eq!(equations.len(), 1);
     assert!(equations[0].math.is_none());
-    let out = paper.to_html(
-        &analysis,
-        &HtmlOptions {
-            equations: Equations::MathMl,
-            ..Default::default()
-        },
-    );
+    let out = paper.to_html(&analysis, &HtmlOptions::default());
     assert!(!out.html.contains("<math "));
     assert!(out.html.contains("<div class=\"eq\""));
 }

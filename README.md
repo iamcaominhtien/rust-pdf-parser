@@ -10,6 +10,8 @@ readable HTML with continuous text. The output works well as input for translati
   page numbers, and separates footnotes from the main text.
 - **Real tables**: rows, columns, cells merged across columns or rows, and rules are rebuilt as
   `<table>`.
+- **Real formulas**: display formulas are rebuilt as MathML (fractions, roots, scripts, limits,
+  aligned lines) in `medium` and `friendly`, with an embedded math font.
 - **Sharp images**: figures stay vector (SVG) or render at high resolution (216 dpi by default).
 - **Four modes** that follow the original at different levels of fidelity (see below).
 - Fast: a 15-page paper takes about 1–2 seconds for all four modes.
@@ -34,9 +36,10 @@ In all four modes, the text of a paragraph stays together in the DOM:
 
 ### Formulas as MathML in `medium` and `friendly`
 
-By default, `medium` and `friendly` show each display formula as a picture of its area of the page.
-With `--equations mathml`, a formula whose structure is clear is written as MathML instead: real
-text that reflows, zooms, can be searched and copied, and is read by screen readers. The structure
+In `medium` and `friendly`, a display formula whose structure is clear is written as MathML: real
+text that reflows, zooms, can be searched and copied, and is read by screen readers. The other
+formulas are pictures of their area of the page, and `--equations image` makes every formula a
+picture. The structure
 is rebuilt from the positions of the glyphs and of the bars drawn among them: fractions, square
 roots and roots, subscripts and superscripts, limits above and below `∑`, `lim`, `max`, accents
 (`x̂`, `x̃`), tall brackets, operator names, text inside formulas (`where`, `and`), and multi-line
@@ -48,9 +51,11 @@ code, symbols stacked without a bar (matrices, `cases`, `\underbrace`), a bar or
 that belongs to nothing. On 13 arXiv papers (the 8 test papers and 5 papers full of formulas),
 138 of 147 display formulas are written as MathML.
 
-MathML needs a math font on the reader's machine: Windows (Cambria Math) and macOS (STIX Two Math)
-have one; on Linux and Android, install Latin Modern Math or STIX Two Math, or the formulas are drawn
-with a fallback font.
+MathML needs a math font. Pages with MathML embed a subset of STIX Two Math (SIL Open Font
+License, about 230 KB), so formulas look the same on every machine, including Linux and Android,
+which have no math font of their own. With `--fonts system` it is not embedded: the reader's math
+font is used (Cambria Math on Windows, STIX Two Math on macOS), or a fallback font that draws
+formulas poorly.
 
 ### How `hard-95` works
 
@@ -127,8 +132,8 @@ or an arXiv URL (`https://arxiv.org/abs/1706.03762`).
 | `--scale <number>` | Resolution of figure/formula images, pixels per PDF point (default 3 ≈ 216 dpi) |
 | `--page-image <svg\|png>` | Page background in `hard` mode (default `svg`) |
 | `--tables <auto\|image>` | `auto` (default): build `<table>` when the table structure is clear. `image`: do not build (the table is an image in `medium`/`friendly`, and text placed by position in `hard-95`) |
-| `--equations <image\|mathml>` | How `medium` and `friendly` show display formulas. `image` (default): a picture of the formula. `mathml`: MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above) |
-| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
+| `--equations <mathml\|image>` | How `medium` and `friendly` show display formulas. `mathml` (default): MathML rebuilt from the glyphs where the structure is clear, a picture elsewhere (see above). `image`: a picture of every formula |
+| `--fonts <embed\|system>` | `embed` (default): embed the `friendly` reading fonts (Literata, IBM Plex Sans; IBM Plex Mono when the paper has code), about 250 KB, and in `medium`/`friendly` pages with MathML the math font (STIX Two Math, about 230 KB), so offline viewing still uses the right fonts. `system`: use the fonts already on the reader's machine |
 | `--json` | Also write `<name>.json`, the document structure |
 | `-j, --jobs <N>` | Number of parallel threads. `0` (default): one thread per CPU core. `1`: no parallelism. The result is identical for every value |
 
@@ -144,7 +149,7 @@ paper2html inspect paper.pdf
 
 `fetch` only downloads the PDF. `inspect` prints the detected structure (title, headings,
 paragraphs, figures, formulas…), which helps when the result is not what you expect. A formula
-marked `<math>` has a rebuilt structure (MathML with `--equations mathml`).
+marked `<math>` has a rebuilt structure (MathML in `medium` and `friendly`).
 
 ### Speed and resources
 
@@ -272,8 +277,7 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
    unexplained gets no tree and stays a picture.
 8. **HTML** (`src/html`): four renderers share one document model (`model.rs`). `hard-95` takes its
    page background from the text-free SVG (`pdf/render.rs`) and then places HTML text on top.
-   With `--equations mathml`, `medium` and `friendly` write the formula trees as MathML
-   (`render/mathml.rs`).
+   `medium` and `friendly` write the formula trees as MathML (`render/mathml.rs`).
 
 ## Current limitations
 
@@ -284,8 +288,8 @@ PDF ──► extraction ──► text lines ──► figures/tables ──►
   image, and `hard-95` uses text placed by position. A cell with several lines of text appears as
   several rows when the table does not show clearly where the logical rows break. Cell background
   color is not kept.
-- **Display formulas**: real text in `hard-95`; pictures in `medium` and `friendly`, or MathML with
-  `--equations mathml` where the structure is clear (138 of 147 formulas on 13 papers). Matrices,
+- **Display formulas**: real text in `hard-95`; MathML in `medium` and `friendly` where the
+  structure is clear (138 of 147 formulas on 13 papers), pictures elsewhere. Matrices,
   `cases`, `\underbrace` and formulas whose picture also holds a piece of a neighbouring formula
   stay pictures. A multi-line display is aligned on one relation per line; a second alignment point
   (`alignat`) is not kept. Equation numbers inside a multi-line display stay at the end of their
@@ -332,7 +336,7 @@ There are three layers of tests:
   When you make an improvement, tighten the thresholds
   (`P2H_PRINT_METRICS=1 cargo test --test real_papers -- --nocapture` prints the measurements).
 - **Output snapshots** (also in `tests/real_papers.rs`): the sha256 hash of the HTML of each mode
-  (plus `friendly` with `--equations mathml`) and of the JSON, for each paper, stored in
+  (plus `friendly` with `--equations image`) and of the JSON, for each paper, stored in
   `tests/data/snapshots/`. If the output changes by even one
   character, the test fails and names the paper and the mode that changed. When you reorganize code,
   the snapshots must stay the same. When you change the output on purpose, update them and commit

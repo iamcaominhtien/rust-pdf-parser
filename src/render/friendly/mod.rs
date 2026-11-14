@@ -75,15 +75,6 @@ static MONO_FACES: LazyLock<String> = LazyLock::new(|| {
     .concat()
 });
 
-/// One `@font-face` rule with the font embedded as a base64 data URI.
-fn font_face(family: &str, style: &str, weight: &str, data: &[u8]) -> String {
-    format!(
-        "@font-face{{font-family:\"{family}\";font-style:{style};font-weight:{weight};font-display:swap;\
-src:url(data:font/woff2;base64,{}) format(\"woff2\")}}\n",
-        base64::engine::general_purpose::STANDARD.encode(data)
-    )
-}
-
 /// The `friendly` mode: single-column responsive article.
 pub(crate) struct Friendly;
 
@@ -124,14 +115,16 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
     let mut content = render_flow(&front_rest, images, &ctx);
     content.push_str(&render_flow(body, images, &ctx));
 
-    let mut fonts = match (images.opts.embed_fonts, content.contains("<pre class=\"listing")) {
+    let fonts = match (images.opts.embed_fonts, content.contains("<pre class=\"listing")) {
         (false, _) => String::new(),
         (true, false) => FONT_FACES.clone(),
         (true, true) => format!("{}{}", *FONT_FACES, *MONO_FACES),
     };
-    if content.contains("<math ") {
-        fonts.push_str(MATH_CSS);
-    }
+    let math = if content.contains("<math ") {
+        math_css(images.opts.embed_fonts)
+    } else {
+        String::new()
+    };
     let page = Page {
         title: &title,
         topbar: &topbar(doc, &title),
@@ -139,6 +132,7 @@ pub(crate) fn render(doc: &Document, images: &mut ImageStore<'_>) -> String {
         head: &head,
         content: &content,
         fonts: &fonts,
+        math: &math,
     };
     page.html()
 }
@@ -157,15 +151,28 @@ struct Page<'a> {
     content: &'a str,
     /// `@font-face` rules of the embedded fonts (empty with system fonts).
     fonts: &'a str,
+    /// Style of the MathML formulas, with the embedded math font (empty
+    /// when the paper has no MathML).
+    math: &'a str,
 }
 
 impl Page<'_> {
     /// The complete HTML document.
     fn html(&self) -> String {
-        let colophon = if self.fonts.is_empty() {
-            "Converted from PDF by paper2html · friendly mode"
+        let embedded: Vec<&str> = [
+            (!self.fonts.is_empty()).then_some("Literata and IBM Plex"),
+            self.math.contains("@font-face").then_some("STIX Two Math"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let colophon = if embedded.is_empty() {
+            "Converted from PDF by paper2html · friendly mode".to_string()
         } else {
-            "Converted from PDF by paper2html · friendly mode · Literata and IBM Plex, SIL Open Font License 1.1"
+            format!(
+                "Converted from PDF by paper2html · friendly mode · {}, SIL Open Font License 1.1",
+                embedded.join(", ")
+            )
         };
         format!(
             r#"<!DOCTYPE html>
@@ -177,7 +184,7 @@ impl Page<'_> {
 <title>{title}</title>
 <script>{HEAD_JS}</script>
 <style>
-{fonts}{CSS}</style>
+{fonts}{math}{CSS}</style>
 </head>
 <body class="friendly">
 {topbar}<div class="layout">
@@ -202,6 +209,7 @@ impl Page<'_> {
             title = esc(self.title),
             sound = PAGE_SOUND_JS.as_str(),
             fonts = self.fonts,
+            math = self.math,
             topbar = self.topbar,
             toc = self.toc,
             head = self.head,

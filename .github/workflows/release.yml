@@ -1,14 +1,23 @@
 name: Release
 
-# On every push to main:
-#  - `release-pr` opens or updates the release PR (version bump + CHANGELOG.md);
-#  - `release` tags and publishes a GitHub release when that PR is merged
-#    (see release-plz.toml), then `binaries` attaches prebuilt binaries to it.
+# Every push to main (each merged PR) is released, without a release PR:
+#  - `release` runs `release-plz update`, which picks the next version from the
+#    Conventional Commits since the last tag and writes it to Cargo.toml, Cargo.lock
+#    and CHANGELOG.md. It commits that to main as `chore: release vX.Y.Z`, then
+#    `release-plz release` tags the commit and creates the GitHub release
+#    (see release-plz.toml);
+#  - `binaries` then attaches prebuilt binaries to the release.
 on:
   push:
     branches: [main]
 
 permissions: {}
+
+# One release at a time. A run that waits while another runs releases everything
+# merged up to then.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,42 +26,57 @@ env:
 jobs:
   release:
     name: Tag and release
-    if: github.repository_owner == 'iamcaominhtien'
+    # The `chore: release` commit pushed by this job is not released again (pushes
+    # made with the default token do not start workflows anyway).
+    if: >-
+      github.repository_owner == 'iamcaominhtien' &&
+      !startsWith(github.event.head_commit.message, 'chore: release')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
-      pull-requests: read
     outputs:
-      created: ${{ steps.release-plz.outputs.releases_created }}
-      tag: ${{ steps.tag.outputs.tag }}
+      created: ${{ steps.release.outputs.created }}
+      tag: ${{ steps.release.outputs.tag }}
     steps:
+      # The tip of main, not the pushed commit: a run that waited for an earlier one
+      # starts from that run's `chore: release` commit.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: main
           fetch-depth: 0
-          persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
-      - name: Run release-plz release
-        id: release-plz
-        uses: release-plz/action@66b324fd6c72d05d2a08568492ecdd62bfb8a62b # v0.5.148
+      - name: Install release-plz
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
         with:
-          command: release
-        env:
-          # A personal access token (secret RELEASE_PLZ_TOKEN), if set, lets the
-          # release trigger other workflows; the default token works otherwise.
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
-      - name: Read the released tag
-        id: tag
-        env:
-          RELEASES: ${{ steps.release-plz.outputs.releases }}
+          tool: release-plz@0.4.3
+      - name: Bump the version and update CHANGELOG.md
         run: |
-          tag=""
-          if [ -n "$RELEASES" ] && [ "$RELEASES" != "[]" ]; then
-            tag=$(echo "$RELEASES" | jq -r '.[0].tag')
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          release-plz update
+          # `git status`, not `git diff`: the first release creates CHANGELOG.md.
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing new since the last release"
+            exit 0
           fi
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit -m "chore: release v$version"
+          git push origin HEAD:main
+      - name: Tag and create the GitHub release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          out=$(release-plz release --git-token "$GITHUB_TOKEN" -o json)
+          echo "release-plz: $out"
+          tag=$(echo "$out" | jq -r '.releases[0].tag // empty')
+          if [ -n "$tag" ]; then created=true; else created=false; fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "created=$created" >> "$GITHUB_OUTPUT"
           echo "released tag: ${tag:-none}"
 
   binaries:
@@ -107,31 +131,3 @@ jobs:
           checksum: sha256
           ref: refs/tags/${{ needs.release.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
-
-  release-pr:
-    name: Release PR
-    if: github.repository_owner == 'iamcaominhtien'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: write
-      pull-requests: write
-    concurrency:
-      group: release-plz-${{ github.ref }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          toolchain: stable
-      - name: Run release-plz release-pr
-        uses: release-plz/action@66b324fd6c72d05d2a08568492ecdd62bfb8a62b # v0.5.148
-        with:
-          command: release-pr
-        env:
-          # With RELEASE_PLZ_TOKEN set, CI also runs on the release PR (PRs opened
-          # with the default token do not trigger workflows).
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}

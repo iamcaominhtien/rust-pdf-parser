@@ -1,22 +1,23 @@
 # Release automation (https://release-plz.dev), run by .github/workflows/release.yml.
 #
-# Flow: every push to `main` opens or updates a release PR that bumps the version in
-# Cargo.toml and adds the new section to CHANGELOG.md. Merging that PR creates the
-# `vX.Y.Z` tag and the GitHub release; the workflow then attaches prebuilt binaries.
+# Flow: every push to `main` (each merged PR) is released. The workflow runs
+# `release-plz update`, which bumps the version in Cargo.toml and adds the new section to
+# CHANGELOG.md, commits that to `main` as `chore: release vX.Y.Z`, then runs
+# `release-plz release`, which creates the `vX.Y.Z` tag and the GitHub release. The
+# workflow then attaches prebuilt binaries. There is no release PR.
 
 [workspace]
 # Not published to crates.io: versions come from the git tags (`vX.Y.Z`).
 git_only = true
-# Release only when the release PR is merged, not on every push.
-release_always = false
+# Release on every push to main: `release` releases the version in Cargo.toml as soon
+# as it has no tag yet (there is no release PR to wait for).
+release_always = true
 changelog_update = true
 git_release_enable = true
 # The public API is not checked against a registry (nothing is published there).
 semver_check = false
 # In 0.x, `feat:` bumps the minor version (0.1.0 -> 0.2.0), `fix:` the patch version.
 features_always_increment_minor = true
-pr_name = "chore: release v{{ version }}"
-pr_labels = ["release"]
 
 [changelog]
 header = """# Changelog

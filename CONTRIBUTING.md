@@ -30,29 +30,24 @@ puts them in the right group.
 ## Releases
 
 Releases are automated with [release-plz](https://release-plz.dev) (`release-plz.toml`,
-`.github/workflows/release.yml`):
+`.github/workflows/release.yml`). **Every merge into `main` is released**, without a release PR:
 
-1. Each time `main` gets new commits, the bot opens or updates a **release PR** named
-   `chore: release vX.Y.Z`. This PR bumps the version in `Cargo.toml` according to the commits
-   since the last release, and adds a new entry to `CHANGELOG.md`. The changelog text in the PR
-   can be edited by hand before merging.
-2. To release, **merge the release PR**. The workflow creates the tag `vX.Y.Z` and a GitHub
-   Release with the changelog text, then builds binaries for Linux (x86_64, aarch64), macOS
-   (Apple Silicon, Intel) and Windows (x86_64), with sha256 checksums, and attaches them to the
-   release.
+1. The workflow picks the next version from the commits since the last release (see the table
+   above), writes it to `Cargo.toml` and `Cargo.lock`, adds a new entry to `CHANGELOG.md`, and
+   pushes that to `main` as a commit `chore: release vX.Y.Z`. Pull `main` before starting new
+   work.
+2. It then creates the tag `vX.Y.Z` and a GitHub Release with the changelog text, builds binaries
+   for Linux (x86_64, aarch64), macOS (Apple Silicon, Intel) and Windows (x86_64), with sha256
+   checksums, and attaches them to the release.
+
+Since each merge makes a release, the commit types of the PR decide its version: a PR with a
+`feat` commit makes a minor release, any other PR a patch release.
 
 Nothing is published to crates.io: the version comes from git tags (`git_only = true`).
 
-### One-time setup on GitHub
-
-- **Settings → Actions → General → Workflow permissions:** choose "Read and write permissions"
-  and enable "Allow GitHub Actions to create and approve pull requests". Without this, the bot
-  cannot open the release PR.
-- **Optional:** create a `RELEASE_PLZ_TOKEN` secret (a fine-grained personal access token for the
-  repository, with Contents and Pull requests: read and write). Without it, the workflow uses
-  GitHub Actions' default token; CI then **does not run on the release PR by itself** (a GitHub
-  limitation for PRs opened with the default token). The release PR only changes `Cargo.toml` and
-  `CHANGELOG.md`, and CI still runs again on `main` after the merge.
+The workflow pushes to `main` with GitHub Actions' default token. If `main` gets a branch
+protection rule or ruleset that blocks direct pushes, allow GitHub Actions to bypass it, or the
+release fails.
 
 ## Code quality: SonarQube Cloud
 

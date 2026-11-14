@@ -33,7 +33,7 @@
 use crate::analysis::page::PageData;
 use crate::backend::FontInfo;
 use crate::common::geom::Rect;
-use crate::model::{BlockKind, Document, Line, MathNode};
+use crate::model::{BlockKind, Document, Line, LineGlyph, MathNode};
 use unicode_normalization::UnicodeNormalization;
 
 /// Big operators whose limits TeX sets above and below them in displays.
@@ -450,6 +450,26 @@ fn level_big_operators(items: &mut [Item], cfg: &MathConfig) {
             item.size = text;
         }
     }
+}
+
+/// The tree of a formula read from something else than a page (a picture
+/// of it): `glyphs` placed as on a page, `rules` its bars, with `fonts` the
+/// table the glyphs refer to. `None` when some part cannot be explained.
+pub fn formula_from_glyphs(mut glyphs: Vec<LineGlyph>, rules: &[Rect], fonts: &[FontInfo]) -> Option<MathNode> {
+    glyphs.sort_by(|a, b| a.x0.total_cmp(&b.x0));
+    let first = glyphs.first()?;
+    let ink = glyphs.iter().fold(Rect::EMPTY, |acc, glyph| acc.union(&glyph.ink));
+    let line = Line {
+        page: 0,
+        bbox: ink,
+        ink,
+        baseline: first.y,
+        size: first.size,
+        font: first.font,
+        glyphs,
+        fixed_pitch: false,
+    };
+    formula(&[line], rules, fonts, &MathConfig::default())
 }
 
 /// The tree of the formula made of `lines` and `rules`, or `None` when some

@@ -152,6 +152,19 @@ paper2html inspect paper.pdf
 paragraphs, figures, formulas…), which helps when the result is not what you expect. A formula
 marked `<math>` has a rebuilt structure (MathML in `medium` and `friendly`).
 
+```bash
+paper2html formula equation.png
+```
+
+`formula` reads pictures of formulas (black on white, as LaTeX renders them, for example from a
+web page) and prints their MathML. Each piece of ink is compared with the glyphs of Latin Modern
+Math (the font of LaTeX formulas), then the formula is rebuilt as a formula of a PDF is. A
+picture with a piece that matches no glyph well is not read (an error, or an empty line when
+several pictures are given). It works best on pictures of LaTeX formulas at 25 pixels per em or
+more; other fonts (Times, `dsfont` blackboard letters, `\mathcal` letters) are read poorly or not
+at all. On the 2607 formula pictures of 73 arXiv papers, 44% are read, and 22% give exactly the
+text of the MathML rebuilt from the PDF.
+
 ### Speed and resources
 
 Measured on a 4 vCPU machine, with the PDF already on disk, one mode per run:

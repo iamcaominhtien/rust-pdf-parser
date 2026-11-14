@@ -8,6 +8,7 @@ mod friendly;
 mod hard;
 mod hard95;
 mod mathml;
+pub(crate) use mathml::LATIN_MODERN_MATH;
 mod medium;
 mod options;
 mod table;
@@ -15,7 +16,8 @@ mod table;
 pub(crate) use assets::ImageStore;
 pub(crate) use escape::*;
 pub(crate) use flow::*;
-pub(crate) use mathml::{math_css, math_html};
+pub(crate) use mathml::math_css;
+pub use mathml::math_html;
 pub use options::{Equations, HtmlOptions, HtmlOutput, Mode, PageImage};
 pub(crate) use table::*;
 

@@ -22,6 +22,7 @@ pub mod common;
 pub mod config;
 pub mod model;
 pub mod paper;
+pub mod raster;
 pub mod render;
 pub mod source;
 

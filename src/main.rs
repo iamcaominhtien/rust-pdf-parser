@@ -65,6 +65,14 @@ enum Command {
         /// Local PDF file, arXiv id or arXiv URL
         input: String,
     },
+    /// Read pictures of formulas (black on white, as LaTeX renders them) and
+    /// print them as MathML. With several pictures, each line is the file
+    /// name, a tab and its MathML (empty when it cannot be read).
+    Formula {
+        /// Picture files (PNG or JPEG)
+        #[arg(required = true)]
+        images: Vec<PathBuf>,
+    },
 }
 
 /// Values of `--mode`; the doc comments are the help texts.
@@ -238,6 +246,7 @@ fn run() -> Result<()> {
             Ok(())
         }
         Command::Inspect { input } => inspect(&input),
+        Command::Formula { images } => formula(&images),
     }
 }
 
@@ -387,6 +396,26 @@ fn write_mode(
         },
         started.elapsed().as_secs_f32()
     );
+    Ok(())
+}
+
+/// The `formula` subcommand: prints the MathML of the formulas pictured in `images`.
+///
+/// # Errors
+/// When a picture cannot be opened, or a single picture cannot be read.
+fn formula(images: &[PathBuf]) -> Result<()> {
+    let cfg = paper2html::raster::RasterConfig::default();
+    let mut out = std::io::stdout().lock();
+    for path in images {
+        let image = image::open(path).with_context(|| format!("cannot open {}", path.display()))?;
+        let math = paper2html::raster::formula(&image, &cfg).map(|node| paper2html::render::math_html(&node, ""));
+        if images.len() == 1 {
+            let math = math.ok_or_else(|| anyhow!("cannot read the formula in {}", path.display()))?;
+            writeln!(out, "{math}")?;
+        } else {
+            writeln!(out, "{}\t{}", path.display(), math.unwrap_or_default())?;
+        }
+    }
     Ok(())
 }
 

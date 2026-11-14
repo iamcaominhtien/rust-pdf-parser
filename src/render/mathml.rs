@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 /// Latin Modern Math (GUST Font License), the math font of LaTeX, so that
 /// formulas look as in the papers: subset to the letters, symbols and math
 /// alphabets of formulas, with its MATH table (see `fonts/README.md`).
-const LATIN_MODERN_MATH: &[u8] = include_bytes!("fonts/latin-modern-math.woff2");
+pub(crate) const LATIN_MODERN_MATH: &[u8] = include_bytes!("fonts/latin-modern-math.woff2");
 
 /// Operators that MathML stretches by default: written with
 /// `stretchy="false"` unless the PDF drew them taller than the text, so
@@ -48,7 +48,7 @@ pub(crate) fn math_css(embed_font: bool) -> String {
 }
 
 /// The `<math>` element of a displayed formula.
-pub(crate) fn math_html(node: &MathNode, alt: &str) -> String {
+pub fn math_html(node: &MathNode, alt: &str) -> String {
     let mut out = format!("<math display=\"block\" class=\"eq-math\" alttext=\"{}\">", esc(alt));
     write_node(node, &mut out);
     out.push_str("</math>");

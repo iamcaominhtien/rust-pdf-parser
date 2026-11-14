@@ -1219,8 +1219,8 @@ fn adam_formulas_are_rebuilt() {
         all[9].as_deref(),
         Some(concat!(
             r"u_{t}=lim\limits_{p→∞}(v_{t})^{1/p}&=lim\limits_{p→∞}((1−β_{2}^{p})∑\limits_{i=1}^{t} β_{2}^{p(t−i)}·|g_{i}|^{p})^{1/p}\\",
-            r"&=lim\limits_{p→∞}(1−β_{2}^{p})^{1/p}(∑\limits_{i=1}^{t} β_{2}^{p(t−i)}·|g_{i}|^{p})^{1/p}(9)\\",
-            r"&=lim\limits_{p→∞}(∑\limits_{i=1}^{t}(β_{2}^{(t−i)}·|g_{i}|)^{p})^{1/p}(10)"
+            r"&=lim\limits_{p→∞}(1−β_{2}^{p})^{1/p}(∑\limits_{i=1}^{t} β_{2}^{p(t−i)}·|g_{i}|^{p})^{1/p} (9)\\",
+            r"&=lim\limits_{p→∞}(∑\limits_{i=1}^{t}(β_{2}^{(t−i)}·|g_{i}|)^{p})^{1/p} (10)"
         ))
     );
     assert_eq!(

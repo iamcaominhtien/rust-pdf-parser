@@ -309,7 +309,8 @@ enum Place {
 enum Edge {
     /// An operator, which MathML spaces itself.
     Operator,
-    /// Punctuation, which MathML follows by a thin space.
+    /// Punctuation (which MathML follows by a thin space), a delimiter or
+    /// a slash: only a wide gap next to it is a space of its own.
     Punctuation,
     /// Anything else.
     Plain,
@@ -318,7 +319,9 @@ enum Edge {
 impl Edge {
     /// The edge made by a glyph of text `text`.
     fn of(text: &str) -> Edge {
-        if PUNCTUATION.contains(&text) {
+        // Delimiters and the slash are written without space around them:
+        // like punctuation, only a wide gap next to them is a space.
+        if PUNCTUATION.contains(&text) || DELIMITERS.contains(&text) || text == "/" {
             Edge::Punctuation
         } else if token_kind(text) == TokenKind::Op {
             Edge::Operator
@@ -692,17 +695,19 @@ impl Parser<'_> {
                     num: Box::new(self.group(num)?),
                     den: Box::new(self.group(den)?),
                 },
+                // Something only above the bar: the bar underlines it.
                 (false, true) => MathNode::UnderOver {
                     base: Box::new(self.group(num)?),
-                    under: None,
-                    over: Some(Box::new(operator("‾"))),
-                    accent: true,
-                },
-                _ => MathNode::UnderOver {
-                    base: Box::new(self.group(den)?),
                     under: Some(Box::new(operator("_"))),
                     over: None,
                     accent: false,
+                },
+                // Something only below the bar: the bar is over it.
+                _ => MathNode::UnderOver {
+                    base: Box::new(self.group(den)?),
+                    under: None,
+                    over: Some(Box::new(operator("‾"))),
+                    accent: true,
                 },
             };
             let parts: Vec<&Item> = taken.iter().map(|(_, item)| item).collect();
@@ -1037,7 +1042,7 @@ impl Parser<'_> {
                     // is the thin space after punctuation.
                     let wanted = match (last_edge, edge) {
                         (Edge::Operator, _) | (_, Edge::Operator) => false,
-                        (Edge::Punctuation, _) => wide,
+                        (Edge::Punctuation, _) | (_, Edge::Punctuation) => wide,
                         _ => wide || (spaced && gap > 0.0),
                     };
                     if wanted {
@@ -1625,6 +1630,39 @@ mod tests {
             &[],
         );
         assert_eq!(math, None);
+    }
+
+    #[test]
+    fn a_bar_with_nothing_above_is_an_overline() {
+        let math = rebuild(
+            vec![glyph("A", 0, 10.0, 100.0, 10.0, None)],
+            &[Rect::new(10.0, 91.5, 15.5, 91.9)],
+        );
+        let expected = MathNode::UnderOver {
+            base: Box::new(ident("A")),
+            under: None,
+            over: Some(Box::new(operator("‾"))),
+            accent: true,
+        };
+        assert_eq!(math, Some(expected));
+    }
+
+    #[test]
+    fn a_gap_after_a_parenthesis_is_kept() {
+        let mut close = glyph(")", 1, 10.0, 100.0, 10.0, None);
+        close.x1 = 14.0;
+        let mut word = glyph("w", 1, 24.0, 100.0, 10.0, None);
+        word.space_before = true;
+        let math = rebuild(vec![close, word], &[]);
+        let expected = MathNode::Row(vec![
+            operator(")"),
+            MathNode::Space(1.0),
+            MathNode::Ident {
+                text: "w".into(),
+                upright: true,
+            },
+        ]);
+        assert_eq!(math, Some(expected));
     }
 
     #[test]
